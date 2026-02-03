@@ -1,15 +1,19 @@
 package org.duckdns.dorandoran.callaiassistant
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
@@ -26,27 +30,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import org.duckdns.dorandoran.callaiassistant.ui.screens.CallHistoryScreen
+import org.duckdns.dorandoran.callaiassistant.DefaultDialerHelper
 import org.duckdns.dorandoran.callaiassistant.ui.screens.DialerScreen
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 
 class MainActivity : ComponentActivity() {
 
-    private val requiredPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        arrayOf(
-            Manifest.permission.CALL_PHONE,
-            Manifest.permission.READ_CALL_LOG,
-            Manifest.permission.READ_CONTACTS
-        )
-    } else {
-        arrayOf(
-            Manifest.permission.CALL_PHONE,
-            Manifest.permission.READ_CALL_LOG,
-            Manifest.permission.READ_CONTACTS
-        )
-    }
+    private val requiredPermissions = arrayOf(
+        Manifest.permission.CALL_PHONE,
+        Manifest.permission.READ_CALL_LOG,
+        Manifest.permission.READ_CONTACTS,
+        Manifest.permission.READ_PHONE_STATE
+    )
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -55,7 +54,12 @@ class MainActivity : ComponentActivity() {
         permissionsState = allGranted
     }
 
+    private val defaultDialerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { /* 결과는 onResume에서 isDefaultDialer로 확인 */ }
+
     private var permissionsState by mutableStateOf(false)
+    private var showAppWithoutDefaultDialer by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,13 +67,29 @@ class MainActivity : ComponentActivity() {
 
         checkPermissions()
 
+        val initialPhoneNumber = intent?.data?.takeIf { it.scheme == "tel" }
+            ?.schemeSpecificPart?.orEmpty()?.filter { c -> c.isDigit() || c == '+' } ?: ""
+
         setContent {
             CallaiassistantTheme {
-                if (permissionsState) {
-                    PhoneAppContent()
-                } else {
-                    PermissionRequestScreen(
+                when {
+                    !permissionsState -> PermissionRequestScreen(
                         onRequestPermission = { requestPermissions() }
+                    )
+                    !showAppWithoutDefaultDialer && !DefaultDialerHelper.isDefaultDialer(this@MainActivity) ->
+                        DefaultDialerRequestScreen(
+                            onRequestDefaultDialer = {
+                                DefaultDialerHelper.requestDefaultDialer(
+                                    this@MainActivity,
+                                    roleRequestLauncher = { intent -> defaultDialerLauncher.launch(intent) }
+                                )
+                            },
+                            onOpenSettings = { DefaultDialerHelper.openDefaultAppsSettings(this@MainActivity) },
+                            onSkip = { showAppWithoutDefaultDialer = true }
+                        )
+                    else -> PhoneAppContent(
+                        activity = this@MainActivity,
+                        initialPhoneNumber = initialPhoneNumber
                     )
                 }
             }
@@ -94,7 +114,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun PhoneAppContent() {
+private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String = "") {
     var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
@@ -118,11 +138,16 @@ private fun PhoneAppContent() {
     ) { innerPadding ->
         when (selectedTab) {
             0 -> DialerScreen(
-                onCallStarted = { /* 통화 대상 표시는 DialerScreen 내부에서 처리 */ },
+                initialPhoneNumber = initialPhoneNumber,
+                onCallStarted = { phoneNumber ->
+                    PhoneCallHelper.makeCall(activity, phoneNumber)
+                },
                 modifier = Modifier.padding(innerPadding)
             )
             1 -> CallHistoryScreen(
-                onCallNumber = { },
+                onCallNumber = { phoneNumber ->
+                    PhoneCallHelper.makeCall(activity, phoneNumber)
+                },
                 modifier = Modifier.padding(innerPadding)
             )
         }
@@ -141,6 +166,45 @@ private fun PermissionRequestScreen(
     ) {
         androidx.compose.material3.Button(onClick = onRequestPermission) {
             Text("전화 권한 허용")
+        }
+    }
+}
+
+@Composable
+private fun DefaultDialerRequestScreen(
+    onRequestDefaultDialer: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onSkip: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        androidx.compose.material3.Card {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "전화 앱 사용을 위해\n기본 전화 앱으로 설정해주세요",
+                    style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                androidx.compose.material3.Button(onClick = onRequestDefaultDialer) {
+                    Text("기본 전화 앱으로 설정")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                androidx.compose.material3.OutlinedButton(onClick = onOpenSettings) {
+                    Text("설정에서 직접 열기")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                androidx.compose.material3.TextButton(onClick = onSkip) {
+                    Text("나중에")
+                }
+            }
         }
     }
 }

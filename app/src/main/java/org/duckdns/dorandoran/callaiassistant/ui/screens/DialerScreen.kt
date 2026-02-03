@@ -28,21 +28,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.duckdns.dorandoran.callaiassistant.PhoneCallHelper
-
 @Composable
 fun DialerScreen(
+    initialPhoneNumber: String = "",
     onCallStarted: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var phoneNumber by remember { mutableStateOf("") }
+    var phoneNumber by remember(initialPhoneNumber) { mutableStateOf(initialPhoneNumber) }
     var lastCalledNumber by remember { mutableStateOf<String?>(null) }
-    val context = LocalContext.current
 
     Column(
         modifier = modifier
@@ -113,8 +110,7 @@ fun DialerScreen(
                     onClick = {
                         if (phoneNumber.isNotBlank()) {
                             lastCalledNumber = formatPhoneNumber(phoneNumber)
-                            onCallStarted(lastCalledNumber!!)
-                            PhoneCallHelper.makeCall(context, phoneNumber)
+                            onCallStarted(phoneNumber)  // 부모에서 실제 전화 걸기
                         }
                     }
                 )

@@ -28,7 +28,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import org.duckdns.dorandoran.callaiassistant.data.CallLogItem
 import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository
@@ -43,7 +42,7 @@ fun CallHistoryScreen(
     onCallNumber: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
+    val context = androidx.compose.ui.platform.LocalContext.current  // CallLogRepository용
     val repository = remember { CallLogRepository(context) }
     var callHistory by remember { mutableStateOf<List<CallLogItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -89,10 +88,7 @@ fun CallHistoryScreen(
                 items(callHistory) { call ->
                     CallHistoryItem(
                         call = call,
-                        onClick = {
-                            onCallNumber(call.phoneNumber)
-                            PhoneCallHelper.makeCall(context, call.phoneNumber)
-                        }
+                        onClick = { onCallNumber(call.phoneNumber) }
                     )
                 }
             }

@@ -49,7 +49,7 @@ class CallLogRepository(private val context: Context) {
                 val cachedName = cursor.getString(nameIndex)
 
                 val contactName = cachedName?.takeIf { it.isNotBlank() }
-                    ?: getContactName(number)
+                    ?: getContactNameSync(number)
 
                 calls.add(
                     CallLogItem(
@@ -67,7 +67,11 @@ class CallLogRepository(private val context: Context) {
         calls
     }
 
-    private fun getContactName(phoneNumber: String): String? {
+    suspend fun getContactName(phoneNumber: String): String? = withContext(Dispatchers.IO) {
+        getContactNameSync(phoneNumber)
+    }
+
+    private fun getContactNameSync(phoneNumber: String): String? {
         if (phoneNumber.isBlank()) return null
         val uri = ContactsContract.PhoneLookup.CONTENT_FILTER_URI.buildUpon()
             .appendPath(phoneNumber)
