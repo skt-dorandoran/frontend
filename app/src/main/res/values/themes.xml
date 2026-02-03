@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.Callaiassistant" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Callaiassistant" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/light_surface</item>
+        <item name="android:navigationBarColor">@color/light_surface</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:colorBackground">@color/light_background</item>
+        <item name="android:windowBackground">@color/light_background</item>
+        <item name="android:colorPrimary">@color/light_primary</item>
+    </style>
 </resources>

@@ -24,7 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -69,6 +69,7 @@ fun InCallScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -120,6 +121,7 @@ fun InCallScreen(
             text = displayName,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
@@ -129,7 +131,7 @@ fun InCallScreen(
             Text(
                 text = formatPhoneNumber(phoneNumber),
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center
             )
@@ -146,7 +148,7 @@ fun InCallScreen(
                 CallState.ENDED -> "통화 종료"
             },
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center
         )
@@ -209,7 +211,7 @@ fun InCallScreen(
                 Text(
                     text = "통화 받기",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             Spacer(modifier = Modifier.height(24.dp))
@@ -236,7 +238,7 @@ fun InCallScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.VolumeUp,
+                                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
                                 contentDescription = "스피커폰",
                                 modifier = Modifier.size(36.dp),
                                 tint = if (isSpeakerOn) MaterialTheme.colorScheme.onPrimary
@@ -247,7 +249,7 @@ fun InCallScreen(
                         Text(
                             text = "스피커폰",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -273,7 +275,7 @@ fun InCallScreen(
                     Text(
                         text = "통화 종료",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }

@@ -7,4 +7,14 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- 라이트 모드 -->
+    <color name="light_surface">#FFFFFBFE</color>
+    <color name="light_background">#FFFFFBFE</color>
+    <color name="light_primary">#FF6650A4</color>
+
+    <!-- 다크 모드 -->
+    <color name="dark_surface">#FF1C1B1F</color>
+    <color name="dark_background">#FF1C1B1F</color>
+    <color name="dark_primary">#FFD0BCFF</color>
 </resources>
