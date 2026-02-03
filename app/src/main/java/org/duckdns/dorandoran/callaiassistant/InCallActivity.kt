@@ -69,7 +69,8 @@ private fun InCallContent(onFinish: () -> Unit) {
         val callback = object : Call.Callback() {
             override fun onStateChanged(c: Call, state: Int) {
                 callState = when (state) {
-                    Call.STATE_DIALING, Call.STATE_RINGING -> CallState.DIALING
+                    Call.STATE_DIALING -> CallState.DIALING
+                    Call.STATE_RINGING -> CallState.RINGING
                     Call.STATE_ACTIVE -> {
                         callStartTime = System.currentTimeMillis()
                         CallState.ACTIVE
@@ -84,6 +85,7 @@ private fun InCallContent(onFinish: () -> Unit) {
         }
         call.registerCallback(callback)
         callState = when (call.state) {
+            Call.STATE_RINGING -> CallState.RINGING
             Call.STATE_ACTIVE -> {
                 callStartTime = System.currentTimeMillis()
                 CallState.ACTIVE
@@ -107,6 +109,7 @@ private fun InCallContent(onFinish: () -> Unit) {
         contactName = contactName,
         callState = callState,
         callDurationSeconds = callDuration,
+        onAnswerCall = { InCallManager.answer(call) },
         onEndCall = {
             InCallManager.disconnect(call)
             onFinish()

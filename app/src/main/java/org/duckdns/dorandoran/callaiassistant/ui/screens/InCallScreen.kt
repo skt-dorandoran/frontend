@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -34,7 +35,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 enum class CallState {
-    DIALING,    // 연결 중
+    DIALING,    // 발신 연결 중
+    RINGING,    // 수신 전화 벨 울림
     ACTIVE,     // 통화 중
     ENDED       // 통화 종료
 }
@@ -45,6 +47,7 @@ fun InCallScreen(
     contactName: String?,
     callState: CallState,
     callDurationSeconds: Long,
+    onAnswerCall: (() -> Unit)? = null,
     onEndCall: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -68,7 +71,7 @@ fun InCallScreen(
             contentAlignment = Alignment.Center
         ) {
             when (callState) {
-                CallState.DIALING -> {
+                CallState.DIALING, CallState.RINGING -> {
                     val infiniteTransition = rememberInfiniteTransition(label = "dialing")
                     val alpha by infiniteTransition.animateFloat(
                         initialValue = 0.3f,
@@ -125,6 +128,7 @@ fun InCallScreen(
         Text(
             text = when (callState) {
                 CallState.DIALING -> "연결 중..."
+                CallState.RINGING -> "전화가 왔습니다"
                 CallState.ACTIVE -> formatDuration(callDurationSeconds)
                 CallState.ENDED -> "통화 종료"
             },
@@ -135,6 +139,34 @@ fun InCallScreen(
         )
 
         Spacer(modifier = Modifier.weight(1f))
+
+        // 통화 받기 버튼 (수신 전화 시에만 표시)
+        if (callState == CallState.RINGING && onAnswerCall != null) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary)
+                        .clickable(onClick = onAnswerCall),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Call,
+                        contentDescription = "통화 받기",
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "통화 받기",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
 
         // 통화 종료 버튼
         if (callState != CallState.ENDED) {
@@ -147,10 +179,11 @@ fun InCallScreen(
                         .clickable(onClick = onEndCall),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "✕",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onError
+                    Icon(
+                        imageVector = Icons.Default.CallEnd,
+                        contentDescription = "통화 종료",
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.onError
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
