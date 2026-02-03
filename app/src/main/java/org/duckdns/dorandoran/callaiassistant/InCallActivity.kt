@@ -1,5 +1,6 @@
 package org.duckdns.dorandoran.callaiassistant
 
+import android.media.AudioManager
 import android.os.Bundle
 import android.telecom.Call
 import androidx.activity.ComponentActivity
@@ -22,6 +23,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.delay
 import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository
+import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.ui.screens.CallState
 import org.duckdns.dorandoran.callaiassistant.ui.screens.InCallScreen
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
@@ -74,9 +76,12 @@ private fun InCallContent(onFinish: () -> Unit) {
     var callDuration by remember { mutableLongStateOf(0L) }
     var callState by remember { mutableStateOf(CallState.DIALING) }
     var callStartTime by remember { mutableStateOf<Long?>(null) }
+    var tts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
+    var ttsReady by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val repository = remember { CallLogRepository(context) }
+    val audioManager = remember { context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager }
 
     if (call == null) {
         LaunchedEffect(Unit) { onFinish() }
@@ -119,6 +124,25 @@ private fun InCallContent(onFinish: () -> Unit) {
         onDispose { call.unregisterCallback(callback) }
     }
 
+    // 통화 연결 시 TTS 초기화
+    LaunchedEffect(callState) {
+        if (callState == CallState.ACTIVE && tts == null) {
+            tts = TtsManager.initializeForCall(
+                context,
+                onReady = { t ->
+                    tts = t
+                    ttsReady = true
+                }
+            )
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            TtsManager.shutdown(tts)
+        }
+    }
+
     LaunchedEffect(callState, callStartTime) {
         while (callState == CallState.ACTIVE && callStartTime != null) {
             delay(1000)
@@ -134,6 +158,9 @@ private fun InCallContent(onFinish: () -> Unit) {
         callState = callState,
         callDurationSeconds = callDuration,
         onAnswerCall = { InCallManager.answer(call) },
+        onSpeakText = if (ttsReady && tts != null) {
+            { text -> tts?.let { TtsManager.speak(it, text, audioManager) } }
+        } else null,
         onEndCall = {
             InCallManager.disconnect(call)
             onFinish()

@@ -11,21 +11,29 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,9 +56,11 @@ fun InCallScreen(
     callState: CallState,
     callDurationSeconds: Long,
     onAnswerCall: (() -> Unit)? = null,
+    onSpeakText: ((String) -> Unit)? = null,
     onEndCall: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var ttsInputText by remember { mutableStateOf("") }
     val displayName = contactName?.takeIf { it.isNotBlank() } ?: formatPhoneNumber(phoneNumber)
 
     Column(
@@ -137,6 +147,40 @@ fun InCallScreen(
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center
         )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // TTS 입력창 (통화 중일 때만 표시)
+        if (callState == CallState.ACTIVE && onSpeakText != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = ttsInputText,
+                    onValueChange = { ttsInputText = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("텍스트를 입력하세요") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                TextButton(
+                    onClick = {
+                        val text = ttsInputText.trim()
+                        if (text.isNotBlank()) {
+                            onSpeakText(text)
+                            ttsInputText = ""
+                        }
+                    }
+                ) {
+                    Text("입력")
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
         Spacer(modifier = Modifier.weight(1f))
 
