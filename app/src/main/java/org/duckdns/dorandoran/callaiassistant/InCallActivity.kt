@@ -24,6 +24,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.delay
 import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
+import org.duckdns.dorandoran.callaiassistant.CallAudioHelper
+import org.duckdns.dorandoran.callaiassistant.InCallManager
 import org.duckdns.dorandoran.callaiassistant.ui.screens.CallState
 import org.duckdns.dorandoran.callaiassistant.ui.screens.InCallScreen
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
@@ -76,12 +78,12 @@ private fun InCallContent(onFinish: () -> Unit) {
     var callDuration by remember { mutableLongStateOf(0L) }
     var callState by remember { mutableStateOf(CallState.DIALING) }
     var callStartTime by remember { mutableStateOf<Long?>(null) }
-    var tts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
-    var ttsReady by remember { mutableStateOf(false) }
-
     val context = LocalContext.current
     val repository = remember { CallLogRepository(context) }
     val audioManager = remember { context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager }
+    var tts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
+    var ttsReady by remember { mutableStateOf(false) }
+    val isSpeakerOn by InCallManager.speakerState
 
     if (call == null) {
         LaunchedEffect(Unit) { onFinish() }
@@ -124,22 +126,28 @@ private fun InCallContent(onFinish: () -> Unit) {
         onDispose { call.unregisterCallback(callback) }
     }
 
-    // 통화 연결 시 TTS 초기화
+    // 통화 연결 시 오디오 모드 및 TTS 초기화
     LaunchedEffect(callState) {
-        if (callState == CallState.ACTIVE && tts == null) {
-            tts = TtsManager.initializeForCall(
+        if (callState == CallState.ACTIVE) {
+            CallAudioHelper.setCallAudioMode(audioManager)
+        }
+        if (callState == CallState.ACTIVE) {
+            if (tts == null) {
+                tts = TtsManager.initializeForCall(
                 context,
                 onReady = { t ->
                     tts = t
                     ttsReady = true
-                }
-            )
+                    }
+                )
+            }
         }
     }
 
     DisposableEffect(Unit) {
         onDispose {
             TtsManager.shutdown(tts)
+            CallAudioHelper.restoreAudioMode(audioManager)
         }
     }
 
@@ -161,6 +169,8 @@ private fun InCallContent(onFinish: () -> Unit) {
         onSpeakText = if (ttsReady && tts != null) {
             { text -> tts?.let { TtsManager.speak(it, text, audioManager) } }
         } else null,
+        isSpeakerOn = isSpeakerOn,
+        onToggleSpeaker = { InCallManager.setSpeakerphone(!isSpeakerOn) },
         onEndCall = {
             InCallManager.disconnect(call)
             onFinish()

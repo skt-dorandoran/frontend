@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -57,6 +58,8 @@ fun InCallScreen(
     callDurationSeconds: Long,
     onAnswerCall: (() -> Unit)? = null,
     onSpeakText: ((String) -> Unit)? = null,
+    isSpeakerOn: Boolean = false,
+    onToggleSpeaker: (() -> Unit)? = null,
     onEndCall: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -212,30 +215,67 @@ fun InCallScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
 
-        // 통화 종료 버튼
+        // 스피커폰 / 통화 종료 버튼
         if (callState != CallState.ENDED) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.error)
-                        .clickable(onClick = onEndCall),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CallEnd,
-                        contentDescription = "통화 종료",
-                        modifier = Modifier.size(36.dp),
-                        tint = MaterialTheme.colorScheme.onError
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(32.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 스피커폰 버튼 (통화 중일 때만)
+                if (callState == CallState.ACTIVE && onToggleSpeaker != null) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isSpeakerOn) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                .clickable(onClick = onToggleSpeaker),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VolumeUp,
+                                contentDescription = "스피커폰",
+                                modifier = Modifier.size(36.dp),
+                                tint = if (isSpeakerOn) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "스피커폰",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // 통화 종료 버튼
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error)
+                            .clickable(onClick = onEndCall),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CallEnd,
+                            contentDescription = "통화 종료",
+                            modifier = Modifier.size(36.dp),
+                            tint = MaterialTheme.colorScheme.onError
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "통화 종료",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "통화 종료",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
     }
