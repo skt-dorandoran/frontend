@@ -55,7 +55,6 @@
             android:name=".InCallActivity"
             android:exported="false"
             android:theme="@style/Theme.Callaiassistant"
-            android:excludeFromRecents="true"
             android:launchMode="singleInstance" />
 
         <service

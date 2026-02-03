@@ -21,7 +21,7 @@ class AppInCallService : InCallService() {
         val intent = Intent(this, InCallActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
+            // NO_HISTORY 제거: 홈 버튼 후 최근 작업에서 복귀 가능하도록
         }
         startActivity(intent)
     }
