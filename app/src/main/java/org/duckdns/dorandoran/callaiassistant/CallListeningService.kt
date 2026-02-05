@@ -88,16 +88,37 @@ class CallListeningService : Service() {
         createIncomingCallChannel()
         android.util.Log.d("CallListeningService", "showIncomingCall: callId=$callId, roomId=$roomId")
         
-            // WakeLock 획득 - 기기 화면 켜기
-            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-            if (wakeLock == null) {
-                wakeLock = powerManager.newWakeLock(
-                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                    "CallListeningService:IncomingCall"
-                ).apply {
-                    acquire(3000L) // 3초간 유지
-                }
+        // WakeLock 획득 - 기기 화면 켜기
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (wakeLock == null) {
+            wakeLock = powerManager.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "CallListeningService:IncomingCall"
+            ).apply {
+                acquire(3000L) // 3초간 유지
             }
+        }
+        
+        // InCallActivity를 직접 시작 (full-screen intent의 보완)
+        try {
+            val directIntent = Intent(this, InCallActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                    addFlags(0x00000800) // FLAG_ACTIVITY_SHOW_WHEN_LOCKED
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    addFlags(0x04000000) // FLAG_ACTIVITY_SYSTEM_ALERT_WINDOW 대안으로 사용
+                }
+                action = ACTION_INCOMING_CALL
+                putExtra(EXTRA_CALL_ID, callId)
+                putExtra(EXTRA_ROOM_ID, roomId)
+            }
+            startActivity(directIntent)
+            android.util.Log.d("CallListeningService", "InCallActivity started directly")
+        } catch (e: Exception) {
+            android.util.Log.w("CallListeningService", "Failed to start InCallActivity directly: ${e.message}")
+        }
         
         val fullScreenIntent = Intent(this, InCallActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -131,6 +152,30 @@ class CallListeningService : Service() {
         
         val contentPendingIntent = PendingIntent.getActivity(
             this, 1, contentIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        // 알림 액션 - 받기 버튼
+        val acceptIntent = Intent(this, InCallActivity::class.java).apply {
+            action = "ACCEPT_CALL"
+            putExtra(EXTRA_CALL_ID, callId)
+            putExtra(EXTRA_ROOM_ID, roomId)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val acceptPendingIntent = PendingIntent.getActivity(
+            this, callId.hashCode(), acceptIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        // 알림 액션 - 거절 버튼
+        val rejectIntent = Intent(this, InCallActivity::class.java).apply {
+            action = "REJECT_CALL"
+            putExtra(EXTRA_CALL_ID, callId)
+            putExtra(EXTRA_ROOM_ID, roomId)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val rejectPendingIntent = PendingIntent.getActivity(
+            this, (callId + "reject").hashCode(), rejectIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
