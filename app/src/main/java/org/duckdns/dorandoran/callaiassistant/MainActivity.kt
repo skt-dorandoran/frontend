@@ -82,8 +82,6 @@ class MainActivity : ComponentActivity() {
 
     private var permissionsState by mutableStateOf(false)
     private var showAppWithoutDefaultDialer by mutableStateOf(false)
-    // 인텐트 기반 자동 수락 처리용(서비스/브로드캐스트로 전달된 자동수락 인텐트를 보관)
-    var pendingAutoAcceptIntent: Intent? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -98,11 +96,6 @@ class MainActivity : ComponentActivity() {
             ?.schemeSpecificPart?.orEmpty()?.filter { c -> c.isDigit() || c == '+' } ?: ""
 
         handleIncomingCallIntent(intent)
-        
-        // auto_accept 플래그가 있으면 pendingAutoAcceptIntent 설정
-        if (intent?.getBooleanExtra("auto_accept", false) == true) {
-            pendingAutoAcceptIntent = intent
-        }
 
         setContent {
             CallaiassistantTheme {
@@ -147,12 +140,6 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         android.util.Log.d("MainActivity", "onNewIntent: action=${intent.action}")
         handleIncomingCallIntent(intent)
-        // 자동 수락 요청이 포함되어 있으면 보관하여 Compose에서 처리하도록 함
-        if (intent.getBooleanExtra("auto_accept", false)) {
-            pendingAutoAcceptIntent = intent
-        }
-        // moveTaskToFront는 REORDER_TASKS 권한이 필요하므로 제거
-        // 대신 notification의 full-screen intent가 activity를 foreground로 가져옴
     }
     
     override fun onResume() {
@@ -215,35 +202,6 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
 
     LaunchedEffect(incomingCall) {
         showIncomingCall = incomingCall != null
-    }
-
-    // 자동 수락 인텐트를 Compose에서 처리: MainActivity.pendingAutoAcceptIntent을 감지하여
-    // 실제 수락 흐름을 실행 (webrtcManager 및 callAudioManager 인스턴스가 여기서 생성됨)
-    val autoAcceptIntent = remember { activity.pendingAutoAcceptIntent }
-    LaunchedEffect(activity.pendingAutoAcceptIntent) {
-        val intent = activity.pendingAutoAcceptIntent
-        if (intent != null && intent.getBooleanExtra("auto_accept", false)) {
-            val callId = intent.getStringExtra(CallListeningService.EXTRA_CALL_ID) ?: return@LaunchedEffect
-            // 알림 제거
-            val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-            notificationManager?.cancel(1002)
-            activity.startService(Intent(activity, CallListeningService::class.java).apply {
-                action = CallListeningService.ACTION_CALL_HANDLED
-            })
-            // 시그널링/오디오/웨브RTC 시작
-            // 서버 요구사항: listening 소켓에서 먼저 accept 전송
-            callSignalingManager.acceptCall(callId)
-            // 리스닝 소켓은 종료하지 않고 그대로 유지하여 서버가 peer_left를
-            // 브로드캐스트하지 않도록 한다. 연결 종료 시 서비스에서 다시
-            // 리스닝을 재시작/정리한다.
-            callAudioManager.start()
-            webrtcPhoneNumber = "상대방"
-            webRtcManager.joinAsCallee(callId)
-            showIncomingCall = false
-            showWebRtcCall = true
-            // 처리 완료
-            activity.pendingAutoAcceptIntent = null
-        }
     }
 
     if (callRejectedMessage) {

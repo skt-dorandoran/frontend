@@ -29,6 +29,9 @@ class CallListeningService : Service() {
         const val ACTION_CALL_HANDLED = "org.duckdns.dorandoran.CALL_HANDLED"
         const val EXTRA_CALL_ID = "call_id"
         const val EXTRA_ROOM_ID = "room_id"
+        private const val INCOMING_DEBOUNCE_MS = 1500L
+        private var lastIncomingCallId: String? = null
+        private var lastIncomingAt: Long = 0L
     }
         private var wakeLock: PowerManager.WakeLock? = null
 
@@ -86,6 +89,13 @@ class CallListeningService : Service() {
 
     private fun showIncomingCall(callId: String, roomId: String) {
         createIncomingCallChannel()
+        val now = System.currentTimeMillis()
+        if (lastIncomingCallId == callId && (now - lastIncomingAt) < INCOMING_DEBOUNCE_MS) {
+            android.util.Log.d("CallListeningService", "Duplicate incoming ignored: callId=$callId")
+            return
+        }
+        lastIncomingCallId = callId
+        lastIncomingAt = now
         android.util.Log.d("CallListeningService", "showIncomingCall: callId=$callId, roomId=$roomId")
         
         // WakeLock 획득 - 기기 화면 켜기
@@ -102,17 +112,22 @@ class CallListeningService : Service() {
         // InCallActivity 직접 시작 (백그라운드에서 full-screen intent 제약 극복)
         Handler(Looper.getMainLooper()).post {
             try {
+                if (InCallActivity.isVisible) {
+                    android.util.Log.d("CallListeningService", "InCallActivity already visible - skip direct start")
+                } else {
                 val directIntent = Intent(this, InCallActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                        addFlags(0x00000800) // FLAG_ACTIVITY_SHOW_WHEN_LOCKED
-                    }
+                    addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    // 잠금화면에서도 활동 표시 (권한 필요 없음)
+                    addFlags(0x00000800) // FLAG_ACTIVITY_SHOW_WHEN_LOCKED
+                    addFlags(0x00080000) // FLAG_ACTIVITY_TURN_SCREEN_ON
                     action = ACTION_INCOMING_CALL
                     putExtra(EXTRA_CALL_ID, callId)
                     putExtra(EXTRA_ROOM_ID, roomId)
                 }
                 startActivity(directIntent)
                 android.util.Log.d("CallListeningService", "InCallActivity started directly")
+                }
             } catch (e: Exception) {
                 android.util.Log.w("CallListeningService", "Failed to start InCallActivity: ${e.message}")
             }

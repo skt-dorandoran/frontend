@@ -43,6 +43,8 @@ class CallSignalingManager(private val context: Context) {
 
     /** 현재 호출자(caller) 상태 - incoming 메시지 필터링용 */
     private var isCaller = false
+    /** 수락 완료된 callId (중복 incoming 무시용) */
+    private var acceptedCallId: String? = null
 
     data class IncomingCallInfo(val callId: String, val roomId: String)
 
@@ -128,6 +130,19 @@ class CallSignalingManager(private val context: Context) {
                     }
                     val callId = msg.optString("callId", "")
                     val roomId = msg.optString("roomId", WEBRTC_ROOM_ID)
+                    if (acceptedCallId == callId) {
+                        Log.d(TAG, "Incoming ignored (already accepted): callId=$callId")
+                        return
+                    }
+                    val current = _incomingCall.value
+                    if (current != null) {
+                        if (current.callId == callId) {
+                            Log.d(TAG, "Duplicate incoming ignored: callId=$callId")
+                            return
+                        }
+                        Log.d(TAG, "Incoming ignored (already has pending call): callId=$callId")
+                        return
+                    }
                     if (callId.isNotEmpty()) {
                         val info = IncomingCallInfo(callId, roomId)
                         _incomingCall.value = info
@@ -151,6 +166,7 @@ class CallSignalingManager(private val context: Context) {
                 "peer_left" -> {
                     Log.d(TAG, "peer_left received, clearing incoming state")
                     _incomingCall.value = null
+                    acceptedCallId = null
                     onRemoteHangup?.invoke()    // 원격 hangup 콜백 호출
                     onCallEnded?.invoke()       // 통화 종료 콜백 호출
                 }
@@ -175,6 +191,7 @@ class CallSignalingManager(private val context: Context) {
             put("callId", callId)
         }.toString())
         _incomingCall.value = null
+        acceptedCallId = null
         Log.d(TAG, "Reject sent: $callId")
         
         // 통화 종료 콜백 호출 (알림 취소 등)
@@ -187,6 +204,7 @@ class CallSignalingManager(private val context: Context) {
             Log.w(TAG, "Cannot accept call: not listening (no websocket)")
             return
         }
+        acceptedCallId = callId
         ws.send(JSONObject().apply {
             put("type", "accept")
             put("roomId", WEBRTC_ROOM_ID)
@@ -224,6 +242,7 @@ class CallSignalingManager(private val context: Context) {
      */
     fun handleRemoteHangup() {
         _incomingCall.value = null
+        acceptedCallId = null
         onRemoteHangup?.invoke()
         onCallEnded?.invoke()
         Log.d(TAG, "Remote hangup handled - incoming call cleared")
@@ -269,6 +288,7 @@ class CallSignalingManager(private val context: Context) {
      */
     fun clearIncoming() {
         _incomingCall.value = null
+        acceptedCallId = null
     }
 
     /**

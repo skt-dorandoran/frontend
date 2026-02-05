@@ -30,22 +30,39 @@ import org.duckdns.dorandoran.callaiassistant.CallAudioHelper
 import org.duckdns.dorandoran.callaiassistant.InCallManager
 import org.duckdns.dorandoran.callaiassistant.ui.screens.CallState
 import org.duckdns.dorandoran.callaiassistant.ui.screens.InCallScreen
+import org.duckdns.dorandoran.callaiassistant.ui.screens.WebRtcInCallScreen
+import org.duckdns.dorandoran.callaiassistant.webrtc.CallAudioManager
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
+import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 
 class InCallActivity : ComponentActivity() {
+    companion object {
+        @Volatile
+        var isVisible: Boolean = false
+    }
+    // 다이얼 화면에서 시작되었는지 추적 (통화 종료 후 다이얼 화면 복귀 여부 결정)
+    private var isFromDialer = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 잠금 화면 위에 표시 및 화면 켜기 설정 (API별 호환 처리)
+        // 잠금 화면 위에 표시 및 화면 켜기 설정 (API별 호환 처리, 권한 필요 없음)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
         } else {
+            @Suppress("DEPRECATION")
             window.addFlags(
                 android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                        android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                android.view.WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
             )
         }
+        // 추가: 화면 끄기 방지 (선택사항)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        
+        // 다이얼 화면에서 시작되었는지 확인
+        isFromDialer = intent?.getBooleanExtra("from_dialer", false) ?: false
+        
         // 인텐트로 전달된 수신 전화 정보를 시그널링 매니저에 설정
         if (intent?.action == CallListeningService.ACTION_INCOMING_CALL) {
             val callId = intent.getStringExtra(CallListeningService.EXTRA_CALL_ID) ?: ""
@@ -76,18 +93,34 @@ class InCallActivity : ComponentActivity() {
         setContent {
             CallaiassistantTheme {
                 val callSignalingManager = (application as? CallApp)?.callSignalingManager
+                val callAudioManager = remember { CallAudioManager(applicationContext) }
+                val webRtcManager = remember {
+                    callSignalingManager?.let { WebRtcManager(applicationContext, it) }
+                }
+                var isAccepting by remember { mutableStateOf(false) }
+                var isAccepted by remember { mutableStateOf(false) }
                 val incomingCallState = callSignalingManager?.incomingCall
                 val incomingCall by incomingCallState?.collectAsState() ?: remember { mutableStateOf(null) }
 
                 // 원격에서 hangup을 받아 incomingCall이 null이 된 경우 액티비티 종료
-                LaunchedEffect(incomingCall) {
-                    if (incomingCall == null && window.attributes.type != android.view.WindowManager.LayoutParams.TYPE_APPLICATION) {
-                        // 수신 알림 상태에서 incomingCall이 null이 되면 종료
-                        finish()
+                LaunchedEffect(incomingCall, isAccepting, isAccepted) {
+                    if (incomingCall == null && !isAccepted) {
+                        if (isAccepting) {
+                            delay(1500)
+                            val hasCall = InCallManager.getPrimaryCall() != null
+                            isAccepting = false
+                            if (!hasCall) {
+                                // 수락 실패 시 종료
+                                finish()
+                            }
+                        } else if (InCallManager.getPrimaryCall() == null) {
+                            // 수신 알림 상태에서 incomingCall이 null이고 실제 통화도 없으면 종료
+                            finish()
+                        }
                     }
                 }
 
-                if (incomingCall != null) {
+                if (incomingCall != null && !isAccepted) {
                     val info = incomingCall!!
                     org.duckdns.dorandoran.callaiassistant.ui.screens.IncomingCallScreen(
                         callerName = "상대방",
@@ -95,19 +128,12 @@ class InCallActivity : ComponentActivity() {
                             startService(Intent(this@InCallActivity, CallListeningService::class.java).apply {
                                 action = CallListeningService.ACTION_CALL_HANDLED
                             })
-                            // MainActivity로 포그라운드 이동 및 자동 수락 요청
-                            // pendingAutoAcceptIntent를 설정하여 새로운 InCallActivity가 띄워지지 않도록 함
-                            val intent = Intent(this@InCallActivity, MainActivity::class.java).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                                // action을 설정하지 않음 (handleIncomingCallIntent 트리거 방지)
-                                putExtra(CallListeningService.EXTRA_CALL_ID, info.callId)
-                                putExtra(CallListeningService.EXTRA_ROOM_ID, info.roomId)
-                                putExtra("auto_accept", true)
-                            }
-                            startActivity(intent)
-                            finish()
+                            // InCallActivity에서 바로 전화 받기 (MainActivity로 이동하지 않음)
+                            callSignalingManager?.acceptCall(info.callId)
+                            isAccepting = true
+                            isAccepted = true
+                            callAudioManager.start()
+                            webRtcManager?.joinAsCallee(info.callId)
                         },
                         onReject = {
                             startService(Intent(this@InCallActivity, CallListeningService::class.java).apply {
@@ -118,9 +144,56 @@ class InCallActivity : ComponentActivity() {
                             finish()
                         }
                     )
+                } else if (isAccepted) {
+                    WebRtcCallContent(
+                        webRtcManager = webRtcManager,
+                        callAudioManager = callAudioManager,
+                        onEndCall = {
+                            callAudioManager.stop()
+                            webRtcManager?.hangup()
+                            callSignalingManager?.clearIncoming()
+                            callSignalingManager?.clearCallerMode()
+                            callSignalingManager?.startListening()
+                            startCallListeningService()
+                            if (isFromDialer) {
+                                val intent = Intent(this@InCallActivity, MainActivity::class.java).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                    addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                                }
+                                startActivity(intent)
+                            }
+                            finish()
+                        },
+                        onRemoteDisconnected = {
+                            callAudioManager.stop()
+                            webRtcManager?.hangup()
+                            callSignalingManager?.clearIncoming()
+                            callSignalingManager?.clearCallerMode()
+                            callSignalingManager?.startListening()
+                            startCallListeningService()
+                            if (isFromDialer) {
+                                val intent = Intent(this@InCallActivity, MainActivity::class.java).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                    addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                                }
+                                startActivity(intent)
+                            }
+                            finish()
+                        }
+                    )
                 } else {
                     InCallContent(
-                        onFinish = { finish() }
+                        onFinish = { 
+                            // 다이얼 화면에서 시작된 경우만 다이얼 화면으로 복귀
+                            if (isFromDialer) {
+                                val intent = Intent(this@InCallActivity, MainActivity::class.java).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                    addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                                }
+                                startActivity(intent)
+                            }
+                            finish()
+                        }
                     )
                 }
             }
@@ -137,6 +210,66 @@ class InCallActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onStart() {
+        super.onStart()
+        isVisible = true
+    }
+
+    override fun onStop() {
+        super.onStop()
+        isVisible = false
+    }
+
+    private fun startCallListeningService() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            startForegroundService(Intent(this, CallListeningService::class.java))
+        } else {
+            startService(Intent(this, CallListeningService::class.java))
+        }
+    }
+}
+
+@Composable
+private fun WebRtcCallContent(
+    webRtcManager: WebRtcManager?,
+    callAudioManager: CallAudioManager,
+    onEndCall: () -> Unit,
+    onRemoteDisconnected: () -> Unit
+) {
+    val manager = webRtcManager ?: run {
+        LaunchedEffect(Unit) { onEndCall() }
+        return
+    }
+    val connectionState by manager.connectionState.collectAsState()
+    var callDuration by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(Unit) {
+        manager.onRemoteDisconnected = { onRemoteDisconnected() }
+    }
+
+    LaunchedEffect(connectionState) {
+        if (connectionState == org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState.IN_CALL) {
+            while (true) {
+                delay(1000)
+                callDuration += 1
+            }
+        } else {
+            callDuration = 0L
+        }
+    }
+
+    val logMessages by manager.logMessages.collectAsState()
+    WebRtcInCallScreen(
+        phoneNumber = "상대방",
+        connectionState = connectionState,
+        callDurationSeconds = callDuration,
+        logMessages = logMessages,
+        onEndCall = onEndCall,
+        onSpeakerphoneToggle = { isOn ->
+            callAudioManager.setSpeakerphone(isOn)
+        }
+    )
 }
 
 @Composable
