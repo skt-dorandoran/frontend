@@ -80,6 +80,7 @@ class MainActivity : ComponentActivity() {
     ) { permissions ->
         val allGranted = permissions.values.all { it }
         permissionsState = allGranted
+        savePermissionsRequested()
     }
 
     private val defaultDialerLauncher = registerForActivityResult(
@@ -88,12 +89,14 @@ class MainActivity : ComponentActivity() {
 
     private var permissionsState by mutableStateOf(false)
     private var showAppWithoutDefaultDialer by mutableStateOf(false)
+    private var hasRequestedPermissions by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         checkPermissions()
+        hasRequestedPermissions = loadPermissionsRequested()
         
         // 앱 시작 시 CallListeningService 시작 (백그라운드 청취용)
         startCallListeningService()
@@ -107,8 +110,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             CallaiassistantTheme {
                 when {
-                    !permissionsState -> PermissionRequestScreen(
-                        onRequestPermission = { requestPermissions() }
+                    !permissionsState || !hasRequestedPermissions -> PermissionRequestScreen(
+                        onRequestPermission = {
+                            hasRequestedPermissions = true
+                            savePermissionsRequested()
+                            requestPermissions()
+                        }
                     )
                     !showAppWithoutDefaultDialer && !DefaultDialerHelper.isDefaultDialer(this@MainActivity) ->
                         DefaultDialerRequestScreen(
@@ -136,6 +143,18 @@ class MainActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         }
         permissionsState = allGranted
+    }
+
+    private fun loadPermissionsRequested(): Boolean {
+        return getSharedPreferences("app_prefs", MODE_PRIVATE)
+            .getBoolean("has_requested_permissions", false)
+    }
+
+    private fun savePermissionsRequested() {
+        getSharedPreferences("app_prefs", MODE_PRIVATE)
+            .edit()
+            .putBoolean("has_requested_permissions", true)
+            .apply()
     }
 
     private fun requestPermissions() {

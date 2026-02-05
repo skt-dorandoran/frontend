@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
+import android.content.Intent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 
 class VoiceCloneSettingsActivity : ComponentActivity() {
@@ -46,6 +48,7 @@ class VoiceCloneSettingsActivity : ComponentActivity() {
 
 @Composable
 private fun VoiceCloneSettingsContent(onBack: () -> Unit) {
+    val context = LocalContext.current
     var isVoiceCloneEnabled by remember { mutableStateOf(false) }
     var isVoiceTrained by remember { mutableStateOf(false) }
 
@@ -113,7 +116,8 @@ private fun VoiceCloneSettingsContent(onBack: () -> Unit) {
                 if (!isVoiceTrained) {
                     Button(
                         onClick = {
-                            isVoiceTrained = true
+                            val intent = Intent(context, VoiceTrainingActivity::class.java)
+                            context.startActivity(intent)
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {

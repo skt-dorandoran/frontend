@@ -105,6 +105,13 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.Callaiassistant" />
 
+        <activity
+            android:name=".VoiceTrainingActivity"
+            android:exported="false"
+            android:label="내 목소리 학습"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Callaiassistant" />
+
         <service
             android:name=".CallListeningService"
             android:enabled="true"
