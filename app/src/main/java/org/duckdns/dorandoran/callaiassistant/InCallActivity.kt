@@ -84,6 +84,9 @@ class InCallActivity : ComponentActivity() {
                     org.duckdns.dorandoran.callaiassistant.ui.screens.IncomingCallScreen(
                         callerName = "상대방",
                         onAccept = {
+                            startService(Intent(this@InCallActivity, CallListeningService::class.java).apply {
+                                action = CallListeningService.ACTION_CALL_HANDLED
+                            })
                             // MainActivity로 포그라운드 이동 및 자동 수락 요청
                             val intent = Intent(this@InCallActivity, MainActivity::class.java).apply {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -98,6 +101,9 @@ class InCallActivity : ComponentActivity() {
                             finish()
                         },
                         onReject = {
+                            startService(Intent(this@InCallActivity, CallListeningService::class.java).apply {
+                                action = CallListeningService.ACTION_CALL_HANDLED
+                            })
                             // 거절 전송 후 종료
                             info.callId.let { id -> callSignalingManager?.rejectCall(id) }
                             finish()

@@ -209,6 +209,9 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
             // 알림 제거
             val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             notificationManager?.cancel(1002)
+            activity.startService(Intent(activity, CallListeningService::class.java).apply {
+                action = CallListeningService.ACTION_CALL_HANDLED
+            })
             // 시그널링/오디오/웨브RTC 시작
             // 서버 요구사항: listening 소켓에서 먼저 accept 전송
             callSignalingManager.acceptCall(callId)
@@ -305,6 +308,9 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
                 // 알림 제거
                 val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
                 notificationManager?.cancel(1002)
+                activity.startService(Intent(activity, CallListeningService::class.java).apply {
+                    action = CallListeningService.ACTION_CALL_HANDLED
+                })
                 // accept는 listening 소켓에서 보내야 함
                 coroutineScope.launch {
                     callSignalingManager.acceptCall(info.callId)
@@ -321,6 +327,9 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
                 // 알림 제거
                 val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
                 notificationManager?.cancel(1002)
+                activity.startService(Intent(activity, CallListeningService::class.java).apply {
+                    action = CallListeningService.ACTION_CALL_HANDLED
+                })
                 callSignalingManager.rejectCall(info.callId)
                 callSignalingManager.clearIncoming()
                 showIncomingCall = false

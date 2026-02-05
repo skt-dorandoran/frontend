@@ -26,17 +26,33 @@ class CallListeningService : Service() {
         private const val CHANNEL_ID_INCOMING = "incoming_call"
         const val NOTIFICATION_ID = 1001
         const val ACTION_INCOMING_CALL = "org.duckdns.dorandoran.INCOMING_CALL"
+        const val ACTION_CALL_HANDLED = "org.duckdns.dorandoran.CALL_HANDLED"
         const val EXTRA_CALL_ID = "call_id"
         const val EXTRA_ROOM_ID = "room_id"
     }
         private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_CALL_HANDLED) {
+            stopIncomingNotification()
+            return START_STICKY
+        }
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
         setupIncomingListener()
         (application as? CallApp)?.callSignalingManager?.startListening()
         return START_STICKY
+    }
+
+    private fun stopIncomingNotification() {
+        try {
+            startForeground(NOTIFICATION_ID, createNotification())
+            val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.cancel(NOTIFICATION_ID + 1)
+            android.util.Log.d("CallListeningService", "Incoming notification cleared")
+        } catch (e: Exception) {
+            android.util.Log.w("CallListeningService", "Failed to clear incoming notification: ${e.message}")
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
