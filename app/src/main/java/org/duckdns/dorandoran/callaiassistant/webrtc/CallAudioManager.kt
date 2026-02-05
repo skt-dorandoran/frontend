@@ -33,9 +33,9 @@ class CallAudioManager(private val context: Context) {
             savedAudioMode = audioManager.mode
             savedSpeakerphoneOn = audioManager.isSpeakerphoneOn
             audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-            audioManager.isSpeakerphoneOn = true
+            audioManager.isSpeakerphoneOn = false
             requestAudioFocus()
-            Log.d(TAG, "CallAudioManager started, mode=MODE_IN_COMMUNICATION, speakerphone=on")
+            Log.d(TAG, "CallAudioManager started, mode=MODE_IN_COMMUNICATION, speakerphone=off")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start CallAudioManager", e)
         }
@@ -52,6 +52,18 @@ class CallAudioManager(private val context: Context) {
             Log.d(TAG, "CallAudioManager stopped, mode restored to $savedAudioMode")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to stop CallAudioManager", e)
+        }
+    }
+
+    /**
+     * 스피커폰 모드 토글
+     */
+    fun setSpeakerphone(on: Boolean) {
+        try {
+            audioManager.isSpeakerphoneOn = on
+            Log.d(TAG, "Speakerphone set to $on")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to set speakerphone", e)
         }
     }
 

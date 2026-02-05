@@ -437,7 +437,10 @@ private fun WebRtcCallContent(
         connectionState = connectionState,
         callDurationSeconds = callDuration,
         logMessages = logMessages,
-        onEndCall = onEndCall
+        onEndCall = onEndCall,
+        onSpeakerphoneToggle = { isOn ->
+            callAudioManager.setSpeakerphone(isOn)
+        }
     )
 }
 

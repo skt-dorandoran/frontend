@@ -65,7 +65,7 @@ fun DialerScreen(
                 text = if (showLastCalledNumber && lastCalledNumber != null) {
                     formatPhoneNumber(lastCalledNumber)
                 } else if (phoneNumber.isBlank()) {
-                    "번호를 입력하세요"
+                    ""
                 } else {
                     formatPhoneNumber(phoneNumber)
                 },

@@ -24,6 +24,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.VolumeMute
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,8 +53,10 @@ fun WebRtcInCallScreen(
     callDurationSeconds: Long,
     logMessages: List<String> = emptyList(),
     onEndCall: () -> Unit,
+    onSpeakerphoneToggle: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var isSpeakerphoneOn by remember { mutableStateOf<Boolean>(false) }
     val displayNumber = if (phoneNumber.isNotBlank()) formatPhoneNumber(phoneNumber) else "상대방"
 
     Column(
@@ -148,28 +153,70 @@ fun WebRtcInCallScreen(
         Spacer(modifier = Modifier.weight(1f))
 
         if (connectionState != WebRtcConnectionState.DISCONNECTED) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.error)
-                        .clickable(onClick = onEndCall),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CallEnd,
-                        contentDescription = "통화 종료",
-                        modifier = Modifier.size(36.dp),
-                        tint = MaterialTheme.colorScheme.onError
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 스피커폰 토글 버튼
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isSpeakerphoneOn)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            .clickable {
+                                isSpeakerphoneOn = !isSpeakerphoneOn
+                                onSpeakerphoneToggle(isSpeakerphoneOn)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isSpeakerphoneOn) Icons.Default.VolumeUp else Icons.Default.VolumeMute,
+                            contentDescription = "스피커폰",
+                            modifier = Modifier.size(36.dp),
+                            tint = if (isSpeakerphoneOn)
+                                MaterialTheme.colorScheme.onPrimary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "스피커폰",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "통화 종료",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+
+                // 통화 종료 버튼
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error)
+                            .clickable(onClick = onEndCall),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CallEnd,
+                            contentDescription = "통화 종료",
+                            modifier = Modifier.size(36.dp),
+                            tint = MaterialTheme.colorScheme.onError
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "통화 종료",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
         }
     }
