@@ -5,6 +5,7 @@ import android.app.ActivityManager
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -15,11 +16,16 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
@@ -28,6 +34,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -81,6 +99,13 @@ class MainActivity : ComponentActivity() {
         val allGranted = permissions.values.all { it }
         permissionsState = allGranted
         savePermissionsRequested()
+        if (allGranted && pendingDefaultDialerRequest) {
+            pendingDefaultDialerRequest = false
+            DefaultDialerHelper.requestDefaultDialer(
+                this@MainActivity,
+                roleRequestLauncher = { intent -> defaultDialerLauncher.launch(intent) }
+            )
+        }
     }
 
     private val defaultDialerLauncher = registerForActivityResult(
@@ -90,13 +115,17 @@ class MainActivity : ComponentActivity() {
     private var permissionsState by mutableStateOf(false)
     private var showAppWithoutDefaultDialer by mutableStateOf(false)
     private var hasRequestedPermissions by mutableStateOf(false)
+    private var onboardingCompleted by mutableStateOf(false)
+    private var pendingDefaultDialerRequest by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
         checkPermissions()
         hasRequestedPermissions = loadPermissionsRequested()
+        onboardingCompleted = loadOnboardingCompleted()
         
         // 앱 시작 시 CallListeningService 시작 (백그라운드 청취용)
         startCallListeningService()
@@ -110,6 +139,24 @@ class MainActivity : ComponentActivity() {
         setContent {
             CallaiassistantTheme {
                 when {
+                    !onboardingCompleted -> OnboardingFlow(
+                        onComplete = {
+                            onboardingCompleted = true
+                            saveOnboardingCompleted()
+                            if (!permissionsState) {
+                                hasRequestedPermissions = true
+                                savePermissionsRequested()
+                                pendingDefaultDialerRequest = true
+                                requestPermissions()
+                            } else {
+                                pendingDefaultDialerRequest = true
+                                DefaultDialerHelper.requestDefaultDialer(
+                                    this@MainActivity,
+                                    roleRequestLauncher = { intent -> defaultDialerLauncher.launch(intent) }
+                                )
+                            }
+                        }
+                    )
                     !permissionsState || !hasRequestedPermissions -> PermissionRequestScreen(
                         onRequestPermission = {
                             hasRequestedPermissions = true
@@ -143,6 +190,18 @@ class MainActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         }
         permissionsState = allGranted
+    }
+
+    private fun loadOnboardingCompleted(): Boolean {
+        return getSharedPreferences("app_prefs", MODE_PRIVATE)
+            .getBoolean("onboarding_completed", false)
+    }
+
+    private fun saveOnboardingCompleted() {
+        getSharedPreferences("app_prefs", MODE_PRIVATE)
+            .edit()
+            .putBoolean("onboarding_completed", true)
+            .apply()
     }
 
     private fun loadPermissionsRequested(): Boolean {
@@ -521,14 +580,38 @@ private fun WebRtcCallContent(
 private fun PermissionRequestScreen(
     onRequestPermission: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
     ) {
-        androidx.compose.material3.Button(onClick = onRequestPermission) {
-            Text("전화 권한 허용")
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Card {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "통화 기능을 위해\n권한을 허용해주세요",
+                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = onRequestPermission,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text("전화 권한 허용")
+                    }
+                }
+            }
         }
     }
 }
@@ -567,6 +650,196 @@ private fun DefaultDialerRequestScreen(
                 androidx.compose.material3.TextButton(onClick = onSkip) {
                     Text("나중에")
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnboardingFlow(
+    onComplete: () -> Unit
+) {
+    var step by remember { mutableStateOf(0) }
+    when (step) {
+        0 -> OnboardingIntroScreen(onStart = { step = 1 })
+        else -> OnboardingPermissionsScreen(onAgree = onComplete)
+    }
+}
+
+@Composable
+private fun OnboardingIntroScreen(onStart: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(Color(0xFF7B2FFF), Color(0xFF2ED573)),
+                    start = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY),
+                    end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f)
+                )
+            )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Box(
+                modifier = Modifier
+                    .size(180.dp)
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(Color(0xFF8B5CF6), Color(0xFF22C55E)),
+                            start = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY),
+                            end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f)
+                        ),
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "T.mate",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Button(
+                onClick = onStart,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(26.dp)
+            ) {
+                Text("시작하기")
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnboardingPermissionsScreen(onAgree: () -> Unit) {
+    var allChecked by remember { mutableStateOf(false) }
+    var micChecked by remember { mutableStateOf(false) }
+    var speakerChecked by remember { mutableStateOf(false) }
+    var phoneChecked by remember { mutableStateOf(false) }
+
+    fun updateAllFromChildren() {
+        allChecked = micChecked && speakerChecked && phoneChecked
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = "T.mate\n원활한 통화를 위해\n다음 권한이 필요합니다",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = allChecked,
+                        onCheckedChange = { checked ->
+                            allChecked = checked
+                            micChecked = checked
+                            speakerChecked = checked
+                            phoneChecked = checked
+                        }
+                    )
+                    Text(
+                        text = "필수 약관 모두 동의",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = micChecked,
+                        onCheckedChange = { checked ->
+                            micChecked = checked
+                            updateAllFromChildren()
+                        }
+                    )
+                    Text(
+                        text = "(필수) 마이크\nAI 음성 인식 및 통화에 필요",
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = speakerChecked,
+                        onCheckedChange = { checked ->
+                            speakerChecked = checked
+                            updateAllFromChildren()
+                        }
+                    )
+                    Text(
+                        text = "(필수) 스피커\n상대방 음성 출력에 필요",
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = phoneChecked,
+                        onCheckedChange = { checked ->
+                            phoneChecked = checked
+                            updateAllFromChildren()
+                        }
+                    )
+                    Text(
+                        text = "(필수) 전화\n통화 연결 및 관리에 필요",
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+            }
+
+            val agreeEnabled = allChecked
+            Button(
+                onClick = onAgree,
+                enabled = agreeEnabled,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(26.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (agreeEnabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    },
+                    contentColor = if (agreeEnabled) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+            ) {
+                Text("동의")
             }
         }
     }
