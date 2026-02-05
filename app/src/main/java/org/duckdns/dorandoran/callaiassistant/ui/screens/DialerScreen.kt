@@ -37,6 +37,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository
+import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository.ContactMatch
 import android.media.AudioManager
 import android.media.ToneGenerator
 
@@ -54,9 +58,23 @@ fun DialerScreen(
     val context = LocalContext.current
     val audioManager = remember { context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager }
     val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_DTMF, 80) }
+    val repository = remember { CallLogRepository(context) }
+    var contactMatches by remember { mutableStateOf<List<ContactMatch>>(emptyList()) }
+    var contactTotalCount by remember { mutableStateOf(0) }
 
     DisposableEffect(Unit) {
         onDispose { toneGenerator.release() }
+    }
+
+    LaunchedEffect(phoneNumber, showLastCalledNumber) {
+        if (showLastCalledNumber || phoneNumber.isBlank()) {
+            contactMatches = emptyList()
+            contactTotalCount = 0
+        } else {
+            val (matches, total) = repository.searchContacts(phoneNumber, 3)
+            contactMatches = matches
+            contactTotalCount = total
+        }
     }
 
     Column(
@@ -117,6 +135,63 @@ fun DialerScreen(
             }
         }
 
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+                .height(96.dp)
+        ) {
+            if (contactMatches.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    contactMatches.forEach { match ->
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 4.dp)
+                                .clickable { onCallStarted(match.number) },
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = match.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = formatPhoneNumber(match.number),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+
+                val moreCount = contactTotalCount - contactMatches.size
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    if (moreCount > 0) {
+                        TextButton(onClick = { }) {
+                            Text("${moreCount}건 더보기")
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.height(36.dp))
+                    }
+                }
+            } else {
+                Spacer(modifier = Modifier.height(96.dp))
+            }
+        }
+
         // 다이얼 패드
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -138,7 +213,7 @@ fun DialerScreen(
                         DialPadButton(
                             digit = digit,
                             onClick = {
-                                if (digit.length == 1 && digit[0].isDigit()) {
+                                if (digit.length == 1) {
                                     digitToTone(digit[0])?.let { tone ->
                                         try {
                                             toneGenerator.startTone(tone, 120)
@@ -216,7 +291,7 @@ private fun DialPadButton(
 ) {
     Box(
         modifier = Modifier
-            .size(72.dp)
+            .size(64.dp)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable(onClick = onClick),
@@ -224,7 +299,7 @@ private fun DialPadButton(
     ) {
         Text(
             text = digit,
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Medium
         )
     }
@@ -257,6 +332,7 @@ private fun CallButton(
 }
 
 private fun formatPhoneNumber(number: String): String {
+    if (number.any { !it.isDigit() }) return number
     val digits = number.filter { it.isDigit() }
     return when {
         digits.length <= 3 -> digits
@@ -277,6 +353,8 @@ private fun digitToTone(digit: Char): Int? {
         '7' -> ToneGenerator.TONE_DTMF_7
         '8' -> ToneGenerator.TONE_DTMF_8
         '9' -> ToneGenerator.TONE_DTMF_9
+        '*' -> ToneGenerator.TONE_DTMF_S
+        '#' -> ToneGenerator.TONE_DTMF_P
         else -> null
     }
 }

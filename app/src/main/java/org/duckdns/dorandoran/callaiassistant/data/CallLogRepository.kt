@@ -9,6 +9,8 @@ import java.util.Date
 
 class CallLogRepository(private val context: Context) {
 
+    data class ContactMatch(val name: String, val number: String)
+
     suspend fun getCallHistory(limit: Int = 100): List<CallLogItem> = withContext(Dispatchers.IO) {
         val calls = mutableListOf<CallLogItem>()
         val projection = arrayOf(
@@ -70,6 +72,46 @@ class CallLogRepository(private val context: Context) {
     suspend fun getContactName(phoneNumber: String): String? = withContext(Dispatchers.IO) {
         getContactNameSync(phoneNumber)
     }
+
+    suspend fun searchContacts(query: String, limit: Int = 3): Pair<List<ContactMatch>, Int> =
+        withContext(Dispatchers.IO) {
+            val trimmed = query.trim()
+            if (trimmed.isBlank()) return@withContext Pair(emptyList(), 0)
+
+            val digitsOnly = trimmed.filter { it.isDigit() }
+            val namePattern = "%$trimmed%"
+            val numberPattern = if (digitsOnly.isNotEmpty()) "%$digitsOnly%" else namePattern
+
+            val projection = arrayOf(
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                ContactsContract.CommonDataKinds.Phone.NUMBER
+            )
+            val selection = "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ? OR ${ContactsContract.CommonDataKinds.Phone.NUMBER} LIKE ?"
+            val selectionArgs = arrayOf(namePattern, numberPattern)
+
+            val map = LinkedHashMap<String, ContactMatch>()
+            context.contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                null
+            )?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                val numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                while (cursor.moveToNext()) {
+                    val number = cursor.getString(numberIndex) ?: ""
+                    if (number.isBlank()) continue
+                    val name = cursor.getString(nameIndex) ?: number
+                    if (!map.containsKey(number)) {
+                        map[number] = ContactMatch(name = name, number = number)
+                    }
+                }
+            }
+
+            val all = map.values.toList()
+            Pair(all.take(limit), all.size)
+        }
 
     private fun getContactNameSync(phoneNumber: String): String? {
         if (phoneNumber.isBlank()) return null
