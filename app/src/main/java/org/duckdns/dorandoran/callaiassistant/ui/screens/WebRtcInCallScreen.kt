@@ -43,7 +43,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
+import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState
 
 @Composable
@@ -58,6 +60,8 @@ fun WebRtcInCallScreen(
 ) {
     var isSpeakerphoneOn by remember { mutableStateOf<Boolean>(false) }
     val displayNumber = if (phoneNumber.isNotBlank()) formatPhoneNumber(phoneNumber) else "상대방"
+    val context = LocalContext.current
+    val textScale = remember { SettingsStore.getCallTextScale(context) }
 
     Column(
         modifier = modifier
@@ -109,7 +113,9 @@ fun WebRtcInCallScreen(
 
         Text(
             text = displayNumber,
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontSize = MaterialTheme.typography.headlineMedium.fontSize * textScale
+            ),
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
@@ -124,7 +130,9 @@ fun WebRtcInCallScreen(
                 WebRtcConnectionState.CONNECTED -> "연결 중..."
                 WebRtcConnectionState.IN_CALL -> formatDuration(callDurationSeconds)
             },
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontSize = MaterialTheme.typography.titleMedium.fontSize * textScale
+            ),
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center

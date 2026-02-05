@@ -77,6 +77,27 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true" />
 
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="환경설정"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Callaiassistant" />
+
+        <activity
+            android:name=".VoiceCloneSettingsActivity"
+            android:exported="false"
+            android:label="음성 클론"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Callaiassistant" />
+
+        <activity
+            android:name=".CallPermissionsActivity"
+            android:exported="false"
+            android:label="통화 필수 권한"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Callaiassistant" />
+
         <service
             android:name=".CallListeningService"
             android:enabled="true"

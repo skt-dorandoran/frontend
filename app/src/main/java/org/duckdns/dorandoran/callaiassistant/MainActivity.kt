@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -341,39 +342,26 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Call, contentDescription = "다이얼러") },
-                    label = { Text("다이얼러") }
-                )
-                NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
                     icon = { Icon(Icons.Default.List, contentDescription = "전화 기록") },
-                    label = { Text("전화 기록") }
+                    label = { Text("최근 기록") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = { Icon(Icons.Default.Call, contentDescription = "다이얼러") },
+                    label = { Text("키패드") }
                 )
             }
         }
     ) { innerPadding ->
         when (selectedTab) {
-            0 -> Column(modifier = Modifier.padding(innerPadding)) {
-                if (bannerMessage != null) {
-                    androidx.compose.material3.Surface(
-                        tonalElevation = 2.dp,
-                        shadowElevation = 2.dp
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp, horizontal = 16.dp)
-                        ) {
-                            Text(
-                                text = bannerMessage!!,
-                                modifier = Modifier.align(Alignment.CenterStart)
-                            )
-                        }
-                    }
-                }
+            0 -> Box(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize()
+            ) {
                 DialerScreen(
                     initialPhoneNumber = initialPhoneNumber,
                     lastCalledNumber = lastCalledPhoneNumber,
@@ -388,8 +376,34 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
                         ringbackToneHelper.start()
                         webRtcManager.joinAsCaller("")
                         showWebRtcCall = true
-                    }
+                    },
+                    onOpenSettings = {
+                        val intent = Intent(activity, SettingsActivity::class.java)
+                        activity.startActivity(intent)
+                    },
+                    modifier = Modifier.fillMaxSize()
                 )
+                if (bannerMessage != null) {
+                    androidx.compose.material3.Surface(
+                        tonalElevation = 2.dp,
+                        shadowElevation = 2.dp,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 8.dp, start = 16.dp, end = 16.dp)
+                            .zIndex(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp, horizontal = 16.dp)
+                        ) {
+                            Text(
+                                text = bannerMessage!!,
+                                modifier = Modifier.align(Alignment.CenterStart)
+                            )
+                        }
+                    }
+                }
             }
             1 -> CallHistoryScreen(
                 onCallNumber = { phoneNumber ->

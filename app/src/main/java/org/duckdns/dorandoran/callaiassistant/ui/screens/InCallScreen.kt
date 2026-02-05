@@ -42,6 +42,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import org.duckdns.dorandoran.callaiassistant.SettingsStore
 
 enum class CallState {
     DIALING,    // 발신 연결 중
@@ -65,6 +67,8 @@ fun InCallScreen(
 ) {
     var ttsInputText by remember { mutableStateOf("") }
     val displayName = contactName?.takeIf { it.isNotBlank() } ?: formatPhoneNumber(phoneNumber)
+    val context = LocalContext.current
+    val textScale = remember { SettingsStore.getCallTextScale(context) }
 
     Column(
         modifier = modifier
@@ -119,7 +123,9 @@ fun InCallScreen(
         // 통화 대상 이름
         Text(
             text = displayName,
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontSize = MaterialTheme.typography.headlineMedium.fontSize * textScale
+            ),
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
@@ -147,7 +153,9 @@ fun InCallScreen(
                 CallState.ACTIVE -> formatDuration(callDurationSeconds)
                 CallState.ENDED -> "통화 종료"
             },
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontSize = MaterialTheme.typography.titleMedium.fontSize * textScale
+            ),
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center

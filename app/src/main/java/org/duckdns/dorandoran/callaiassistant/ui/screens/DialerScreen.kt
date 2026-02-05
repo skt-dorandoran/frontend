@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +46,7 @@ fun DialerScreen(
     initialPhoneNumber: String = "",
     lastCalledNumber: String? = null,
     onCallStarted: (String) -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var phoneNumber by remember(initialPhoneNumber) { mutableStateOf(initialPhoneNumber) }
@@ -64,6 +66,26 @@ fun DialerScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+        ) {
+            Text(
+                text = "T.mate",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.align(Alignment.CenterStart)
+            )
+            IconButton(
+                onClick = onOpenSettings,
+                modifier = Modifier.align(Alignment.CenterEnd)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "환경설정"
+                )
+            }
+        }
         // 전화번호 표시 영역
         Column(
             modifier = Modifier
