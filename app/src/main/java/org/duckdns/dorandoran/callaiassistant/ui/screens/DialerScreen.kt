@@ -1,8 +1,10 @@
 package org.duckdns.dorandoran.callaiassistant.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,14 +34,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DialerScreen(
     initialPhoneNumber: String = "",
+    lastCalledNumber: String? = null,
     onCallStarted: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var phoneNumber by remember(initialPhoneNumber) { mutableStateOf(initialPhoneNumber) }
-    var lastCalledNumber by remember { mutableStateOf<String?>(null) }
+    var showLastCalledNumber by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -57,16 +62,22 @@ fun DialerScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = if (phoneNumber.isBlank()) "번호를 입력하세요" else formatPhoneNumber(phoneNumber),
+                text = if (showLastCalledNumber && lastCalledNumber != null) {
+                    formatPhoneNumber(lastCalledNumber)
+                } else if (phoneNumber.isBlank()) {
+                    "번호를 입력하세요"
+                } else {
+                    formatPhoneNumber(phoneNumber)
+                },
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
-            if (lastCalledNumber != null) {
+            if (!showLastCalledNumber && lastCalledNumber != null && phoneNumber.isBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "마지막 통화: $lastCalledNumber",
+                    text = "마지막 통화: ${formatPhoneNumber(lastCalledNumber)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -106,21 +117,44 @@ fun DialerScreen(
             ) {
                 Spacer(modifier = Modifier.size(72.dp))
                 CallButton(
-                    enabled = phoneNumber.isNotBlank(),
+                    enabled = true,
                     onClick = {
-                        if (phoneNumber.isNotBlank()) {
-                            lastCalledNumber = formatPhoneNumber(phoneNumber)
-                            onCallStarted(phoneNumber)  // 부모에서 실제 전화 걸기
+                        when {
+                            // 번호가 비어있고 마지막 통화 번호가 있으면 표시
+                            phoneNumber.isBlank() && lastCalledNumber != null && !showLastCalledNumber -> {
+                                showLastCalledNumber = true
+                            }
+                            // 이미 마지막 번호를 표시중이면 그 번호로 통화
+                            showLastCalledNumber && lastCalledNumber != null -> {
+                                onCallStarted(lastCalledNumber)
+                                showLastCalledNumber = false
+                            }
+                            // 번호가 입력되어있으면 그 번호로 통화
+                            phoneNumber.isNotBlank() -> {
+                                onCallStarted(phoneNumber)
+                            }
                         }
                     }
                 )
-                IconButton(
-                    onClick = {
-                        if (phoneNumber.isNotEmpty()) {
-                            phoneNumber = phoneNumber.dropLast(1)
-                        }
-                    },
-                    modifier = Modifier.size(72.dp)
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .combinedClickable(
+                            onClick = {
+                                // 짧은 클릭: 한 글자 삭제 또는 마지막 번호 표시 취소
+                                if (showLastCalledNumber) {
+                                    showLastCalledNumber = false
+                                } else if (phoneNumber.isNotEmpty()) {
+                                    phoneNumber = phoneNumber.dropLast(1)
+                                }
+                            },
+                            onLongClick = {
+                                // 긴 클릭: 전체 삭제
+                                phoneNumber = ""
+                                showLastCalledNumber = false
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Backspace,

@@ -16,6 +16,8 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import android.content.Intent
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.view.WindowCompat
@@ -34,6 +36,27 @@ class InCallActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 잠금 화면 위에 표시 및 화면 켜기 설정 (API별 호환 처리)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            window.addFlags(
+                android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                        android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            )
+        }
+        // 인텐트로 전달된 수신 전화 정보를 시그널링 매니저에 설정
+        if (intent?.action == CallListeningService.ACTION_INCOMING_CALL) {
+            val callId = intent.getStringExtra(CallListeningService.EXTRA_CALL_ID) ?: ""
+            val roomId = intent.getStringExtra(CallListeningService.EXTRA_ROOM_ID)
+                ?: org.duckdns.dorandoran.callaiassistant.webrtc.WEBRTC_ROOM_ID
+            if (callId.isNotEmpty()) {
+                (application as? CallApp)?.callSignalingManager?.setIncomingFromIntent(
+                    org.duckdns.dorandoran.callaiassistant.webrtc.CallSignalingManager.IncomingCallInfo(callId, roomId)
+                )
+            }
+        }
         enableEdgeToEdge()
 
         // 전체화면: 소프트키(네비게이션 바) 숨기기
@@ -52,9 +75,39 @@ class InCallActivity : ComponentActivity() {
 
         setContent {
             CallaiassistantTheme {
-                InCallContent(
-                    onFinish = { finish() }
-                )
+                val callSignalingManager = (application as? CallApp)?.callSignalingManager
+                val incomingCallState = callSignalingManager?.incomingCall
+                val incomingCall by incomingCallState?.collectAsState() ?: remember { mutableStateOf(null) }
+
+                if (incomingCall != null) {
+                    val info = incomingCall!!
+                    org.duckdns.dorandoran.callaiassistant.ui.screens.IncomingCallScreen(
+                        callerName = "상대방",
+                        onAccept = {
+                            // MainActivity로 포그라운드 이동 및 자동 수락 요청
+                            val intent = Intent(this@InCallActivity, MainActivity::class.java).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                                action = CallListeningService.ACTION_INCOMING_CALL
+                                putExtra(CallListeningService.EXTRA_CALL_ID, info.callId)
+                                putExtra(CallListeningService.EXTRA_ROOM_ID, info.roomId)
+                                putExtra("auto_accept", true)
+                            }
+                            startActivity(intent)
+                            finish()
+                        },
+                        onReject = {
+                            // 거절 전송 후 종료
+                            info.callId.let { id -> callSignalingManager?.rejectCall(id) }
+                            finish()
+                        }
+                    )
+                } else {
+                    InCallContent(
+                        onFinish = { finish() }
+                    )
+                }
             }
         }
     }
