@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -173,7 +174,8 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
     var showWebRtcCall by remember { mutableStateOf(false) }
     var showIncomingCall by remember { mutableStateOf(false) }
     var webrtcPhoneNumber by remember { mutableStateOf("") }
-    var callRejectedMessage by remember { mutableStateOf(false) }
+    var bannerMessage by remember { mutableStateOf<String?>(null) }
+    var bannerLocked by remember { mutableStateOf(false) }
     var lastCalledPhoneNumber by remember { mutableStateOf<String?>(null) }
 
     val callSignalingManager = remember { (activity.applicationContext as CallApp).callSignalingManager }
@@ -203,9 +205,12 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
         showIncomingCall = incomingCall != null
     }
 
-    if (callRejectedMessage) {
-        CallRejectedContent(onDismiss = { callRejectedMessage = false })
-        return
+    LaunchedEffect(bannerMessage) {
+        if (bannerMessage != null) {
+            delay(2000)
+            bannerMessage = null
+            bannerLocked = false
+        }
     }
 
     // 통화 중(발신/수신)이면 수신 화면보다 통화 화면 우선 (발신자가 incoming 수신하는 문제 방지)
@@ -236,7 +241,9 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
                 callSignalingManager.startListening()
                 activity.startCallListeningService()
                 showWebRtcCall = false
-                callRejectedMessage = true
+                selectedTab = 0
+                bannerMessage = "통화가 거절되었습니다"
+                bannerLocked = true
             },
             onEndCall = {
                 ringbackToneHelper.stop()
@@ -247,6 +254,11 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
                 callSignalingManager.startListening()
                 activity.startCallListeningService()
                 showWebRtcCall = false
+                selectedTab = 0
+                if (!bannerLocked) {
+                    bannerMessage = "통화가 종료되었습니다"
+                    bannerLocked = true
+                }
             },
             onRemoteDisconnected = {
                 ringbackToneHelper.stop()
@@ -257,6 +269,11 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
                 callSignalingManager.startListening()
                 activity.startCallListeningService()
                 showWebRtcCall = false
+                selectedTab = 0
+                if (!bannerLocked) {
+                    bannerMessage = "통화가 종료되었습니다"
+                    bannerLocked = true
+                }
             }
         )
         return
@@ -339,23 +356,41 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
         }
     ) { innerPadding ->
         when (selectedTab) {
-            0 -> DialerScreen(
-                initialPhoneNumber = initialPhoneNumber,
-                lastCalledNumber = lastCalledPhoneNumber,
-                onCallStarted = { phoneNumber ->
-                    lastCalledPhoneNumber = phoneNumber
-                    webrtcPhoneNumber = phoneNumber.ifBlank { "상대방" }
-                    callSignalingManager.markAsCaller()
+            0 -> Column(modifier = Modifier.padding(innerPadding)) {
+                if (bannerMessage != null) {
+                    androidx.compose.material3.Surface(
+                        tonalElevation = 2.dp,
+                        shadowElevation = 2.dp
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp, horizontal = 16.dp)
+                        ) {
+                            Text(
+                                text = bannerMessage!!,
+                                modifier = Modifier.align(Alignment.CenterStart)
+                            )
+                        }
+                    }
+                }
+                DialerScreen(
+                    initialPhoneNumber = initialPhoneNumber,
+                    lastCalledNumber = lastCalledPhoneNumber,
+                    onCallStarted = { phoneNumber ->
+                        lastCalledPhoneNumber = phoneNumber
+                        webrtcPhoneNumber = phoneNumber.ifBlank { "상대방" }
+                        callSignalingManager.markAsCaller()
                         // 기존 listening 소켓을 통해 먼저 'call' 메시지를 전송하여 방을 생성하도록 함 + callId 생성
-                    callSignalingManager.initiateCall()
-                    // listening 소켓은 유지해야 callee_joined를 수신할 수 있음
-                    callAudioManager.start()
-                    ringbackToneHelper.start()
-                    webRtcManager.joinAsCaller("")
-                    showWebRtcCall = true
-                },
-                modifier = Modifier.padding(innerPadding)
-            )
+                        callSignalingManager.initiateCall()
+                        // listening 소켓은 유지해야 callee_joined를 수신할 수 있음
+                        callAudioManager.start()
+                        ringbackToneHelper.start()
+                        webRtcManager.joinAsCaller("")
+                        showWebRtcCall = true
+                    }
+                )
+            }
             1 -> CallHistoryScreen(
                 onCallNumber = { phoneNumber ->
                     webrtcPhoneNumber = phoneNumber.ifBlank { "상대방" }
@@ -423,33 +458,6 @@ private fun WebRtcCallContent(
             callAudioManager.setSpeakerphone(isOn)
         }
     )
-}
-
-@Composable
-@Composable
-private fun CallRejectedContent(onDismiss: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        androidx.compose.material3.Card {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "통화가 거절되었습니다",
-                    style = androidx.compose.material3.MaterialTheme.typography.titleMedium
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                androidx.compose.material3.Button(onClick = onDismiss) {
-                    Text("확인")
-                }
-            }
-        }
-    }
 }
 
 @Composable
