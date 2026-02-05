@@ -98,6 +98,13 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.Callaiassistant" />
 
+        <activity
+            android:name=".ContactSearchResultsActivity"
+            android:exported="false"
+            android:label="연락처 검색 결과"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Callaiassistant" />
+
         <service
             android:name=".CallListeningService"
             android:enabled="true"

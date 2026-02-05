@@ -62,6 +62,10 @@ import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        const val EXTRA_AUTO_CALL = "extra_auto_call"
+    }
+
     private val requiredPermissions = arrayOf(
         Manifest.permission.CALL_PHONE,
         Manifest.permission.READ_CALL_LOG,
@@ -96,6 +100,7 @@ class MainActivity : ComponentActivity() {
 
         val initialPhoneNumber = intent?.data?.takeIf { it.scheme == "tel" }
             ?.schemeSpecificPart?.orEmpty()?.filter { c -> c.isDigit() || c == '+' } ?: ""
+        val autoCall = intent?.getBooleanExtra(EXTRA_AUTO_CALL, false) ?: false
 
         handleIncomingCallIntent(intent)
 
@@ -118,7 +123,8 @@ class MainActivity : ComponentActivity() {
                         )
                     else -> PhoneAppContent(
                         activity = this@MainActivity,
-                        initialPhoneNumber = initialPhoneNumber
+                        initialPhoneNumber = initialPhoneNumber,
+                        autoCall = autoCall
                     )
                 }
             }
@@ -170,7 +176,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String = "") {
+private fun PhoneAppContent(
+    activity: MainActivity,
+    initialPhoneNumber: String = "",
+    autoCall: Boolean = false
+) {
     var selectedTab by remember { mutableStateOf(0) }
     var showWebRtcCall by remember { mutableStateOf(false) }
     var showIncomingCall by remember { mutableStateOf(false) }
@@ -186,6 +196,8 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
     val coroutineScope = rememberCoroutineScope()
 
     val incomingCall by callSignalingManager.incomingCall.collectAsState()
+
+    var autoCallConsumed by remember { mutableStateOf(false) }
 
     // WebRtcManager 콜백 설정 - 통화 종료 시 알림 취소
     remember {
@@ -204,6 +216,28 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
 
     LaunchedEffect(incomingCall) {
         showIncomingCall = incomingCall != null
+    }
+
+    LaunchedEffect(initialPhoneNumber) {
+        autoCallConsumed = false
+    }
+
+    fun startOutgoingCall(number: String) {
+        lastCalledPhoneNumber = number
+        webrtcPhoneNumber = number.ifBlank { "상대방" }
+        callSignalingManager.markAsCaller()
+        callSignalingManager.initiateCall()
+        callAudioManager.start()
+        ringbackToneHelper.start()
+        webRtcManager.joinAsCaller("")
+        showWebRtcCall = true
+    }
+
+    LaunchedEffect(autoCall, initialPhoneNumber) {
+        if (autoCall && initialPhoneNumber.isNotBlank() && !autoCallConsumed) {
+            autoCallConsumed = true
+            startOutgoingCall(initialPhoneNumber)
+        }
     }
 
     LaunchedEffect(bannerMessage) {
@@ -366,19 +400,16 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
                     initialPhoneNumber = initialPhoneNumber,
                     lastCalledNumber = lastCalledPhoneNumber,
                     onCallStarted = { phoneNumber ->
-                        lastCalledPhoneNumber = phoneNumber
-                        webrtcPhoneNumber = phoneNumber.ifBlank { "상대방" }
-                        callSignalingManager.markAsCaller()
-                        // 기존 listening 소켓을 통해 먼저 'call' 메시지를 전송하여 방을 생성하도록 함 + callId 생성
-                        callSignalingManager.initiateCall()
-                        // listening 소켓은 유지해야 callee_joined를 수신할 수 있음
-                        callAudioManager.start()
-                        ringbackToneHelper.start()
-                        webRtcManager.joinAsCaller("")
-                        showWebRtcCall = true
+                        startOutgoingCall(phoneNumber)
                     },
                     onOpenSettings = {
                         val intent = Intent(activity, SettingsActivity::class.java)
+                        activity.startActivity(intent)
+                    },
+                    onOpenContactSearch = { query ->
+                        val intent = Intent(activity, ContactSearchResultsActivity::class.java).apply {
+                            putExtra(ContactSearchResultsActivity.EXTRA_QUERY, query)
+                        }
                         activity.startActivity(intent)
                     },
                     modifier = Modifier.fillMaxSize()
@@ -407,15 +438,8 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
             }
             1 -> CallHistoryScreen(
                 onCallNumber = { phoneNumber ->
-                    webrtcPhoneNumber = phoneNumber.ifBlank { "상대방" }
-                    callSignalingManager.markAsCaller()
-                    callSignalingManager.initiateCall()
-                    // listening 소켓은 유지해야 callee_joined를 수신할 수 있음
                     callSignalingManager.clearIncoming()
-                    callAudioManager.start()
-                    ringbackToneHelper.start()
-                    webRtcManager.joinAsCaller("")
-                    showWebRtcCall = true
+                    startOutgoingCall(phoneNumber)
                 },
                 modifier = Modifier.padding(innerPadding)
             )

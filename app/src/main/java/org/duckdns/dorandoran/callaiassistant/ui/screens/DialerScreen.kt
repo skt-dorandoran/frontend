@@ -41,6 +41,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository
 import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository.ContactMatch
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.graphics.Color
 import android.media.AudioManager
 import android.media.ToneGenerator
 
@@ -51,6 +55,7 @@ fun DialerScreen(
     lastCalledNumber: String? = null,
     onCallStarted: (String) -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onOpenContactSearch: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var phoneNumber by remember(initialPhoneNumber) { mutableStateOf(initialPhoneNumber) }
@@ -165,7 +170,10 @@ fun DialerScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = formatPhoneNumber(match.number),
+                                text = buildHighlightedNumber(
+                                    formatPhoneNumber(match.number),
+                                    phoneNumber.filter { it.isDigit() }
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
@@ -180,7 +188,7 @@ fun DialerScreen(
                     horizontalArrangement = Arrangement.Center
                 ) {
                     if (moreCount > 0) {
-                        TextButton(onClick = { }) {
+                        TextButton(onClick = { onOpenContactSearch(phoneNumber) }) {
                             Text("${moreCount}건 더보기")
                         }
                     } else {
@@ -338,6 +346,30 @@ private fun formatPhoneNumber(number: String): String {
         digits.length <= 3 -> digits
         digits.length <= 7 -> "${digits.take(3)}-${digits.drop(3)}"
         else -> "${digits.take(3)}-${digits.drop(3).take(4)}-${digits.drop(7)}"
+    }
+}
+
+private fun buildHighlightedNumber(text: String, queryDigits: String): AnnotatedString {
+    if (queryDigits.isBlank()) return AnnotatedString(text)
+    val digitsOnly = text.filter { it.isDigit() }
+    val startIndex = digitsOnly.indexOf(queryDigits)
+    if (startIndex < 0) return AnnotatedString(text)
+    val endIndex = startIndex + queryDigits.length
+
+    return buildAnnotatedString {
+        var digitIndex = 0
+        text.forEach { ch ->
+            val isDigit = ch.isDigit()
+            val inMatch = isDigit && digitIndex in startIndex until endIndex
+            if (inMatch) {
+                pushStyle(SpanStyle(color = Color(0xFF2E7D32)))
+                append(ch)
+                pop()
+            } else {
+                append(ch)
+            }
+            if (isDigit) digitIndex++
+        }
     }
 }
 

@@ -144,30 +144,6 @@ class CallListeningService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
-        // 알림 액션 - 받기 버튼
-        val acceptIntent = Intent(this, InCallActivity::class.java).apply {
-            action = "ACCEPT_CALL"
-            putExtra(EXTRA_CALL_ID, callId)
-            putExtra(EXTRA_ROOM_ID, roomId)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        val acceptPendingIntent = PendingIntent.getActivity(
-            this, callId.hashCode(), acceptIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        // 알림 액션 - 거절 버튼
-        val rejectIntent = Intent(this, InCallActivity::class.java).apply {
-            action = "REJECT_CALL"
-            putExtra(EXTRA_CALL_ID, callId)
-            putExtra(EXTRA_ROOM_ID, roomId)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        val rejectPendingIntent = PendingIntent.getActivity(
-            this, (callId + "reject").hashCode(), rejectIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         val notification = NotificationCompat.Builder(this, CHANNEL_ID_INCOMING)
             .setContentTitle("전화가 왔어요")
@@ -188,16 +164,6 @@ class CallListeningService : Service() {
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setColorized(true)
             .setColor(0xFF0099CC.toInt())
-            .addAction(
-                android.R.drawable.ic_menu_call,
-                "받기",
-                acceptPendingIntent
-            )
-            .addAction(
-                android.R.drawable.ic_menu_close_clear_cancel,
-                "거절",
-                rejectPendingIntent
-            )
             .build()
         
         try {
