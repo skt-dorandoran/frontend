@@ -41,7 +41,9 @@ class CallListeningService : Service() {
         startForeground(NOTIFICATION_ID, createNotification())
         setupIncomingListener()
         (application as? CallApp)?.callSignalingManager?.startListening()
-        return START_STICKY
+        // START_STICKY: 시스템이 서비스를 강제 종료했을 때 자동 재시작
+        // START_REDELIVER_INTENT: 앱 강제 종료 후 재시작 시 intent 전달
+        return START_STICKY or START_REDELIVER_INTENT
     }
 
     private fun stopIncomingNotification() {
@@ -59,10 +61,10 @@ class CallListeningService : Service() {
 
     override fun onDestroy() {
         (application as? CallApp)?.callSignalingManager?.apply {
-            onIncomingCallReceived = null
+            // onIncomingCallReceived는 null로 설정하지 않음 (다시 시작될 때 필요)
             stopListening()
         }
-            wakeLock?.release()
+        wakeLock?.release()
         super.onDestroy()
     }
 
@@ -70,6 +72,15 @@ class CallListeningService : Service() {
         val manager = (application as? CallApp)?.callSignalingManager ?: return
         manager.onIncomingCallReceived = { info: IncomingCallInfo ->
             showIncomingCall(info.callId, info.roomId)
+        }
+        // 원격에서 hangup 신호 수신 시 알림 취소
+        manager.onRemoteHangup = {
+            stopIncomingNotification()
+            android.util.Log.d("CallListeningService", "Remote hangup received - notification cleared")
+        }
+        // 통화 종료 시 알림 취소
+        manager.onCallEnded = {
+            stopIncomingNotification()
         }
     }
 

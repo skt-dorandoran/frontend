@@ -49,6 +49,12 @@ class CallSignalingManager(private val context: Context) {
     /** 수신 전화 시 콜백 (서비스에서 전체화면 인텐트용) */
     var onIncomingCallReceived: ((IncomingCallInfo) -> Unit)? = null
 
+    /** 통화 종료 시 콜백 (알림 취소 등) */
+    var onCallEnded: (() -> Unit)? = null
+
+    /** 원격에서 hangup 신호 수신 시 콜백 (수신 알림 취소용) */
+    var onRemoteHangup: (() -> Unit)? = null
+
     /** WebRTC 시그널링 메시지 콜백 (offer/answer/ice) - WebRtcManager로 전달 */
     var onSignalingMessage: ((String) -> Unit)? = null
 
@@ -125,7 +131,10 @@ class CallSignalingManager(private val context: Context) {
                     if (callId.isNotEmpty()) {
                         val info = IncomingCallInfo(callId, roomId)
                         _incomingCall.value = info
+                        Log.d(TAG, "Incoming call: callId=$callId, onIncomingCallReceived=${onIncomingCallReceived != null}")
                         onIncomingCallReceived?.invoke(info)
+                    } else {
+                        Log.w(TAG, "Incoming message with empty callId")
                     }
                 }
                 "hangup" -> {
@@ -134,14 +143,16 @@ class CallSignalingManager(private val context: Context) {
                     val current = _incomingCall.value
                     if (current != null && (callId.isEmpty() || callId == current.callId)) {
                         _incomingCall.value = null
-                        onIncomingCallReceived = null
+                        onRemoteHangup?.invoke()    // 원격 hangup 콜백 호출
+                        onCallEnded?.invoke()       // 통화 종료 콜백 호출
                         Log.d(TAG, "Cleared incoming due to hangup")
                     }
                 }
                 "peer_left" -> {
                     Log.d(TAG, "peer_left received, clearing incoming state")
                     _incomingCall.value = null
-                    onIncomingCallReceived = null
+                    onRemoteHangup?.invoke()    // 원격 hangup 콜백 호출
+                    onCallEnded?.invoke()       // 통화 종료 콜백 호출
                 }
                 "offer", "answer", "ice", "callee_joined", "joined", "rejected" -> {
                     // WebRTC 시그널링 메시지를 WebRtcManager로 전달
@@ -165,6 +176,9 @@ class CallSignalingManager(private val context: Context) {
         }.toString())
         _incomingCall.value = null
         Log.d(TAG, "Reject sent: $callId")
+        
+        // 통화 종료 콜백 호출 (알림 취소 등)
+        onCallEnded?.invoke()
     }
 
     /** 수신 수락 - 수신자가 수락할 때 호출. 반드시 listening(구독) 소켓에서 전송되어야 함. */
@@ -202,6 +216,17 @@ class CallSignalingManager(private val context: Context) {
         _isListening.value = false
         _incomingCall.value = null
         Log.d(TAG, "Stop listening")
+    }
+
+    /**
+     * 원격 hangup 수신 - 수신 상태 취소 및 콜백 호출
+     * (B가 수신 알림 상태일 때 A가 hangup을 보낸 경우 처리)
+     */
+    fun handleRemoteHangup() {
+        _incomingCall.value = null
+        onRemoteHangup?.invoke()
+        onCallEnded?.invoke()
+        Log.d(TAG, "Remote hangup handled - incoming call cleared")
     }
 
     /**

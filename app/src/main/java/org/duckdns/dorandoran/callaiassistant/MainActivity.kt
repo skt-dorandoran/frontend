@@ -90,6 +90,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         checkPermissions()
+        
+        // 앱 시작 시 CallListeningService 시작 (백그라운드 청취용)
+        startCallListeningService()
 
         val initialPhoneNumber = intent?.data?.takeIf { it.scheme == "tel" }
             ?.schemeSpecificPart?.orEmpty()?.filter { c -> c.isDigit() || c == '+' } ?: ""
@@ -189,6 +192,16 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
     val coroutineScope = rememberCoroutineScope()
 
     val incomingCall by callSignalingManager.incomingCall.collectAsState()
+
+    // WebRtcManager 콜백 설정 - 통화 종료 시 알림 취소
+    remember {
+        webRtcManager.onCallEnded = {
+            activity.startService(Intent(activity, CallListeningService::class.java).apply {
+                action = CallListeningService.ACTION_CALL_HANDLED
+            })
+        }
+        Unit
+    }
 
     LaunchedEffect(Unit) {
         callSignalingManager.startListening()

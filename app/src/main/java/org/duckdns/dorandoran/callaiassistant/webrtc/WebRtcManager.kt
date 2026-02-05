@@ -82,6 +82,9 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     /** 수신 거절됨 (호출자) */
     var onCallRejected: (() -> Unit)? = null
 
+    /** 통화 종료 시 호출 (알림 취소 등) */
+    var onCallEnded: (() -> Unit)? = null
+
     private var receivedOffer = false
     private var offerSent = false
     private val pendingIceCandidates = mutableListOf<IceCandidate>()
@@ -436,6 +439,8 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 "hangup" -> {
                     log("Remote hangup received")
                     // 원격에서 hangup을 받으면 로컬 연결 정리 (신호 전송은 하지 않음)
+                    // B가 수신 알림 상태일 때 A가 hangup을 보내는 경우 처리
+                    signalingManager?.handleRemoteHangup()
                     scope.launch { onRemoteDisconnected?.invoke() }
                     hangup(sendSignal = false)
                 }
@@ -549,6 +554,9 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         _connectionState.value = WebRtcConnectionState.DISCONNECTED
         currentCallId = null
         log("Hangup")
+        
+        // 통화 종료 콜백 호출 (알림 취소 등)
+        onCallEnded?.invoke()
     }
 
     fun clearLog() {

@@ -79,6 +79,14 @@ class InCallActivity : ComponentActivity() {
                 val incomingCallState = callSignalingManager?.incomingCall
                 val incomingCall by incomingCallState?.collectAsState() ?: remember { mutableStateOf(null) }
 
+                // 원격에서 hangup을 받아 incomingCall이 null이 된 경우 액티비티 종료
+                LaunchedEffect(incomingCall) {
+                    if (incomingCall == null && window.attributes.type != android.view.WindowManager.LayoutParams.TYPE_APPLICATION) {
+                        // 수신 알림 상태에서 incomingCall이 null이 되면 종료
+                        finish()
+                    }
+                }
+
                 if (incomingCall != null) {
                     val info = incomingCall!!
                     org.duckdns.dorandoran.callaiassistant.ui.screens.IncomingCallScreen(
