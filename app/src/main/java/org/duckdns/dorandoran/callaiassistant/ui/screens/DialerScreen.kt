@@ -23,6 +23,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import android.media.AudioManager
+import android.media.ToneGenerator
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -45,6 +49,13 @@ fun DialerScreen(
 ) {
     var phoneNumber by remember(initialPhoneNumber) { mutableStateOf(initialPhoneNumber) }
     var showLastCalledNumber by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val audioManager = remember { context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager }
+    val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_DTMF, 80) }
+
+    DisposableEffect(Unit) {
+        onDispose { toneGenerator.release() }
+    }
 
     Column(
         modifier = modifier
@@ -104,7 +115,17 @@ fun DialerScreen(
                     row.forEach { digit ->
                         DialPadButton(
                             digit = digit,
-                            onClick = { phoneNumber += digit }
+                            onClick = {
+                                if (digit.length == 1 && digit[0].isDigit()) {
+                                    digitToTone(digit[0])?.let { tone ->
+                                        try {
+                                            toneGenerator.startTone(tone, 120)
+                                        } catch (_: Throwable) {
+                                        }
+                                    }
+                                }
+                                phoneNumber += digit
+                            }
                         )
                     }
                 }
@@ -219,5 +240,21 @@ private fun formatPhoneNumber(number: String): String {
         digits.length <= 3 -> digits
         digits.length <= 7 -> "${digits.take(3)}-${digits.drop(3)}"
         else -> "${digits.take(3)}-${digits.drop(3).take(4)}-${digits.drop(7)}"
+    }
+}
+
+private fun digitToTone(digit: Char): Int? {
+    return when (digit) {
+        '0' -> ToneGenerator.TONE_DTMF_0
+        '1' -> ToneGenerator.TONE_DTMF_1
+        '2' -> ToneGenerator.TONE_DTMF_2
+        '3' -> ToneGenerator.TONE_DTMF_3
+        '4' -> ToneGenerator.TONE_DTMF_4
+        '5' -> ToneGenerator.TONE_DTMF_5
+        '6' -> ToneGenerator.TONE_DTMF_6
+        '7' -> ToneGenerator.TONE_DTMF_7
+        '8' -> ToneGenerator.TONE_DTMF_8
+        '9' -> ToneGenerator.TONE_DTMF_9
+        else -> null
     }
 }
