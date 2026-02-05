@@ -47,9 +47,7 @@ class InCallActivity : ComponentActivity() {
             )
         }
         // 인텐트로 전달된 수신 전화 정보를 시그널링 매니저에 설정
-        if (intent?.action == CallListeningService.ACTION_INCOMING_CALL ||
-            intent?.action == "ACCEPT_CALL" ||
-            intent?.action == "REJECT_CALL") {
+        if (intent?.action == CallListeningService.ACTION_INCOMING_CALL) {
             val callId = intent.getStringExtra(CallListeningService.EXTRA_CALL_ID) ?: ""
             val roomId = intent.getStringExtra(CallListeningService.EXTRA_ROOM_ID)
                 ?: org.duckdns.dorandoran.callaiassistant.webrtc.WEBRTC_ROOM_ID
@@ -80,45 +78,6 @@ class InCallActivity : ComponentActivity() {
                 val callSignalingManager = (application as? CallApp)?.callSignalingManager
                 val incomingCallState = callSignalingManager?.incomingCall
                 val incomingCall by incomingCallState?.collectAsState() ?: remember { mutableStateOf(null) }
-                var autoActionProcessed by remember { mutableStateOf(false) }
-
-                // 알림 액션으로 인한 자동 수락/거절 처리
-                LaunchedEffect(intent?.action) {
-                    if (!autoActionProcessed && incomingCall != null) {
-                        val info = incomingCall!!
-                        when (intent?.action) {
-                            "ACCEPT_CALL" -> {
-                                // 알림의 "받기" 버튼을 눌렀을 때
-                                startService(Intent(this@InCallActivity, CallListeningService::class.java).apply {
-                                    action = CallListeningService.ACTION_CALL_HANDLED
-                                })
-                                // MainActivity로 포그라운드 이동 및 자동 수락 요청
-                                val acceptIntent = Intent(this@InCallActivity, MainActivity::class.java).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                    addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                                    action = CallListeningService.ACTION_INCOMING_CALL
-                                    putExtra(CallListeningService.EXTRA_CALL_ID, info.callId)
-                                    putExtra(CallListeningService.EXTRA_ROOM_ID, info.roomId)
-                                    putExtra("auto_accept", true)
-                                }
-                                startActivity(acceptIntent)
-                                autoActionProcessed = true
-                                finish()
-                            }
-                            "REJECT_CALL" -> {
-                                // 알림의 "거절" 버튼을 눌렀을 때
-                                startService(Intent(this@InCallActivity, CallListeningService::class.java).apply {
-                                    action = CallListeningService.ACTION_CALL_HANDLED
-                                })
-                                // 거절 전송 후 종료
-                                info.callId.let { id -> callSignalingManager?.rejectCall(id) }
-                                autoActionProcessed = true
-                                finish()
-                            }
-                        }
-                    }
-                }
 
                 // 원격에서 hangup을 받아 incomingCall이 null이 된 경우 액티비티 종료
                 LaunchedEffect(incomingCall) {
@@ -128,7 +87,7 @@ class InCallActivity : ComponentActivity() {
                     }
                 }
 
-                if (incomingCall != null && !autoActionProcessed) {
+                if (incomingCall != null) {
                     val info = incomingCall!!
                     org.duckdns.dorandoran.callaiassistant.ui.screens.IncomingCallScreen(
                         callerName = "상대방",
@@ -137,11 +96,12 @@ class InCallActivity : ComponentActivity() {
                                 action = CallListeningService.ACTION_CALL_HANDLED
                             })
                             // MainActivity로 포그라운드 이동 및 자동 수락 요청
+                            // pendingAutoAcceptIntent를 설정하여 새로운 InCallActivity가 띄워지지 않도록 함
                             val intent = Intent(this@InCallActivity, MainActivity::class.java).apply {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                                 addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                                action = CallListeningService.ACTION_INCOMING_CALL
+                                // action을 설정하지 않음 (handleIncomingCallIntent 트리거 방지)
                                 putExtra(CallListeningService.EXTRA_CALL_ID, info.callId)
                                 putExtra(CallListeningService.EXTRA_ROOM_ID, info.roomId)
                                 putExtra("auto_accept", true)

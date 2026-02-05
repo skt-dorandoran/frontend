@@ -99,25 +99,23 @@ class CallListeningService : Service() {
             }
         }
         
-        // InCallActivity를 직접 시작 (full-screen intent의 보완)
-        try {
-            val directIntent = Intent(this, InCallActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                    addFlags(0x00000800) // FLAG_ACTIVITY_SHOW_WHEN_LOCKED
+        // InCallActivity 직접 시작 (백그라운드에서 full-screen intent 제약 극복)
+        Handler(Looper.getMainLooper()).post {
+            try {
+                val directIntent = Intent(this, InCallActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                        addFlags(0x00000800) // FLAG_ACTIVITY_SHOW_WHEN_LOCKED
+                    }
+                    action = ACTION_INCOMING_CALL
+                    putExtra(EXTRA_CALL_ID, callId)
+                    putExtra(EXTRA_ROOM_ID, roomId)
                 }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    addFlags(0x04000000) // FLAG_ACTIVITY_SYSTEM_ALERT_WINDOW 대안으로 사용
-                }
-                action = ACTION_INCOMING_CALL
-                putExtra(EXTRA_CALL_ID, callId)
-                putExtra(EXTRA_ROOM_ID, roomId)
+                startActivity(directIntent)
+                android.util.Log.d("CallListeningService", "InCallActivity started directly")
+            } catch (e: Exception) {
+                android.util.Log.w("CallListeningService", "Failed to start InCallActivity: ${e.message}")
             }
-            startActivity(directIntent)
-            android.util.Log.d("CallListeningService", "InCallActivity started directly")
-        } catch (e: Exception) {
-            android.util.Log.w("CallListeningService", "Failed to start InCallActivity directly: ${e.message}")
         }
         
         val fullScreenIntent = Intent(this, InCallActivity::class.java).apply {

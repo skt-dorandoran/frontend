@@ -98,6 +98,11 @@ class MainActivity : ComponentActivity() {
             ?.schemeSpecificPart?.orEmpty()?.filter { c -> c.isDigit() || c == '+' } ?: ""
 
         handleIncomingCallIntent(intent)
+        
+        // auto_accept 플래그가 있으면 pendingAutoAcceptIntent 설정
+        if (intent?.getBooleanExtra("auto_accept", false) == true) {
+            pendingAutoAcceptIntent = intent
+        }
 
         setContent {
             CallaiassistantTheme {
