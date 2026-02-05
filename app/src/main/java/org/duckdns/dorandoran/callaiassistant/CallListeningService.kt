@@ -109,30 +109,6 @@ class CallListeningService : Service() {
             }
         }
         
-        // InCallActivity 직접 시작 (백그라운드에서 full-screen intent 제약 극복)
-        Handler(Looper.getMainLooper()).post {
-            try {
-                if (InCallActivity.isVisible) {
-                    android.util.Log.d("CallListeningService", "InCallActivity already visible - skip direct start")
-                } else {
-                val directIntent = Intent(this, InCallActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                    // 잠금화면에서도 활동 표시 (권한 필요 없음)
-                    addFlags(0x00000800) // FLAG_ACTIVITY_SHOW_WHEN_LOCKED
-                    addFlags(0x00080000) // FLAG_ACTIVITY_TURN_SCREEN_ON
-                    action = ACTION_INCOMING_CALL
-                    putExtra(EXTRA_CALL_ID, callId)
-                    putExtra(EXTRA_ROOM_ID, roomId)
-                }
-                startActivity(directIntent)
-                android.util.Log.d("CallListeningService", "InCallActivity started directly")
-                }
-            } catch (e: Exception) {
-                android.util.Log.w("CallListeningService", "Failed to start InCallActivity: ${e.message}")
-            }
-        }
-        
         val fullScreenIntent = Intent(this, InCallActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -199,55 +175,47 @@ class CallListeningService : Service() {
             .setSmallIcon(android.R.drawable.ic_menu_call)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setFullScreenIntent(fullScreenPendingIntent, true)
             .setContentIntent(contentPendingIntent)
-            .setAutoCancel(true)
+            .setAutoCancel(false)
             .setTimeoutAfter(60000)
             .setSound(android.provider.Settings.System.DEFAULT_RINGTONE_URI)
             .setVibrate(longArrayOf(0, 500, 200, 500))
             .setLights(-0x10000, 1000, 1000)
-                .setStyle(NotificationCompat.BigTextStyle().bigText("수신 전화 - 탭하여 받기"))
-                .setOngoing(false)
-                .setColorized(true)
-                .setColor(0xFF0099CC.toInt())
+            .setStyle(NotificationCompat.BigTextStyle().bigText("수신 전화 - 탭하여 받기"))
+            .setOngoing(true)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .setColorized(true)
+            .setColor(0xFF0099CC.toInt())
+            .addAction(
+                android.R.drawable.ic_menu_call,
+                "받기",
+                acceptPendingIntent
+            )
+            .addAction(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                "거절",
+                rejectPendingIntent
+            )
             .build()
         
-        // 수신 알림을 포그라운드 알림으로 올려 시스템이 full-screen intent 실행을 허용하도록 시도
         try {
-            startForeground(NOTIFICATION_ID + 1, notification)
-            android.util.Log.d("CallListeningService", "Foreground notification posted with ID ${NOTIFICATION_ID + 1}")
-
-            // 60초 후 원래 대기 알림으로 복원
-            Handler(Looper.getMainLooper()).postDelayed({
-                try {
-                    startForeground(NOTIFICATION_ID, createNotification())
-                    (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIFICATION_ID + 1)
-                    android.util.Log.d("CallListeningService", "Restored foreground notification to ID $NOTIFICATION_ID")
-                } catch (e: Exception) {
-                    android.util.Log.w("CallListeningService", "Failed to restore foreground notification: ${e.message}")
-                }
-            }, 60_000)
+            notificationManager.notify(NOTIFICATION_ID + 1, notification)
+            android.util.Log.d("CallListeningService", "Incoming notification posted with ID ${NOTIFICATION_ID + 1}")
         } catch (e: Exception) {
-            android.util.Log.w("CallListeningService", "Failed to post foreground incoming notification: ${e.message}")
-            // 폴백: 브로드캐스트 전송
-            try {
-                val broadcast = Intent(ACTION_INCOMING_CALL).apply {
-                    putExtra(EXTRA_CALL_ID, callId)
-                    putExtra(EXTRA_ROOM_ID, roomId)
-                }
-                sendBroadcast(broadcast)
-                android.util.Log.d("CallListeningService", "Broadcast sent for incoming call")
-            } catch (e2: Exception) {
-                android.util.Log.w("CallListeningService", "Failed to send incoming broadcast: ${e2.message}")
-            }
+            android.util.Log.w("CallListeningService", "Failed to post incoming notification: ${e.message}")
         }
-        
-        // 직접 startActivity 호출은 백그라운드 제약으로 실패할 수 있으므로 제거.
-        // 알림의 full-screen intent로 OS에게 화면 표시를 맡깁니다.
     }
 
     private fun createIncomingCallChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+            val existing = notificationManager.getNotificationChannel(CHANNEL_ID_INCOMING)
+            if (existing != null && existing.importance < NotificationManager.IMPORTANCE_HIGH) {
+                notificationManager.deleteNotificationChannel(CHANNEL_ID_INCOMING)
+            }
+
             val audioAttributes = android.media.AudioAttributes.Builder()
                 .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
                 .build()
@@ -265,8 +233,9 @@ class CallListeningService : Service() {
                 vibrationPattern = vibratePattern
                 lightColor = 0xFF0099CC.toInt()
                 enableLights(true)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
-            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
+            notificationManager.createNotificationChannel(channel)
         }
     }
 

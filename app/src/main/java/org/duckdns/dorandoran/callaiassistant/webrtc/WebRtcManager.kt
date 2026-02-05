@@ -2,16 +2,16 @@ package org.duckdns.dorandoran.callaiassistant.webrtc
 
 import android.content.Context
 import android.util.Log
+import java.util.Date
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Date
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -20,8 +20,8 @@ import okhttp3.WebSocketListener
 import org.json.JSONObject
 import org.webrtc.AudioSource
 import org.webrtc.AudioTrack
-import org.webrtc.audio.JavaAudioDeviceModule
 import org.webrtc.audio.AudioDeviceModule
+import org.webrtc.audio.JavaAudioDeviceModule
 import org.webrtc.CandidatePairChangeEvent
 import org.webrtc.DataChannel
 import org.webrtc.IceCandidate
@@ -88,6 +88,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     private var receivedOffer = false
     private var offerSent = false
     private val pendingIceCandidates = mutableListOf<IceCandidate>()
+    private var hasEverConnected = false
     private var currentCallId: String? = null
     private var hangupSent: Boolean = false
 
@@ -122,10 +123,17 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     /**
      * 호출자: room 접속 후 offer 전송 (callee_joined 수신 시)
      */
-    fun joinAsCaller() {
+    fun joinAsCaller(callId: String) {
         scope.launch {
             withContext(Dispatchers.IO) {
-                doJoin(role = "caller")
+                hasEverConnected = false
+                // listening 소켓에서 callee_joined를 받을 수 있도록 연결
+                signalingManager?.onSignalingMessage = { text ->
+                    scope.launch(Dispatchers.Main.immediate) {
+                        handleSignalingMessage(text)
+                    }
+                }
+                doJoin(role = "caller", callId = callId.ifBlank { null })
             }
         }
     }
@@ -135,6 +143,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
      */
     fun joinAsCallee(callId: String) {
         hangup(sendSignal = false)
+        hasEverConnected = false
         currentCallId = callId  // hangup 후에 설정하여 초기화 방지
         receivedOffer = false
         offerSent = false
@@ -155,6 +164,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
 
     private fun doJoin(role: String, callId: String? = null) {
         hangup()
+        hasEverConnected = false
         receivedOffer = false
         offerSent = false
         pendingIceCandidates.clear()
@@ -174,24 +184,18 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 _connectionState.value = WebRtcConnectionState.CONNECTED
                 setupPeerConnection()
                 // join + call/accept 순서로 전송 (서버가 callId로 매칭)
-                val joinMsg = JSONObject().apply {
-                    put("type", "join")
-                    put("roomId", WEBRTC_ROOM_ID)
-                    if (role == "callee" && callId != null) put("callId", callId)
-                }
+                    val joinMsg = JSONObject().apply {
+                        put("type", "join")
+                        put("roomId", WEBRTC_ROOM_ID)
+                        if (callId != null) put("callId", callId)
+                        put("role", role)
+                    }
                 log("WS -> join: ${joinMsg.toString()}")
                 webSocket.send(joinMsg.toString())
                 log("Join sent")
                 when (role) {
                     "caller" -> {
-                        val callMsg = JSONObject().apply {
-                            put("type", "call")
-                            put("roomId", WEBRTC_ROOM_ID)
-                        }
-                        log("WS -> call: ${callMsg.toString()}")
-                        webSocket.send(callMsg.toString())
-                        log("Call sent, waiting for callee...")
-                        scheduleCallIfFirst()
+                        log("Join sent (caller), waiting for callee_joined...")
                     }
                     "callee" -> {
                         // Do NOT send 'accept' from the join socket. The server requires
@@ -271,8 +275,8 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     })
                 }
                 val message = json.toString()
-                // callee는 listening 소켓 사용, caller는 join 소켓 사용
-                if (signalingManager != null && webSocket == null) {
+                // signalingManager가 있으면 항상 listening 소켓으로 전송
+                if (signalingManager != null) {
                     signalingManager.sendSignalingMessage(message)
                 } else {
                     webSocket?.send(message)
@@ -289,7 +293,9 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     PeerConnection.IceConnectionState.FAILED,
                     PeerConnection.IceConnectionState.CLOSED -> {
                         log("ICE failed/closed")
-                        scope.launch { onRemoteDisconnected?.invoke() }
+                        if (hasEverConnected) {
+                            scope.launch { onRemoteDisconnected?.invoke() }
+                        }
                     }
                     else -> {}
                 }
@@ -318,9 +324,12 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     PeerConnection.PeerConnectionState.CLOSED,
                     PeerConnection.PeerConnectionState.FAILED,
                     PeerConnection.PeerConnectionState.DISCONNECTED -> {
-                        scope.launch { onRemoteDisconnected?.invoke() }
+                        if (hasEverConnected) {
+                            scope.launch { onRemoteDisconnected?.invoke() }
+                        }
                     }
                     PeerConnection.PeerConnectionState.CONNECTED -> {
+                        hasEverConnected = true
                         _connectionState.value = WebRtcConnectionState.IN_CALL
                     }
                     else -> {}
@@ -392,7 +401,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                                                 }
                                                 val answerMsg = answer.toString()
                                                 // callee\ub294 listening \uc18c\ucf13 \uc0ac\uc6a9
-                                                if (signalingManager != null && webSocket == null) {
+                                                if (signalingManager != null) {
                                                     signalingManager.sendSignalingMessage(answerMsg)
                                                 } else {
                                                     webSocket?.send(answerMsg)
@@ -503,7 +512,12 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                                 put("sdp", sessionDescription.description)
                             })
                         }
-                        webSocket?.send(offer.toString())
+                        val offerMsg = offer.toString()
+                        if (signalingManager != null) {
+                            signalingManager.sendSignalingMessage(offerMsg)
+                        } else {
+                            webSocket?.send(offerMsg)
+                        }
                         offerSent = true
                         log("Offer sent, localDesc set")
                     }
@@ -553,6 +567,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         _remoteAudioTrack.value = null
         _connectionState.value = WebRtcConnectionState.DISCONNECTED
         currentCallId = null
+        hasEverConnected = false
         log("Hangup")
         
         // 통화 종료 콜백 호출 (알림 취소 등)

@@ -99,8 +99,27 @@ class InCallActivity : ComponentActivity() {
                 }
                 var isAccepting by remember { mutableStateOf(false) }
                 var isAccepted by remember { mutableStateOf(false) }
+                var wasBackgroundLaunched by remember { mutableStateOf(false) }
                 val incomingCallState = callSignalingManager?.incomingCall
                 val incomingCall by incomingCallState?.collectAsState() ?: remember { mutableStateOf(null) }
+                
+                // 백그라운드에서 full-screen intent로 띄워진 경우, 자동으로 수락 처리
+                LaunchedEffect(incomingCall, wasBackgroundLaunched) {
+                    if (intent?.action == CallListeningService.ACTION_INCOMING_CALL && 
+                        incomingCall != null && 
+                        !wasBackgroundLaunched && 
+                        !isAccepted) {
+                        wasBackgroundLaunched = true
+                        // 약간의 지연 후 자동 수락
+                        delay(500)
+                        val callId = incomingCall!!.callId
+                        isAccepting = true
+                        isAccepted = true
+                        callAudioManager.start()
+                        callSignalingManager?.acceptCall(callId)
+                        webRtcManager?.joinAsCallee(callId)
+                    }
+                }
 
                 // 원격에서 hangup을 받아 incomingCall이 null이 된 경우 액티비티 종료
                 LaunchedEffect(incomingCall, isAccepting, isAccepted) {

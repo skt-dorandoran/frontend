@@ -172,7 +172,6 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
     var selectedTab by remember { mutableStateOf(0) }
     var showWebRtcCall by remember { mutableStateOf(false) }
     var showIncomingCall by remember { mutableStateOf(false) }
-    var showCallEnded by remember { mutableStateOf(false) }
     var webrtcPhoneNumber by remember { mutableStateOf("") }
     var callRejectedMessage by remember { mutableStateOf(false) }
     var lastCalledPhoneNumber by remember { mutableStateOf<String?>(null) }
@@ -347,14 +346,12 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
                     lastCalledPhoneNumber = phoneNumber
                     webrtcPhoneNumber = phoneNumber.ifBlank { "상대방" }
                     callSignalingManager.markAsCaller()
-                    // 기존 listening 소켓을 통해 먼저 'call' 메시지를 전송하여 방을 생성하도록 함
+                        // 기존 listening 소켓을 통해 먼저 'call' 메시지를 전송하여 방을 생성하도록 함 + callId 생성
                     callSignalingManager.initiateCall()
-                    // 이후 기존 수신 리스너 종료 및 서비스 중지
-                    callSignalingManager.stopListening()
-                    activity.stopService(Intent(activity, CallListeningService::class.java))
+                    // listening 소켓은 유지해야 callee_joined를 수신할 수 있음
                     callAudioManager.start()
                     ringbackToneHelper.start()
-                    webRtcManager.joinAsCaller()
+                    webRtcManager.joinAsCaller("")
                     showWebRtcCall = true
                 },
                 modifier = Modifier.padding(innerPadding)
@@ -364,12 +361,11 @@ private fun PhoneAppContent(activity: MainActivity, initialPhoneNumber: String =
                     webrtcPhoneNumber = phoneNumber.ifBlank { "상대방" }
                     callSignalingManager.markAsCaller()
                     callSignalingManager.initiateCall()
-                    callSignalingManager.stopListening()
-                    activity.stopService(Intent(activity, CallListeningService::class.java))
+                    // listening 소켓은 유지해야 callee_joined를 수신할 수 있음
                     callSignalingManager.clearIncoming()
                     callAudioManager.start()
                     ringbackToneHelper.start()
-                    webRtcManager.joinAsCaller()
+                    webRtcManager.joinAsCaller("")
                     showWebRtcCall = true
                 },
                 modifier = Modifier.padding(innerPadding)
@@ -430,24 +426,6 @@ private fun WebRtcCallContent(
 }
 
 @Composable
-private fun CallEndedContent(onFinish: () -> Unit) {
-    LaunchedEffect(Unit) {
-        delay(2000)
-        onFinish()
-    }
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "통화가 종료되었습니다",
-            style = androidx.compose.material3.MaterialTheme.typography.titleLarge
-        )
-    }
-}
-
 @Composable
 private fun CallRejectedContent(onDismiss: () -> Unit) {
     Box(

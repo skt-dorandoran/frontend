@@ -45,6 +45,8 @@ class CallSignalingManager(private val context: Context) {
     private var isCaller = false
     /** 수락 완료된 callId (중복 incoming 무시용) */
     private var acceptedCallId: String? = null
+        /** 현재 발신 중인 callId (발신자가 미리 생성해서 보냄) */
+        private var currentOutgoingCallId: String? = null
 
     data class IncomingCallInfo(val callId: String, val roomId: String)
 
@@ -260,19 +262,23 @@ class CallSignalingManager(private val context: Context) {
      * 호출자: 현재 열려있는 listening WebSocket을 통해 room에 'call'을 보냄
      * 서버는 이 메시지를 받고 call을 생성하여 다른 참가자에게 알림을 보낼 것입니다.
      */
-    fun initiateCall() {
+    fun initiateCall(): String {
         val ws = webSocketRef.get()
         if (ws == null) {
             Log.w(TAG, "Cannot initiate call: not listening (no websocket)")
-            return
+            return ""
         }
+        val newCallId = java.util.UUID.randomUUID().toString()
+        currentOutgoingCallId = newCallId
         val callMsg = JSONObject().apply {
             put("type", "call")
             put("roomId", WEBRTC_ROOM_ID)
+            put("callId", newCallId)
         }.toString()
         Log.d(TAG, "WS -> call: $callMsg")
         ws.send(callMsg)
-        Log.d(TAG, "Call initiated via signaling socket")
+        Log.d(TAG, "Call initiated via signaling socket - callId=$newCallId")
+        return newCallId
     }
 
     /**
@@ -280,6 +286,7 @@ class CallSignalingManager(private val context: Context) {
      */
     fun clearCallerMode() {
         isCaller = false
+        currentOutgoingCallId = null
         Log.d(TAG, "Cleared caller mode")
     }
 
