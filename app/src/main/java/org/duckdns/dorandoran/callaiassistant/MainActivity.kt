@@ -587,9 +587,20 @@ private fun WebRtcCallContent(
         context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     }
 
+    fun stopIntroTts() {
+        TtsManager.shutdown(introTts)
+        introTts = null
+    }
+
     LaunchedEffect(Unit) {
-        webRtcManager.onRemoteDisconnected = { onRemoteDisconnected() }
-        webRtcManager.onCallRejected = { onCallRejected() }
+        webRtcManager.onRemoteDisconnected = {
+            stopIntroTts()
+            onRemoteDisconnected()
+        }
+        webRtcManager.onCallRejected = {
+            stopIntroTts()
+            onCallRejected()
+        }
     }
 
     LaunchedEffect(connectionState) {
@@ -601,12 +612,15 @@ private fun WebRtcCallContent(
         }
     }
 
+    DisposableEffect(Unit) {
+        onDispose { stopIntroTts() }
+    }
+
     LaunchedEffect(connectionState) {
         val inCall = connectionState == org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState.IN_CALL
         if (!inCall) {
             introPromptPlayed = false
-            TtsManager.shutdown(introTts)
-            introTts = null
+            stopIntroTts()
             return@LaunchedEffect
         }
         if (introPromptPlayed) {
@@ -651,12 +665,17 @@ private fun WebRtcCallContent(
     }
 
     val logMessages by webRtcManager.logMessages.collectAsState()
+    val handleEndCall = {
+        stopIntroTts()
+        onEndCall()
+    }
+
     WebRtcInCallScreen(
         phoneNumber = phoneNumber,
         connectionState = connectionState,
         callDurationSeconds = callDuration,
         logMessages = logMessages,
-        onEndCall = onEndCall,
+        onEndCall = handleEndCall,
         onSpeakerphoneToggle = { isOn ->
             callAudioManager.setSpeakerphone(isOn)
         }
