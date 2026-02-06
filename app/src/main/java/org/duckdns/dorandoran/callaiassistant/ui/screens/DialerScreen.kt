@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -85,7 +86,7 @@ fun DialerScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
@@ -203,33 +204,54 @@ fun DialerScreen(
         // 다이얼 패드
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val dialPad = listOf(
-                listOf("1", "2", "3"),
-                listOf("4", "5", "6"),
-                listOf("7", "8", "9"),
-                listOf("*", "0", "#")
+                listOf(
+                    DialPadKey("1", "ㄱㅋ", ".QZ"),
+                    DialPadKey("2", "ㄴ", "ABC"),
+                    DialPadKey("3", "ㄷㅌ", "DEF")
+                ),
+                listOf(
+                    DialPadKey("4", "ㄹ", "GHI"),
+                    DialPadKey("5", "ㅁ", "JKL"),
+                    DialPadKey("6", "ㅂㅍ", "NMO")
+                ),
+                listOf(
+                    DialPadKey("7", "ㅅ", "PRS"),
+                    DialPadKey("8", "ㅇ", "TUV"),
+                    DialPadKey("9", "ㅈㅊ", "WXY")
+                ),
+                listOf(
+                    DialPadKey("*", ",", ""),
+                    DialPadKey("0", "ㅎ", "+"),
+                    DialPadKey("#", ";", "")
+                )
             )
 
             dialPad.forEach { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    row.forEach { digit ->
+                    row.forEach { key ->
                         DialPadButton(
-                            digit = digit,
+                            digit = key.digit,
+                            hangul = key.hangul,
+                            latin = key.latin,
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(1.4f),
                             onClick = {
-                                if (digit.length == 1) {
-                                    digitToTone(digit[0])?.let { tone ->
+                                if (key.digit.length == 1) {
+                                    digitToTone(key.digit[0])?.let { tone ->
                                         try {
                                             toneGenerator.startTone(tone, 120)
                                         } catch (_: Throwable) {
                                         }
                                     }
                                 }
-                                phoneNumber += digit
+                                phoneNumber += key.digit
                             }
                         )
                     }
@@ -295,23 +317,47 @@ fun DialerScreen(
 @Composable
 private fun DialPadButton(
     digit: String,
+    hangul: String,
+    latin: String,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     Box(
-        modifier = Modifier
-            .size(64.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+        modifier = modifier
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = digit,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Medium
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = digit,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = hangul,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = if (latin.isBlank()) " " else latin,
+                fontSize = 9.sp,
+                color = if (latin.isBlank()) Color.Transparent else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
+
+private data class DialPadKey(
+    val digit: String,
+    val hangul: String,
+    val latin: String
+)
 
 @Composable
 private fun CallButton(
