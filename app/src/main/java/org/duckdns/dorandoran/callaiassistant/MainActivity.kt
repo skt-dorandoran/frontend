@@ -57,6 +57,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.isSystemInDarkTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
@@ -668,15 +669,12 @@ private fun OnboardingFlow(
 
 @Composable
 private fun OnboardingIntroScreen(onStart: () -> Unit) {
+    val isDarkTheme = isSystemInDarkTheme()
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                Brush.linearGradient(
-                    colors = listOf(Color(0xFF7B2FFF), Color(0xFF2ED573)),
-                    start = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY),
-                    end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f)
-                )
+                if (isDarkTheme) Color(0xFF101214) else Color.White
             )
     ) {
         Column(
