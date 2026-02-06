@@ -1,6 +1,7 @@
 package org.duckdns.dorandoran.callaiassistant
 
 import android.os.Bundle
+import android.app.Activity
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
@@ -25,8 +26,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
@@ -50,18 +53,34 @@ class VoiceCloneSettingsActivity : ComponentActivity() {
 @Composable
 private fun VoiceCloneSettingsContent(onBack: () -> Unit) {
     val context = LocalContext.current
+    val activity = context as? Activity
     var isVoiceCloneEnabled by remember { mutableStateOf(SettingsStore.isVoiceCloneEnabled(context)) }
     var isVoiceTrained by remember { mutableStateOf(false) }
+    val currentEnabled by rememberUpdatedState(isVoiceCloneEnabled)
+    val currentTrained by rememberUpdatedState(isVoiceTrained)
 
     LaunchedEffect(isVoiceCloneEnabled) {
         SettingsStore.setVoiceCloneEnabled(context, isVoiceCloneEnabled)
     }
 
-    BackHandler {
+    DisposableEffect(Unit) {
+        onDispose {
+            if (activity?.isFinishing == true && currentEnabled && !currentTrained) {
+                SettingsStore.setVoiceCloneEnabled(context, false)
+            }
+        }
+    }
+
+    fun handleBack() {
         if (isVoiceCloneEnabled && !isVoiceTrained) {
             isVoiceCloneEnabled = false
+            SettingsStore.setVoiceCloneEnabled(context, false)
         }
         onBack()
+    }
+
+    BackHandler {
+        handleBack()
     }
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -78,7 +97,7 @@ private fun VoiceCloneSettingsContent(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
+                IconButton(onClick = { handleBack() }) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
                         contentDescription = "뒤로가기"
