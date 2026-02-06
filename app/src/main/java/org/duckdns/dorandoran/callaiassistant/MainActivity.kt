@@ -100,13 +100,17 @@ class MainActivity : ComponentActivity() {
         val allGranted = permissions.values.all { it }
         permissionsState = allGranted
         savePermissionsRequested()
-        if (allGranted && pendingDefaultDialerRequest) {
-            pendingDefaultDialerRequest = false
-            DefaultDialerHelper.requestDefaultDialer(
-                this@MainActivity,
-                roleRequestLauncher = { intent -> defaultDialerLauncher.launch(intent) }
-            )
+        onboardingPermissionPending = false
+        if (!allGranted) {
+            showMissingPermissionsWarning = true
+            saveMissingPermissionsWarning(true)
+            return@registerForActivityResult
         }
+        showMissingPermissionsWarning = false
+        saveMissingPermissionsWarning(false)
+        showAppWithoutDefaultDialer = true
+        onboardingCompleted = true
+        saveOnboardingCompleted()
     }
 
     private val defaultDialerLauncher = registerForActivityResult(
@@ -117,7 +121,8 @@ class MainActivity : ComponentActivity() {
     private var showAppWithoutDefaultDialer by mutableStateOf(false)
     private var hasRequestedPermissions by mutableStateOf(false)
     private var onboardingCompleted by mutableStateOf(false)
-    private var pendingDefaultDialerRequest by mutableStateOf(false)
+    private var showMissingPermissionsWarning by mutableStateOf(false)
+    private var onboardingPermissionPending by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -127,6 +132,16 @@ class MainActivity : ComponentActivity() {
         checkPermissions()
         hasRequestedPermissions = loadPermissionsRequested()
         onboardingCompleted = loadOnboardingCompleted()
+        showMissingPermissionsWarning = loadMissingPermissionsWarning()
+        if (permissionsState) {
+            showMissingPermissionsWarning = false
+            saveMissingPermissionsWarning(false)
+            showAppWithoutDefaultDialer = true
+        } else if (onboardingCompleted) {
+            showMissingPermissionsWarning = true
+            saveMissingPermissionsWarning(true)
+            showAppWithoutDefaultDialer = false
+        }
         
         // 앱 시작 시 CallListeningService 시작 (백그라운드 청취용)
         startCallListeningService()
@@ -140,29 +155,28 @@ class MainActivity : ComponentActivity() {
         setContent {
             CallaiassistantTheme {
                 when {
+                    showMissingPermissionsWarning -> MissingPermissionsWarningScreen(
+                        onOpenSettings = { openAppSettings() },
+                        onCloseApp = { finish() }
+                    )
                     !onboardingCompleted -> OnboardingFlow(
                         onComplete = {
-                            onboardingCompleted = true
-                            saveOnboardingCompleted()
+                            if (onboardingPermissionPending) {
+                                return@OnboardingFlow
+                            }
+                            checkPermissions()
                             if (!permissionsState) {
                                 hasRequestedPermissions = true
                                 savePermissionsRequested()
-                                pendingDefaultDialerRequest = true
+                                onboardingPermissionPending = true
                                 requestPermissions()
                             } else {
-                                pendingDefaultDialerRequest = true
-                                DefaultDialerHelper.requestDefaultDialer(
-                                    this@MainActivity,
-                                    roleRequestLauncher = { intent -> defaultDialerLauncher.launch(intent) }
-                                )
+                                showMissingPermissionsWarning = false
+                                saveMissingPermissionsWarning(false)
+                                showAppWithoutDefaultDialer = true
+                                onboardingCompleted = true
+                                saveOnboardingCompleted()
                             }
-                        }
-                    )
-                    !permissionsState || !hasRequestedPermissions -> PermissionRequestScreen(
-                        onRequestPermission = {
-                            hasRequestedPermissions = true
-                            savePermissionsRequested()
-                            requestPermissions()
                         }
                     )
                     !showAppWithoutDefaultDialer && !DefaultDialerHelper.isDefaultDialer(this@MainActivity) ->
@@ -217,6 +231,26 @@ class MainActivity : ComponentActivity() {
             .apply()
     }
 
+    private fun loadMissingPermissionsWarning(): Boolean {
+        return getSharedPreferences("app_prefs", MODE_PRIVATE)
+            .getBoolean("show_missing_permissions_warning", false)
+    }
+
+    private fun saveMissingPermissionsWarning(show: Boolean) {
+        getSharedPreferences("app_prefs", MODE_PRIVATE)
+            .edit()
+            .putBoolean("show_missing_permissions_warning", show)
+            .apply()
+    }
+
+    private fun openAppSettings() {
+        val intent = Intent(
+            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.fromParts("package", packageName, null)
+        )
+        startActivity(intent)
+    }
+
     private fun requestPermissions() {
         permissionLauncher.launch(requiredPermissions)
     }
@@ -232,6 +266,11 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         checkPermissions()
+        if (!permissionsState && onboardingCompleted) {
+            showMissingPermissionsWarning = true
+            saveMissingPermissionsWarning(true)
+            showAppWithoutDefaultDialer = false
+        }
     }
 
     fun startCallListeningService() {
@@ -578,8 +617,9 @@ private fun WebRtcCallContent(
 }
 
 @Composable
-private fun PermissionRequestScreen(
-    onRequestPermission: () -> Unit
+private fun MissingPermissionsWarningScreen(
+    onOpenSettings: () -> Unit,
+    onCloseApp: () -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -597,19 +637,29 @@ private fun PermissionRequestScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "통화 기능을 위해\n권한을 허용해주세요",
+                        text = "필수 권한이 누락되어\n전화 기능을 사용할 수 없습니다",
                         style = MaterialTheme.typography.titleMedium,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "설정에서 권한을 허용한 뒤\n앱을 다시 실행해주세요",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = onRequestPermission,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
                     ) {
-                        Text("전화 권한 허용")
+                        androidx.compose.material3.OutlinedButton(onClick = onOpenSettings) {
+                            Text("설정 열기")
+                        }
+                        Button(onClick = onCloseApp) {
+                            Text("앱 종료")
+                        }
                     }
                 }
             }
