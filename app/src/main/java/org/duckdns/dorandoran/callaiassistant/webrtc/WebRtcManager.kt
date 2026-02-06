@@ -91,6 +91,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     private var hasEverConnected = false
     private var currentCallId: String? = null
     private var hangupSent: Boolean = false
+    private var useListeningSocketForSignaling: Boolean = true
 
     init {
         initPeerConnectionFactory()
@@ -127,6 +128,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         scope.launch {
             withContext(Dispatchers.IO) {
                 hasEverConnected = false
+                useListeningSocketForSignaling = false
                 // listening 소켓에서 callee_joined를 받을 수 있도록 연결
                 signalingManager?.onSignalingMessage = { text ->
                     scope.launch(Dispatchers.Main.immediate) {
@@ -144,6 +146,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     fun joinAsCallee(callId: String) {
         hangup(sendSignal = false)
         hasEverConnected = false
+        useListeningSocketForSignaling = true
         currentCallId = callId  // hangup 후에 설정하여 초기화 방지
         receivedOffer = false
         offerSent = false
@@ -275,12 +278,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     })
                 }
                 val message = json.toString()
-                // signalingManager가 있으면 항상 listening 소켓으로 전송
-                if (signalingManager != null) {
-                    signalingManager.sendSignalingMessage(message)
-                } else {
-                    webSocket?.send(message)
-                }
+                sendSignaling(message)
             }
 
             override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {}
@@ -400,12 +398,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                                                     })
                                                 }
                                                 val answerMsg = answer.toString()
-                                                // callee\ub294 listening \uc18c\ucf13 \uc0ac\uc6a9
-                                                if (signalingManager != null) {
-                                                    signalingManager.sendSignalingMessage(answerMsg)
-                                                } else {
-                                                    webSocket?.send(answerMsg)
-                                                }
+                                                sendSignaling(answerMsg)
                                             }
                                             override fun onSetFailure(error: String?) {}
                                         }, sessionDescription)
@@ -513,11 +506,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                             })
                         }
                         val offerMsg = offer.toString()
-                        if (signalingManager != null) {
-                            signalingManager.sendSignalingMessage(offerMsg)
-                        } else {
-                            webSocket?.send(offerMsg)
-                        }
+                        sendSignaling(offerMsg)
                         offerSent = true
                         log("Offer sent, localDesc set")
                     }
@@ -528,6 +517,14 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
             override fun onSetSuccess() {}
             override fun onSetFailure(error: String?) {}
         }, constraints)
+    }
+
+    private fun sendSignaling(message: String) {
+        if (useListeningSocketForSignaling && signalingManager != null) {
+            signalingManager.sendSignalingMessage(message)
+        } else {
+            webSocket?.send(message)
+        }
     }
 
     fun hangup(sendSignal: Boolean = true) {

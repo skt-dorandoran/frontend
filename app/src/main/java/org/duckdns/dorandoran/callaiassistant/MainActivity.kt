@@ -65,7 +65,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.isSystemInDarkTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -357,12 +359,30 @@ private fun PhoneAppContent(
         lastCalledPhoneNumber = number
         webrtcPhoneNumber = number.ifBlank { "상대방" }
         callSignalingManager.markAsCaller()
-        val callerNumber = getOwnPhoneNumber(activity.applicationContext)
-        val callId = callSignalingManager.initiateCall(callerNumber)
-        callAudioManager.start()
-        ringbackToneHelper.start()
-        webRtcManager.joinAsCaller(callId)
-        showWebRtcCall = true
+        coroutineScope.launch {
+            if (!callSignalingManager.isListening.value) {
+                callSignalingManager.startListening()
+                val ready = withTimeoutOrNull(2000) {
+                    callSignalingManager.isListening.first { it }
+                }
+                if (ready != true) {
+                    bannerMessage = "통화 연결을 준비 중입니다"
+                    bannerLocked = true
+                    return@launch
+                }
+            }
+            val callerNumber = getOwnPhoneNumber(activity.applicationContext)
+            val callId = callSignalingManager.initiateCall(callerNumber)
+            if (callId.isBlank()) {
+                bannerMessage = "통화 연결을 준비 중입니다"
+                bannerLocked = true
+                return@launch
+            }
+            callAudioManager.start()
+            ringbackToneHelper.start()
+            webRtcManager.joinAsCaller(callId)
+            showWebRtcCall = true
+        }
     }
 
     LaunchedEffect(autoCall, initialPhoneNumber) {
