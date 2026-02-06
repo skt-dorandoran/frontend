@@ -37,21 +37,21 @@ const val WEBRTC_ROOM_ID = "dorandoran-room"
 
 /**
  * WebRTC + coturn 시그널링 및 PeerConnection 관리
- * 참조: wss://wss.dorandoran.duckdns.org, STUN/TURN dorandoran.duckdns.org:3478
+ * 참조: wss://wss.dorandoran.dev, STUN/TURN dorandoran.dev:3478
  */
 class WebRtcManager(private val context: Context, private val signalingManager: CallSignalingManager? = null) {
 
     companion object {
         private const val TAG = "WebRtcManager"
-        private const val SIGNALING_URL = "wss://wss.dorandoran.duckdns.org"
+        private const val SIGNALING_URL = "wss://wss.dorandoran.dev"
 
         private val ICE_SERVERS = listOf(
-            PeerConnection.IceServer.builder("stun:dorandoran.duckdns.org:3478").createIceServer(),
-            PeerConnection.IceServer.builder("turn:dorandoran.duckdns.org:3478?transport=udp")
+            PeerConnection.IceServer.builder("stun:dorandoran.dev:3478").createIceServer(),
+            PeerConnection.IceServer.builder("turn:dorandoran.dev:3478?transport=udp")
                 .setUsername("webrtc")
                 .setPassword("dorandoran2@")
                 .createIceServer(),
-            PeerConnection.IceServer.builder("turn:dorandoran.duckdns.org:3478?transport=tcp")
+            PeerConnection.IceServer.builder("turn:dorandoran.dev:3478?transport=tcp")
                 .setUsername("webrtc")
                 .setPassword("dorandoran2@")
                 .createIceServer()

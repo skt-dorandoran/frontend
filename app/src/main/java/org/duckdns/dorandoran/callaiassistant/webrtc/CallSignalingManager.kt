@@ -26,7 +26,7 @@ class CallSignalingManager(private val context: Context) {
 
     companion object {
         private const val TAG = "CallSignalingManager"
-        private const val SIGNALING_URL = "wss://wss.dorandoran.duckdns.org"
+        private const val SIGNALING_URL = "wss://wss.dorandoran.dev"
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
