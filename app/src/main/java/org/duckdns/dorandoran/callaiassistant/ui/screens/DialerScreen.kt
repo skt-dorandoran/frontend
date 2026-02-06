@@ -241,7 +241,7 @@ fun DialerScreen(
                             latin = key.latin,
                             modifier = Modifier
                                 .weight(1f)
-                                .aspectRatio(1.4f),
+                                .aspectRatio(1.5f),
                             onClick = {
                                 if (key.digit.length == 1) {
                                     digitToTone(key.digit[0])?.let { tone ->

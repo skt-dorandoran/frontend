@@ -49,6 +49,9 @@ class SettingsActivity : ComponentActivity() {
                     onOpenPermissions = {
                         startActivity(Intent(this, CallPermissionsActivity::class.java))
                     },
+                    onOpenCallIntroPrompt = {
+                        startActivity(Intent(this, CallIntroPromptActivity::class.java))
+                    },
                     onBack = { finish() }
                 )
             }
@@ -60,6 +63,7 @@ class SettingsActivity : ComponentActivity() {
 private fun SettingsContent(
     onOpenVoiceClone: () -> Unit,
     onOpenPermissions: () -> Unit,
+    onOpenCallIntroPrompt: () -> Unit,
     onBack: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -162,6 +166,27 @@ private fun SettingsContent(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(text = "통화 필수 권한", style = MaterialTheme.typography.titleMedium)
+                Text(text = ">", style = MaterialTheme.typography.bodyMedium)
+            }
+
+            Divider()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenCallIntroPrompt)
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(text = "통화 시작 안내 멘트", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "상대방이 전화를 받으면 AI 통화 중임을 알리는 멘트를 먼저 송출해요",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Text(text = ">", style = MaterialTheme.typography.bodyMedium)
             }
 
