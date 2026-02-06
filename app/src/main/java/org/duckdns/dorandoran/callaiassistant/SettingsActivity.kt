@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 import kotlin.math.roundToInt
 
@@ -113,6 +114,15 @@ private fun SettingsContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "작게", fontSize = 12.sp)
+                Text(text = "보통", fontSize = 14.sp)
+                Text(text = "크게", fontSize = 16.sp)
+            }
+            Spacer(modifier = Modifier.height(6.dp))
             Slider(
                 value = textSizeStep,
                 onValueChange = { value ->
@@ -124,14 +134,6 @@ private fun SettingsContent(
                 steps = 1,
                 valueRange = 0f..2f
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "작게", style = MaterialTheme.typography.bodySmall)
-                Text(text = "보통", style = MaterialTheme.typography.bodySmall)
-                Text(text = "크게", style = MaterialTheme.typography.bodySmall)
-            }
 
             Spacer(modifier = Modifier.height(24.dp))
             Divider()
