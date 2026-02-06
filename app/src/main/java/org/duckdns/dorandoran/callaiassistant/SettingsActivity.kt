@@ -64,14 +64,8 @@ private fun SettingsContent(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var textSizeStep by remember { mutableFloatStateOf(SettingsStore.getCallTextSizeStep(context).toFloat()) }
-    var autoRecordEnabled by remember { mutableStateOf(SettingsStore.isAutoRecordEnabled(context)) }
-
     LaunchedEffect(textSizeStep) {
         SettingsStore.setCallTextSizeStep(context, textSizeStep.toInt())
-    }
-
-    LaunchedEffect(autoRecordEnabled) {
-        SettingsStore.setAutoRecordEnabled(context, autoRecordEnabled)
     }
 
     Surface(
@@ -171,22 +165,6 @@ private fun SettingsContent(
                 Text(text = ">", style = MaterialTheme.typography.bodyMedium)
             }
 
-            Divider()
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "통화 자동 녹음", style = MaterialTheme.typography.titleMedium)
-                Switch(
-                    checked = autoRecordEnabled,
-                    onCheckedChange = { checked ->
-                        autoRecordEnabled = checked
-                    }
-                )
-            }
         }
     }
 }
