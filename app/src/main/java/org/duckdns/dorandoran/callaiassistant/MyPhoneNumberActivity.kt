@@ -1,7 +1,6 @@
 package org.duckdns.dorandoran.callaiassistant
 
 import android.Manifest
-import android.app.Activity
 import android.os.Build
 import android.os.Bundle
 import android.telephony.SubscriptionManager
@@ -33,12 +32,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,13 +59,10 @@ class MyPhoneNumberActivity : ComponentActivity() {
 @Composable
 private fun MyPhoneNumberContent(onBack: () -> Unit) {
     val context = LocalContext.current
-    val activity = context as? Activity
     var inputNumber by remember { mutableStateOf(SettingsStore.getMyPhoneNumber(context)) }
-    val latestInput by rememberUpdatedState(inputNumber)
 
     LaunchedEffect(Unit) {
         val deviceNumber = getDevicePhoneNumber(context)
-        SettingsStore.ensureMyPhoneNumberDefault(context, deviceNumber)
         inputNumber = SettingsStore.getMyPhoneNumber(context).ifBlank {
             if (deviceNumber.isNotBlank()) deviceNumber else SettingsStore.DEFAULT_MY_PHONE_NUMBER
         }
@@ -80,13 +74,8 @@ private fun MyPhoneNumberContent(onBack: () -> Unit) {
         onBack()
     }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            if (activity?.isFinishing == true) {
-                val value = latestInput.ifBlank { SettingsStore.DEFAULT_MY_PHONE_NUMBER }
-                SettingsStore.setMyPhoneNumber(context, value)
-            }
-        }
+    BackHandler {
+        onBack()
     }
 
     Surface(
@@ -105,7 +94,7 @@ private fun MyPhoneNumberContent(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { saveAndClose() }) {
+                IconButton(onClick = { onBack() }) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
                         contentDescription = "뒤로가기"
@@ -143,13 +132,11 @@ private fun MyPhoneNumberContent(onBack: () -> Unit) {
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 factory = { viewContext ->
                     val editText = EditText(viewContext)
-                    var isUpdating = false
                     editText.inputType = InputType.TYPE_CLASS_PHONE
                     editText.setText(formatPhoneNumberForInput(inputNumber))
                     editText.setSelection(editText.text?.length ?: 0)
                     editText.addTextChangedListener(object : TextWatcher {
                         override fun afterTextChanged(s: Editable?) {
-                            if (isUpdating) return
                             val digitsOnly = s?.toString()?.filter { it.isDigit() }.orEmpty()
                             if (digitsOnly != inputNumber) {
                                 inputNumber = digitsOnly
