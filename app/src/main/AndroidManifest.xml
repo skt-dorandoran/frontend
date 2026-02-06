@@ -106,6 +106,13 @@
             android:theme="@style/Theme.Callaiassistant" />
 
         <activity
+            android:name=".MyPhoneNumberActivity"
+            android:exported="false"
+            android:label="내 번호 설정"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Callaiassistant" />
+
+        <activity
             android:name=".ServiceTermsActivity"
             android:exported="false"
             android:label="서비스 이용 약관 동의"

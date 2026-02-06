@@ -48,7 +48,11 @@ class CallSignalingManager(private val context: Context) {
         /** 현재 발신 중인 callId (발신자가 미리 생성해서 보냄) */
         private var currentOutgoingCallId: String? = null
 
-    data class IncomingCallInfo(val callId: String, val roomId: String)
+    data class IncomingCallInfo(
+        val callId: String,
+        val roomId: String,
+        val callerNumber: String
+    )
 
     /** 수신 전화 시 콜백 (서비스에서 전체화면 인텐트용) */
     var onIncomingCallReceived: ((IncomingCallInfo) -> Unit)? = null
@@ -132,6 +136,7 @@ class CallSignalingManager(private val context: Context) {
                     }
                     val callId = msg.optString("callId", "")
                     val roomId = msg.optString("roomId", WEBRTC_ROOM_ID)
+                    val callerNumber = msg.optString("callerNumber", "")
                     if (acceptedCallId == callId) {
                         Log.d(TAG, "Incoming ignored (already accepted): callId=$callId")
                         return
@@ -146,7 +151,7 @@ class CallSignalingManager(private val context: Context) {
                         return
                     }
                     if (callId.isNotEmpty()) {
-                        val info = IncomingCallInfo(callId, roomId)
+                        val info = IncomingCallInfo(callId, roomId, callerNumber)
                         _incomingCall.value = info
                         Log.d(TAG, "Incoming call: callId=$callId, onIncomingCallReceived=${onIncomingCallReceived != null}")
                         onIncomingCallReceived?.invoke(info)
@@ -262,7 +267,7 @@ class CallSignalingManager(private val context: Context) {
      * 호출자: 현재 열려있는 listening WebSocket을 통해 room에 'call'을 보냄
      * 서버는 이 메시지를 받고 call을 생성하여 다른 참가자에게 알림을 보낼 것입니다.
      */
-    fun initiateCall(): String {
+    fun initiateCall(callerNumber: String): String {
         val ws = webSocketRef.get()
         if (ws == null) {
             Log.w(TAG, "Cannot initiate call: not listening (no websocket)")
@@ -274,6 +279,7 @@ class CallSignalingManager(private val context: Context) {
             put("type", "call")
             put("roomId", WEBRTC_ROOM_ID)
             put("callId", newCallId)
+            put("callerNumber", callerNumber)
         }.toString()
         Log.d(TAG, "WS -> call: $callMsg")
         ws.send(callMsg)

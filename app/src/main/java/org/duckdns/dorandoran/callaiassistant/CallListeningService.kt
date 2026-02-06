@@ -29,6 +29,7 @@ class CallListeningService : Service() {
         const val ACTION_CALL_HANDLED = "org.duckdns.dorandoran.CALL_HANDLED"
         const val EXTRA_CALL_ID = "call_id"
         const val EXTRA_ROOM_ID = "room_id"
+        const val EXTRA_CALLER_NUMBER = "caller_number"
         private const val INCOMING_DEBOUNCE_MS = 1500L
         private var lastIncomingCallId: String? = null
         private var lastIncomingAt: Long = 0L
@@ -74,7 +75,7 @@ class CallListeningService : Service() {
     private fun setupIncomingListener() {
         val manager = (application as? CallApp)?.callSignalingManager ?: return
         manager.onIncomingCallReceived = { info: IncomingCallInfo ->
-            showIncomingCall(info.callId, info.roomId)
+            showIncomingCall(info.callId, info.roomId, info.callerNumber)
         }
         // 원격에서 hangup 신호 수신 시 알림 취소
         manager.onRemoteHangup = {
@@ -87,7 +88,7 @@ class CallListeningService : Service() {
         }
     }
 
-    private fun showIncomingCall(callId: String, roomId: String) {
+    private fun showIncomingCall(callId: String, roomId: String, callerNumber: String) {
         createIncomingCallChannel()
         val now = System.currentTimeMillis()
         if (lastIncomingCallId == callId && (now - lastIncomingAt) < INCOMING_DEBOUNCE_MS) {
@@ -124,6 +125,7 @@ class CallListeningService : Service() {
             action = ACTION_INCOMING_CALL
             putExtra(EXTRA_CALL_ID, callId)
             putExtra(EXTRA_ROOM_ID, roomId)
+            putExtra(EXTRA_CALLER_NUMBER, callerNumber)
         }
         
         val fullScreenPendingIntent = PendingIntent.getActivity(
@@ -137,6 +139,7 @@ class CallListeningService : Service() {
             action = ACTION_INCOMING_CALL
             putExtra(EXTRA_CALL_ID, callId)
             putExtra(EXTRA_ROOM_ID, roomId)
+            putExtra(EXTRA_CALLER_NUMBER, callerNumber)
         }
         
         val contentPendingIntent = PendingIntent.getActivity(

@@ -9,6 +9,9 @@ object SettingsStore {
     private const val KEY_CALL_INTRO_PROMPT_STYLE = "call_intro_prompt_style"
     private const val KEY_CALL_INTRO_PROMPT_DEFAULTS_APPLIED = "call_intro_prompt_defaults_applied"
     private const val KEY_VOICE_CLONE_ENABLED = "voice_clone_enabled"
+    private const val KEY_MY_PHONE_NUMBER = "my_phone_number"
+
+    const val DEFAULT_MY_PHONE_NUMBER = "00000000000"
 
     fun getCallTextSizeStep(context: Context): Int {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -67,6 +70,26 @@ object SettingsStore {
     fun setVoiceCloneEnabled(context: Context, enabled: Boolean) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_VOICE_CLONE_ENABLED, enabled).apply()
+    }
+
+    fun getMyPhoneNumber(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_MY_PHONE_NUMBER, "") ?: ""
+    }
+
+    fun ensureMyPhoneNumberDefault(context: Context, deviceNumber: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.contains(KEY_MY_PHONE_NUMBER)) {
+            return
+        }
+        val defaultValue = if (deviceNumber.isNotBlank()) deviceNumber else DEFAULT_MY_PHONE_NUMBER
+        prefs.edit().putString(KEY_MY_PHONE_NUMBER, defaultValue).apply()
+    }
+
+    fun setMyPhoneNumber(context: Context, number: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val digitsOnly = number.filter { it.isDigit() }
+        prefs.edit().putString(KEY_MY_PHONE_NUMBER, digitsOnly).apply()
     }
 }
 

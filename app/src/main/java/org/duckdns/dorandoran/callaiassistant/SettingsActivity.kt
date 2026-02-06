@@ -47,6 +47,9 @@ class SettingsActivity : ComponentActivity() {
                     onOpenVoiceClone = {
                         startActivity(Intent(this, VoiceCloneSettingsActivity::class.java))
                     },
+                    onOpenMyPhoneNumber = {
+                        startActivity(Intent(this, MyPhoneNumberActivity::class.java))
+                    },
                     onOpenPermissions = {
                         startActivity(Intent(this, CallPermissionsActivity::class.java))
                     },
@@ -63,6 +66,7 @@ class SettingsActivity : ComponentActivity() {
 @Composable
 private fun SettingsContent(
     onOpenVoiceClone: () -> Unit,
+    onOpenMyPhoneNumber: () -> Unit,
     onOpenPermissions: () -> Unit,
     onOpenCallIntroPrompt: () -> Unit,
     onBack: () -> Unit
@@ -153,6 +157,27 @@ private fun SettingsContent(
                     Text(
                         text = "미리 등록한 목소리로 통화 중 입력한 문장을 읽어드려요",
                         style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Text(text = ">", style = MaterialTheme.typography.bodyMedium)
+            }
+
+            Divider()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenMyPhoneNumber)
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(text = "내 번호 설정", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "상대방에게 표시될 내 전화번호를 입력해요",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Text(text = ">", style = MaterialTheme.typography.bodyMedium)

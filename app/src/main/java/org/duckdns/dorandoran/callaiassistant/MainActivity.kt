@@ -11,6 +11,8 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.telephony.SubscriptionManager
+import android.telephony.TelephonyManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -292,8 +294,13 @@ class MainActivity : ComponentActivity() {
             val callId = intent.getStringExtra(CallListeningService.EXTRA_CALL_ID) ?: return
             val roomId = intent.getStringExtra(CallListeningService.EXTRA_ROOM_ID)
                 ?: org.duckdns.dorandoran.callaiassistant.webrtc.WEBRTC_ROOM_ID
+            val callerNumber = intent.getStringExtra(CallListeningService.EXTRA_CALLER_NUMBER).orEmpty()
             (application as? CallApp)?.callSignalingManager?.setIncomingFromIntent(
-                org.duckdns.dorandoran.callaiassistant.webrtc.CallSignalingManager.IncomingCallInfo(callId, roomId)
+                org.duckdns.dorandoran.callaiassistant.webrtc.CallSignalingManager.IncomingCallInfo(
+                    callId,
+                    roomId,
+                    callerNumber
+                )
             )
         }
     }
@@ -350,7 +357,8 @@ private fun PhoneAppContent(
         lastCalledPhoneNumber = number
         webrtcPhoneNumber = number.ifBlank { "상대방" }
         callSignalingManager.markAsCaller()
-        callSignalingManager.initiateCall()
+        val callerNumber = getOwnPhoneNumber(activity.applicationContext)
+        callSignalingManager.initiateCall(callerNumber)
         callAudioManager.start()
         ringbackToneHelper.start()
         webRtcManager.joinAsCaller("")
@@ -453,7 +461,7 @@ private fun PhoneAppContent(
         }
         
         IncomingCallScreen(
-            callerName = "상대방",
+            callerName = incomingCall?.callerNumber?.ifBlank { "상대방" } ?: "상대방",
             onAccept = {
                 val info = incomingCall!!
                 // 알림 제거
@@ -467,7 +475,7 @@ private fun PhoneAppContent(
                     callSignalingManager.acceptCall(info.callId)
                     // 먼저 join을 시도; 리스닝 소켓은 닫지 않는다.
                     callAudioManager.start()
-                    webrtcPhoneNumber = "상대방"
+                    webrtcPhoneNumber = info.callerNumber.ifBlank { "상대방" }
                     webRtcManager.joinAsCallee(info.callId)
                     showIncomingCall = false
                     showWebRtcCall = true
@@ -569,6 +577,40 @@ private fun PhoneAppContent(
             )
         }
     }
+}
+
+private fun getOwnPhoneNumber(context: Context): String {
+    val storedNumber = SettingsStore.getMyPhoneNumber(context)
+    if (storedNumber.isNotBlank()) {
+        return storedNumber
+    }
+
+    if (ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_PHONE_STATE
+        ) != PackageManager.PERMISSION_GRANTED
+    ) {
+        return ""
+    }
+
+    val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+    val directNumber = telephonyManager?.line1Number.orEmpty()
+    if (directNumber.isNotBlank()) {
+        return directNumber
+    }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+        val subscriptionManager = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
+        val subscriptionNumber = subscriptionManager?.activeSubscriptionInfoList
+            ?.firstOrNull { !it.number.isNullOrBlank() }
+            ?.number
+            .orEmpty()
+        if (subscriptionNumber.isNotBlank()) {
+            return subscriptionNumber
+        }
+    }
+
+    return ""
 }
 
 @Composable

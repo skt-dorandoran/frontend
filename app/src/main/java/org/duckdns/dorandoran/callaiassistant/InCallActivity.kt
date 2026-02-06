@@ -68,9 +68,14 @@ class InCallActivity : ComponentActivity() {
             val callId = intent.getStringExtra(CallListeningService.EXTRA_CALL_ID) ?: ""
             val roomId = intent.getStringExtra(CallListeningService.EXTRA_ROOM_ID)
                 ?: org.duckdns.dorandoran.callaiassistant.webrtc.WEBRTC_ROOM_ID
+            val callerNumber = intent.getStringExtra(CallListeningService.EXTRA_CALLER_NUMBER).orEmpty()
             if (callId.isNotEmpty()) {
                 (application as? CallApp)?.callSignalingManager?.setIncomingFromIntent(
-                    org.duckdns.dorandoran.callaiassistant.webrtc.CallSignalingManager.IncomingCallInfo(callId, roomId)
+                    org.duckdns.dorandoran.callaiassistant.webrtc.CallSignalingManager.IncomingCallInfo(
+                        callId,
+                        roomId,
+                        callerNumber
+                    )
                 )
             }
         }
@@ -100,8 +105,15 @@ class InCallActivity : ComponentActivity() {
                 var isAccepting by remember { mutableStateOf(false) }
                 var isAccepted by remember { mutableStateOf(false) }
                 var wasBackgroundLaunched by remember { mutableStateOf(false) }
+                var webrtcPhoneNumber by remember { mutableStateOf("") }
                 val incomingCallState = callSignalingManager?.incomingCall
                 val incomingCall by incomingCallState?.collectAsState() ?: remember { mutableStateOf(null) }
+
+                LaunchedEffect(incomingCall) {
+                    if (incomingCall != null) {
+                        webrtcPhoneNumber = incomingCall!!.callerNumber
+                    }
+                }
                 
                 // 백그라운드에서 full-screen intent로 띄워진 경우, 자동으로 수락 처리
                 LaunchedEffect(incomingCall, wasBackgroundLaunched) {
@@ -142,7 +154,7 @@ class InCallActivity : ComponentActivity() {
                 if (incomingCall != null && !isAccepted) {
                     val info = incomingCall!!
                     org.duckdns.dorandoran.callaiassistant.ui.screens.IncomingCallScreen(
-                        callerName = "상대방",
+                        callerName = formatDisplayNumber(info.callerNumber),
                         onAccept = {
                             startService(Intent(this@InCallActivity, CallListeningService::class.java).apply {
                                 action = CallListeningService.ACTION_CALL_HANDLED
@@ -165,6 +177,7 @@ class InCallActivity : ComponentActivity() {
                     )
                 } else if (isAccepted) {
                     WebRtcCallContent(
+                        phoneNumber = formatDisplayNumber(webrtcPhoneNumber),
                         webRtcManager = webRtcManager,
                         callAudioManager = callAudioManager,
                         onEndCall = {
@@ -251,6 +264,7 @@ class InCallActivity : ComponentActivity() {
 
 @Composable
 private fun WebRtcCallContent(
+    phoneNumber: String,
     webRtcManager: WebRtcManager?,
     callAudioManager: CallAudioManager,
     onEndCall: () -> Unit,
@@ -280,7 +294,7 @@ private fun WebRtcCallContent(
 
     val logMessages by manager.logMessages.collectAsState()
     WebRtcInCallScreen(
-        phoneNumber = "상대방",
+        phoneNumber = phoneNumber,
         connectionState = connectionState,
         callDurationSeconds = callDuration,
         logMessages = logMessages,
@@ -289,6 +303,18 @@ private fun WebRtcCallContent(
             callAudioManager.setSpeakerphone(isOn)
         }
     )
+}
+
+private fun formatDisplayNumber(number: String): String {
+    val digits = number.filter { it.isDigit() }
+    if (digits.isEmpty()) {
+        return "000-0000-0000"
+    }
+    return when {
+        digits.length <= 3 -> digits
+        digits.length <= 7 -> "${digits.take(3)}-${digits.drop(3)}"
+        else -> "${digits.take(3)}-${digits.drop(3).take(4)}-${digits.drop(7)}"
+    }
 }
 
 @Composable
