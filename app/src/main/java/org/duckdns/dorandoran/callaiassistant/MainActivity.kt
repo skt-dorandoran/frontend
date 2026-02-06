@@ -358,10 +358,10 @@ private fun PhoneAppContent(
         webrtcPhoneNumber = number.ifBlank { "상대방" }
         callSignalingManager.markAsCaller()
         val callerNumber = getOwnPhoneNumber(activity.applicationContext)
-        callSignalingManager.initiateCall(callerNumber)
+        val callId = callSignalingManager.initiateCall(callerNumber)
         callAudioManager.start()
         ringbackToneHelper.start()
-        webRtcManager.joinAsCaller("")
+        webRtcManager.joinAsCaller(callId)
         showWebRtcCall = true
     }
 
