@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -68,6 +69,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.ui.platform.LocalContext
 import org.duckdns.dorandoran.callaiassistant.ui.screens.CallHistoryScreen
 import org.duckdns.dorandoran.callaiassistant.DefaultDialerHelper
 import org.duckdns.dorandoran.callaiassistant.ui.screens.DialerScreen
@@ -78,6 +80,7 @@ import org.duckdns.dorandoran.callaiassistant.webrtc.CallSignalingManager
 import org.duckdns.dorandoran.callaiassistant.webrtc.RingbackToneHelper
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
+import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 
 class MainActivity : ComponentActivity() {
 
@@ -575,8 +578,14 @@ private fun WebRtcCallContent(
     onEndCall: () -> Unit,
     onRemoteDisconnected: () -> Unit
 ) {
+    val context = LocalContext.current
     val connectionState by webRtcManager.connectionState.collectAsState()
     var callDuration by remember { mutableLongStateOf(0L) }
+    var introPromptPlayed by remember { mutableStateOf(false) }
+    var introTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
+    val audioManager = remember {
+        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
 
     LaunchedEffect(Unit) {
         webRtcManager.onRemoteDisconnected = { onRemoteDisconnected() }
@@ -590,6 +599,44 @@ private fun WebRtcCallContent(
                 ringbackToneHelper.stop()
             else -> {}
         }
+    }
+
+    LaunchedEffect(connectionState) {
+        val inCall = connectionState == org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState.IN_CALL
+        if (!inCall) {
+            introPromptPlayed = false
+            TtsManager.shutdown(introTts)
+            introTts = null
+            return@LaunchedEffect
+        }
+        if (introPromptPlayed) {
+            return@LaunchedEffect
+        }
+        introPromptPlayed = true
+        if (!SettingsStore.isCallIntroPromptEnabled(context)) {
+            return@LaunchedEffect
+        }
+        val style = SettingsStore.getCallIntroPromptStyle(context)
+        val message = getIntroPromptMessage(style)
+        if (message.isBlank()) {
+            return@LaunchedEffect
+        }
+        val useVoiceClone = SettingsStore.isVoiceCloneEnabled(context)
+        introTts = TtsManager.initializeForCall(
+            context = context,
+            onReady = { tts ->
+                introTts = tts
+                if (useVoiceClone) {
+                    TtsManager.speak(tts, message, audioManager)
+                } else {
+                    TtsManager.speak(tts, message, audioManager)
+                }
+            },
+            onDone = {
+                TtsManager.shutdown(introTts)
+                introTts = null
+            }
+        )
     }
 
     LaunchedEffect(connectionState) {
@@ -614,6 +661,19 @@ private fun WebRtcCallContent(
             callAudioManager.setSpeakerphone(isOn)
         }
     )
+}
+
+private fun getIntroPromptMessage(style: String): String {
+    return when (style) {
+        CallIntroPromptStyle.BASIC.value -> 
+            "안녕하세요, 원활한 소통을 위해 AI 음성 변환 서비스를 이용중입니다. 제 말이 조금 늦더라도 양해 부탁드립니다"
+        CallIntroPromptStyle.SITUATION.value ->
+            "안녕하세요. 청각/언어의 어려움으로 텍스트를 음성으로 변환하여 대화하고 있습니다. 천천히 말씀해 주시면 감사하겠습니다."
+        CallIntroPromptStyle.ASSISTANT.value ->
+            "안녕하세요. 지금은 AI 통화 비서가 대화를 돕고 있습니다. 문자로 입력한 내용을 음성으로 전달해 드릴게요."
+        else ->
+            ""
+    }
 }
 
 @Composable

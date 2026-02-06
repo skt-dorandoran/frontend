@@ -8,6 +8,7 @@ object SettingsStore {
     private const val KEY_CALL_INTRO_PROMPT_ENABLED = "call_intro_prompt_enabled"
     private const val KEY_CALL_INTRO_PROMPT_STYLE = "call_intro_prompt_style"
     private const val KEY_CALL_INTRO_PROMPT_DEFAULTS_APPLIED = "call_intro_prompt_defaults_applied"
+    private const val KEY_VOICE_CLONE_ENABLED = "voice_clone_enabled"
 
     fun getCallTextSizeStep(context: Context): Int {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -56,6 +57,16 @@ object SettingsStore {
     fun setCallIntroPromptStyle(context: Context, style: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_CALL_INTRO_PROMPT_STYLE, style).apply()
+    }
+
+    fun isVoiceCloneEnabled(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_VOICE_CLONE_ENABLED, false)
+    }
+
+    fun setVoiceCloneEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_VOICE_CLONE_ENABLED, enabled).apply()
     }
 }
 

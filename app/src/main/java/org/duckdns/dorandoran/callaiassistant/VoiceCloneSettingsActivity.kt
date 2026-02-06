@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -49,8 +50,12 @@ class VoiceCloneSettingsActivity : ComponentActivity() {
 @Composable
 private fun VoiceCloneSettingsContent(onBack: () -> Unit) {
     val context = LocalContext.current
-    var isVoiceCloneEnabled by remember { mutableStateOf(false) }
+    var isVoiceCloneEnabled by remember { mutableStateOf(SettingsStore.isVoiceCloneEnabled(context)) }
     var isVoiceTrained by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isVoiceCloneEnabled) {
+        SettingsStore.setVoiceCloneEnabled(context, isVoiceCloneEnabled)
+    }
 
     BackHandler {
         if (isVoiceCloneEnabled && !isVoiceTrained) {
