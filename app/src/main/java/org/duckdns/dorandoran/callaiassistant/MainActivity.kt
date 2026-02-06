@@ -25,6 +25,7 @@ import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.padding
@@ -42,6 +43,8 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Brush
@@ -63,13 +66,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.compose.ui.platform.LocalContext
 import org.duckdns.dorandoran.callaiassistant.ui.screens.CallHistoryScreen
 import org.duckdns.dorandoran.callaiassistant.DefaultDialerHelper
 import org.duckdns.dorandoran.callaiassistant.ui.screens.DialerScreen
@@ -851,13 +854,16 @@ private fun OnboardingIntroScreen(onStart: () -> Unit) {
 
 @Composable
 private fun OnboardingPermissionsScreen(onAgree: () -> Unit) {
+    val context = LocalContext.current
     var allChecked by remember { mutableStateOf(false) }
-    var micChecked by remember { mutableStateOf(false) }
-    var speakerChecked by remember { mutableStateOf(false) }
-    var phoneChecked by remember { mutableStateOf(false) }
+    var serviceTermsChecked by remember { mutableStateOf(false) }
+    var privacyCollectionChecked by remember { mutableStateOf(false) }
+    var privacyThirdPartyChecked by remember { mutableStateOf(false) }
+    var callTextProcessingChecked by remember { mutableStateOf(false) }
 
     fun updateAllFromChildren() {
-        allChecked = micChecked && speakerChecked && phoneChecked
+        allChecked = serviceTermsChecked && privacyCollectionChecked &&
+            privacyThirdPartyChecked && callTextProcessingChecked
     }
 
     Box(
@@ -875,75 +881,259 @@ private fun OnboardingPermissionsScreen(onAgree: () -> Unit) {
         ) {
             Column {
                 Text(
-                    text = "T.mate\n원활한 통화를 위해\n다음 권한이 필요합니다",
+                    text = "T.mate\n원활한 통화를 위해\n약관에 동의가 필요합니다",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+            }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            Spacer(modifier = Modifier.weight(1f))
+
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .clickable {
+                            val next = !allChecked
+                            allChecked = next
+                            serviceTermsChecked = next
+                            privacyCollectionChecked = next
+                            privacyThirdPartyChecked = next
+                            callTextProcessingChecked = next
+                        }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Checkbox(
                         checked = allChecked,
                         onCheckedChange = { checked ->
                             allChecked = checked
-                            micChecked = checked
-                            speakerChecked = checked
-                            phoneChecked = checked
+                            serviceTermsChecked = checked
+                            privacyCollectionChecked = checked
+                            privacyThirdPartyChecked = checked
+                            callTextProcessingChecked = checked
                         }
                     )
                     Text(
                         text = "필수 약관 모두 동의",
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier
                     )
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Checkbox(
-                        checked = micChecked,
+                        checked = serviceTermsChecked,
                         onCheckedChange = { checked ->
-                            micChecked = checked
+                            serviceTermsChecked = checked
                             updateAllFromChildren()
                         }
                     )
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                serviceTermsChecked = !serviceTermsChecked
+                                updateAllFromChildren()
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "(필수) 서비스 이용약관 동의",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "서비스 이용에 필요한 기본 규칙과 책임 규정",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     Text(
-                        text = "(필수) 마이크\nAI 음성 인식 및 통화에 필요",
-                        color = MaterialTheme.colorScheme.onBackground
+                        text = ">",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .sizeIn(minWidth = 40.dp, minHeight = 40.dp)
+                            .padding(start = 12.dp, top = 4.dp, bottom = 4.dp)
+                            .clickable {
+                                context.startActivity(
+                                    Intent(context, ServiceTermsActivity::class.java)
+                                )
+                            }
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Checkbox(
-                        checked = speakerChecked,
+                        checked = privacyCollectionChecked,
                         onCheckedChange = { checked ->
-                            speakerChecked = checked
+                            privacyCollectionChecked = checked
                             updateAllFromChildren()
                         }
                     )
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                privacyCollectionChecked = !privacyCollectionChecked
+                                updateAllFromChildren()
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "(필수) 개인정보 수집 및 이용 동의",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "본인 확인 및 원활한 서비스 운영에 필요",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     Text(
-                        text = "(필수) 스피커\n상대방 음성 출력에 필요",
-                        color = MaterialTheme.colorScheme.onBackground
+                        text = ">",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .sizeIn(minWidth = 40.dp, minHeight = 40.dp)
+                            .padding(start = 12.dp, top = 4.dp, bottom = 4.dp)
+                            .clickable {
+                                context.startActivity(
+                                    Intent(context, PrivacyCollectionActivity::class.java)
+                                )
+                            }
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Checkbox(
-                        checked = phoneChecked,
+                        checked = privacyThirdPartyChecked,
                         onCheckedChange = { checked ->
-                            phoneChecked = checked
+                            privacyThirdPartyChecked = checked
                             updateAllFromChildren()
                         }
                     )
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                privacyThirdPartyChecked = !privacyThirdPartyChecked
+                                updateAllFromChildren()
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "(필수) 개인정보 제3자 제공 동의",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "AI 답변 생성 및 발음 교정 처리에 필요",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     Text(
-                        text = "(필수) 전화\n통화 연결 및 관리에 필요",
-                        color = MaterialTheme.colorScheme.onBackground
+                        text = ">",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .sizeIn(minWidth = 40.dp, minHeight = 40.dp)
+                            .padding(start = 12.dp, top = 4.dp, bottom = 4.dp)
+                            .clickable {
+                                context.startActivity(
+                                    Intent(context, PrivacyThirdPartyActivity::class.java)
+                                )
+                            }
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Checkbox(
+                        checked = callTextProcessingChecked,
+                        onCheckedChange = { checked ->
+                            callTextProcessingChecked = checked
+                            updateAllFromChildren()
+                        }
+                    )
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                callTextProcessingChecked = !callTextProcessingChecked
+                                updateAllFromChildren()
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "(필수) 통화 내용 텍스트 변환 및 처리 동의",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "실시간 통화 음성을 텍스트로 변환하는데 필요",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Text(
+                        text = ">",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .sizeIn(minWidth = 40.dp, minHeight = 40.dp)
+                            .padding(start = 12.dp, top = 4.dp, bottom = 4.dp)
+                            .clickable {
+                                context.startActivity(
+                                    Intent(context, CallTextProcessingActivity::class.java)
+                                )
+                            }
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             val agreeEnabled = allChecked
             Button(
