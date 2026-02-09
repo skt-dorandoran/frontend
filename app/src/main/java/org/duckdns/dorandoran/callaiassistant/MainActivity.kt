@@ -333,13 +333,12 @@ private fun PhoneAppContent(
     var autoCallConsumed by remember { mutableStateOf(false) }
 
     // WebRtcManager 콜백 설정 - 통화 종료 시 알림 취소
-    remember {
+    androidx.compose.runtime.SideEffect {
         webRtcManager.onCallEnded = {
             activity.startService(Intent(activity, CallListeningService::class.java).apply {
                 action = CallListeningService.ACTION_CALL_HANDLED
             })
         }
-        Unit
     }
 
     LaunchedEffect(Unit) {

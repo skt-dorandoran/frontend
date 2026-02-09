@@ -25,7 +25,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 
 @Composable
 fun IncomingCallScreen(
@@ -132,5 +134,17 @@ fun IncomingCallScreen(
                 )
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun IncomingCallScreenPreview() {
+    CallaiassistantTheme {
+        IncomingCallScreen(
+            callerName = "홍길동",
+            onAccept = {},
+            onReject = {}
+        )
     }
 }
