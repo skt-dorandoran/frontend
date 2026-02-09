@@ -48,6 +48,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.graphics.Color
 import android.media.AudioManager
 import android.media.ToneGenerator
+import androidx.compose.ui.tooling.preview.Preview
+import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -62,7 +64,6 @@ fun DialerScreen(
     var phoneNumber by remember(initialPhoneNumber) { mutableStateOf(initialPhoneNumber) }
     var showLastCalledNumber by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val audioManager = remember { context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager }
     val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_DTMF, 80) }
     val repository = remember { CallLogRepository(context) }
     var contactMatches by remember { mutableStateOf<List<ContactMatch>>(emptyList()) }
@@ -83,6 +84,45 @@ fun DialerScreen(
         }
     }
 
+    DialerContent(
+        phoneNumber = phoneNumber,
+        onPhoneNumberChange = { phoneNumber = it },
+        lastCalledNumber = lastCalledNumber,
+        showLastCalledNumber = showLastCalledNumber,
+        onShowLastCalledNumberChange = { showLastCalledNumber = it },
+        contactMatches = contactMatches,
+        contactTotalCount = contactTotalCount,
+        onCallStarted = onCallStarted,
+        onOpenSettings = onOpenSettings,
+        onOpenContactSearch = onOpenContactSearch,
+        onPlayTone = { digit ->
+            digitToTone(digit)?.let { tone ->
+                try {
+                    toneGenerator.startTone(tone, 120)
+                } catch (_: Throwable) {
+                }
+            }
+        },
+        modifier = modifier
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DialerContent(
+    phoneNumber: String,
+    onPhoneNumberChange: (String) -> Unit,
+    lastCalledNumber: String?,
+    showLastCalledNumber: Boolean,
+    onShowLastCalledNumberChange: (Boolean) -> Unit,
+    contactMatches: List<ContactMatch>,
+    contactTotalCount: Int,
+    onCallStarted: (String) -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenContactSearch: (String) -> Unit,
+    onPlayTone: (Char) -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -244,14 +284,9 @@ fun DialerScreen(
                                 .aspectRatio(1.5f),
                             onClick = {
                                 if (key.digit.length == 1) {
-                                    digitToTone(key.digit[0])?.let { tone ->
-                                        try {
-                                            toneGenerator.startTone(tone, 120)
-                                        } catch (_: Throwable) {
-                                        }
-                                    }
+                                    onPlayTone(key.digit[0])
                                 }
-                                phoneNumber += key.digit
+                                onPhoneNumberChange(phoneNumber + key.digit)
                             }
                         )
                     }
@@ -268,16 +303,13 @@ fun DialerScreen(
                     enabled = true,
                     onClick = {
                         when {
-                            // 번호가 비어있고 마지막 통화 번호가 있으면 표시
                             phoneNumber.isBlank() && lastCalledNumber != null && !showLastCalledNumber -> {
-                                showLastCalledNumber = true
+                                onShowLastCalledNumberChange(true)
                             }
-                            // 이미 마지막 번호를 표시중이면 그 번호로 통화
                             showLastCalledNumber && lastCalledNumber != null -> {
                                 onCallStarted(lastCalledNumber)
-                                showLastCalledNumber = false
+                                onShowLastCalledNumberChange(false)
                             }
-                            // 번호가 입력되어있으면 그 번호로 통화
                             phoneNumber.isNotBlank() -> {
                                 onCallStarted(phoneNumber)
                             }
@@ -289,17 +321,15 @@ fun DialerScreen(
                         .size(72.dp)
                         .combinedClickable(
                             onClick = {
-                                // 짧은 클릭: 한 글자 삭제 또는 마지막 번호 표시 취소
                                 if (showLastCalledNumber) {
-                                    showLastCalledNumber = false
+                                    onShowLastCalledNumberChange(false)
                                 } else if (phoneNumber.isNotEmpty()) {
-                                    phoneNumber = phoneNumber.dropLast(1)
+                                    onPhoneNumberChange(phoneNumber.dropLast(1))
                                 }
                             },
                             onLongClick = {
-                                // 긴 클릭: 전체 삭제
-                                phoneNumber = ""
-                                showLastCalledNumber = false
+                                onPhoneNumberChange("")
+                                onShowLastCalledNumberChange(false)
                             }
                         ),
                     contentAlignment = Alignment.Center
@@ -434,5 +464,48 @@ private fun digitToTone(digit: Char): Int? {
         '*' -> ToneGenerator.TONE_DTMF_S
         '#' -> ToneGenerator.TONE_DTMF_P
         else -> null
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun DialerScreenPreview() {
+    CallaiassistantTheme {
+        DialerContent(
+            phoneNumber = "0101234",
+            onPhoneNumberChange = {},
+            lastCalledNumber = "01098765432",
+            showLastCalledNumber = false,
+            onShowLastCalledNumberChange = {},
+            contactMatches = listOf(
+                ContactMatch("홍길동", "01012345678"),
+                ContactMatch("김철수", "01012344321")
+            ),
+            contactTotalCount = 5,
+            onCallStarted = {},
+            onOpenSettings = {},
+            onOpenContactSearch = {},
+            onPlayTone = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun DialerScreenEmptyPreview() {
+    CallaiassistantTheme {
+        DialerContent(
+            phoneNumber = "",
+            onPhoneNumberChange = {},
+            lastCalledNumber = null,
+            showLastCalledNumber = false,
+            onShowLastCalledNumberChange = {},
+            contactMatches = emptyList(),
+            contactTotalCount = 0,
+            onCallStarted = {},
+            onOpenSettings = {},
+            onOpenContactSearch = {},
+            onPlayTone = {}
+        )
     }
 }
