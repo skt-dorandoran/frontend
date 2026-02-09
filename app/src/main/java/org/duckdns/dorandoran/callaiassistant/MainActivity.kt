@@ -1,7 +1,6 @@
 package org.duckdns.dorandoran.callaiassistant
 
 import android.Manifest
-import android.app.ActivityManager
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
@@ -63,7 +62,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.isSystemInDarkTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -78,16 +76,21 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import org.duckdns.dorandoran.callaiassistant.ui.screens.CallHistoryScreen
-import org.duckdns.dorandoran.callaiassistant.DefaultDialerHelper
 import org.duckdns.dorandoran.callaiassistant.ui.screens.DialerScreen
 import org.duckdns.dorandoran.callaiassistant.ui.screens.IncomingCallScreen
 import org.duckdns.dorandoran.callaiassistant.ui.screens.WebRtcInCallScreen
 import org.duckdns.dorandoran.callaiassistant.webrtc.CallAudioManager
-import org.duckdns.dorandoran.callaiassistant.webrtc.CallSignalingManager
 import org.duckdns.dorandoran.callaiassistant.webrtc.RingbackToneHelper
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.Font
+
 
 class MainActivity : ComponentActivity() {
 
@@ -881,56 +884,57 @@ private fun OnboardingFlow(
         else -> OnboardingPermissionsScreen(onAgree = onComplete)
     }
 }
-
 @Composable
-private fun OnboardingIntroScreen(onStart: () -> Unit) {
-    val isDarkTheme = isSystemInDarkTheme()
+fun OnboardingIntroScreen(onStart: () -> Unit) {
+    // 2.5초 후 자동으로 다음 화면으로 이동
+    LaunchedEffect(Unit) {
+        delay(5500L)
+        onStart()
+    }
+
+    // 전체화면 컨테이너
     Box(
         modifier = Modifier
-            .fillMaxSize()
+            .width(402.dp)
+            .height(874.dp)
             .background(
-                if (isDarkTheme) Color(0xFF101214) else Color.White
+                color = Color(0xFFFFFFFF),
+                shape = RoundedCornerShape(size = 43.dp)
             )
+            .clip(RoundedCornerShape(size = 43.dp)),
+        contentAlignment = Alignment.Center
     ) {
-        Column(
+        // 중앙 로고 컨테이너
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Spacer(modifier = Modifier.height(24.dp))
-            Box(
-                modifier = Modifier
-                    .size(180.dp)
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(Color(0xFF8B5CF6), Color(0xFF22C55E)),
-                            start = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY),
-                            end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f)
+                .size(325.dp)
+                .background(
+                    brush = Brush.linearGradient(
+                        // ✅ colorStops를 사용하여 초록색 범위를 미세하게 확장했습니다.
+                        colorStops = arrayOf(
+                            0.0f to Color(0xFFA962FF), // 시작: 쨍한 라일락 보라
+                            0.85f to Color(0xFF5DEECB) // 끝: 85% 지점에서 이미 초록색이 꽉 차게 설정 (초록 영역 확대)
                         ),
-                        shape = CircleShape
+                        // 그라데이션 방향 (왼쪽 아래 -> 오른쪽 위)
+                        start = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY),
+                        end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f)
                     ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "T.mate",
-                    style = MaterialTheme.typography.headlineSmall,
+                    shape = CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            // T.mate 텍스트
+            Text(
+                text = "T.mate",
+                style = TextStyle(
+                    fontSize = 45.sp,
+                    lineHeight = 45.sp,
+                    fontFamily = FontFamily(Font(R.font.pretendard_bold)),
+                    fontWeight = FontWeight.Bold,
                     color = Color.White,
-                    fontWeight = FontWeight.SemiBold
+                    textAlign = TextAlign.Center,
                 )
-            }
-            Button(
-                onClick = onStart,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(26.dp)
-            ) {
-                Text("시작하기")
-            }
+            )
         }
     }
 }
