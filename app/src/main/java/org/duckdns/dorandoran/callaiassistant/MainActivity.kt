@@ -605,26 +605,47 @@ private fun getOwnPhoneNumber(context: Context): String {
         return storedNumber
     }
 
-    if (ContextCompat.checkSelfPermission(
+    val hasPhoneState = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.READ_PHONE_STATE
+    ) == PackageManager.PERMISSION_GRANTED
+    val hasPhoneNumbers = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        ContextCompat.checkSelfPermission(
             context,
-            Manifest.permission.READ_PHONE_STATE
-        ) != PackageManager.PERMISSION_GRANTED
-    ) {
+            Manifest.permission.READ_PHONE_NUMBERS
+        ) == PackageManager.PERMISSION_GRANTED
+    } else {
+        false
+    }
+    val hasReadSms = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.READ_SMS
+    ) == PackageManager.PERMISSION_GRANTED
+
+    if (!hasPhoneState && !hasPhoneNumbers && !hasReadSms) {
         return ""
     }
 
     val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
-    val directNumber = telephonyManager?.line1Number.orEmpty()
+    val directNumber = try {
+        telephonyManager?.line1Number.orEmpty()
+    } catch (e: SecurityException) {
+        ""
+    }
     if (directNumber.isNotBlank()) {
         return directNumber
     }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
         val subscriptionManager = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
-        val subscriptionNumber = subscriptionManager?.activeSubscriptionInfoList
-            ?.firstOrNull { !it.number.isNullOrBlank() }
-            ?.number
-            .orEmpty()
+        val subscriptionNumber = try {
+            subscriptionManager?.activeSubscriptionInfoList
+                ?.firstOrNull { !it.number.isNullOrBlank() }
+                ?.number
+                .orEmpty()
+        } catch (e: SecurityException) {
+            ""
+        }
         if (subscriptionNumber.isNotBlank()) {
             return subscriptionNumber
         }

@@ -17,6 +17,7 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * 통화 시그널링 전용 매니저 (수신 대기, incoming/accept/reject)
@@ -32,6 +33,7 @@ class CallSignalingManager(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val client = OkHttpClient.Builder().build()
     private val webSocketRef = AtomicReference<WebSocket?>(null)
+    private val isStarting = AtomicBoolean(false)
 
     /** 수신 대기 중인지 */
     private val _isListening = MutableStateFlow(false)
@@ -70,6 +72,12 @@ class CallSignalingManager(private val context: Context) {
      * 앱 시작 시 호출 - room 구독하여 수신 대기
      */
     fun startListening() {
+        if (webSocketRef.get() != null || _isListening.value) {
+            return
+        }
+        if (!isStarting.compareAndSet(false, true)) {
+            return
+        }
         scope.launch {
             withContext(Dispatchers.IO) {
                 doStartListening()
@@ -79,7 +87,7 @@ class CallSignalingManager(private val context: Context) {
 
     private fun doStartListening() {
         if (webSocketRef.get() != null) {
-            Log.d(TAG, "Already listening")
+            isStarting.set(false)
             return
         }
         Log.d(TAG, "Start listening...")
@@ -88,6 +96,7 @@ class CallSignalingManager(private val context: Context) {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d(TAG, "WS connected (listening)")
                 _isListening.value = true
+                isStarting.set(false)
                 val subscribeMsg = JSONObject().apply {
                     put("type", "subscribe")
                     put("roomId", WEBRTC_ROOM_ID)
@@ -107,6 +116,7 @@ class CallSignalingManager(private val context: Context) {
                 _isListening.value = false
                 _incomingCall.value = null
                 webSocketRef.set(null)
+                isStarting.set(false)
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
@@ -117,6 +127,7 @@ class CallSignalingManager(private val context: Context) {
                 _isListening.value = false
                 _incomingCall.value = null
                 webSocketRef.set(null)
+                isStarting.set(false)
             }
         })
         webSocketRef.set(ws)
@@ -240,6 +251,7 @@ class CallSignalingManager(private val context: Context) {
         webSocketRef.set(null)
         _isListening.value = false
         _incomingCall.value = null
+        isStarting.set(false)
         Log.d(TAG, "Stop listening")
     }
 

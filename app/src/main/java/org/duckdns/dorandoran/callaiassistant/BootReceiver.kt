@@ -24,7 +24,9 @@ class BootReceiver : BroadcastReceiver() {
         ) {
             Log.d("BootReceiver", "Starting CallListeningService...")
             val serviceIntent = Intent(context, CallListeningService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                Log.w("BootReceiver", "Skip starting FGS on Android 12+ due to background start restrictions")
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(serviceIntent)
             } else {
                 context.startService(serviceIntent)
