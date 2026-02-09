@@ -42,7 +42,23 @@ class CallListeningService : Service() {
             return START_STICKY
         }
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification())
+        try {
+            startForeground(NOTIFICATION_ID, createNotification())
+        } catch (e: android.app.ForegroundServiceStartNotAllowedException) {
+            android.util.Log.w(
+                "CallListeningService",
+                "startForeground not allowed; stopping service: ${e.message}"
+            )
+            stopSelf()
+            return START_NOT_STICKY
+        } catch (e: Exception) {
+            android.util.Log.w(
+                "CallListeningService",
+                "startForeground failed; stopping service: ${e.message}"
+            )
+            stopSelf()
+            return START_NOT_STICKY
+        }
         setupIncomingListener()
         (application as? CallApp)?.callSignalingManager?.startListening()
         // START_STICKY: 시스템이 서비스를 강제 종료했을 때 자동 재시작
