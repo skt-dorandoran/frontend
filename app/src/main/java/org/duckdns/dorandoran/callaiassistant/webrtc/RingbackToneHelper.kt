@@ -18,8 +18,9 @@ class RingbackToneHelper {
     fun start() {
         try {
             release()
-            // STREAM_VOICE_CALL 사용 - 통화 볼륨으로 재생
-            toneGenerator = ToneGenerator(AudioManager.STREAM_VOICE_CALL, ToneGenerator.MAX_VOLUME)
+            // STREAM_VOICE_CALL은 일부 기기에서 MODIFY_PHONE_STATE 권한 이슈 발생 가능
+            // STREAM_MUSIC으로 재생해 권한 경고를 회피
+            toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
             toneGenerator?.startTone(ToneGenerator.TONE_CDMA_NETWORK_USA_RINGBACK, -1)
             Log.d(TAG, "Ringback tone started")
         } catch (e: Exception) {

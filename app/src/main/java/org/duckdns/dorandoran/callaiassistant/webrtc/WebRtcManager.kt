@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -92,6 +93,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     private var currentCallId: String? = null
     private var hangupSent: Boolean = false
     private var useListeningSocketForSignaling: Boolean = true
+    private var iceFailureJob: Job? = null
 
     init {
         initPeerConnectionFactory()
@@ -118,6 +120,21 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         Log.d(TAG, msg)
         scope.launch {
             _logMessages.value = _logMessages.value + msg
+        }
+    }
+
+    private fun scheduleIceFailureCheck(reason: String) {
+        if (!hasEverConnected) {
+            return
+        }
+        if (iceFailureJob?.isActive == true) {
+            return
+        }
+        iceFailureJob = scope.launch {
+            log("ICE failure grace period started ($reason)")
+            delay(8000)
+            log("ICE failure grace period ended ($reason)")
+            onRemoteDisconnected?.invoke()
         }
     }
 
@@ -166,7 +183,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     }
 
     private fun doJoin(role: String, callId: String? = null) {
-        hangup()
+        hangup(sendSignal = false)
         hasEverConnected = false
         receivedOffer = false
         offerSent = false
@@ -251,6 +268,8 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
 
         val rtcConfig = PeerConnection.RTCConfiguration(ICE_SERVERS).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
+            continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
+            iceCandidatePoolSize = 2
         }
 
         val constraints = MediaConstraints()
@@ -286,14 +305,16 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 log("ICE connection: $state")
                 when (state) {
                     PeerConnection.IceConnectionState.CONNECTED,
-                    PeerConnection.IceConnectionState.COMPLETED -> log("ICE connected!")
+                    PeerConnection.IceConnectionState.COMPLETED -> {
+                        iceFailureJob?.cancel()
+                        iceFailureJob = null
+                        log("ICE connected!")
+                    }
                     PeerConnection.IceConnectionState.DISCONNECTED,
                     PeerConnection.IceConnectionState.FAILED,
                     PeerConnection.IceConnectionState.CLOSED -> {
                         log("ICE failed/closed")
-                        if (hasEverConnected) {
-                            scope.launch { onRemoteDisconnected?.invoke() }
-                        }
+                        scheduleIceFailureCheck("ice:$state")
                     }
                     else -> {}
                 }
@@ -322,12 +343,12 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     PeerConnection.PeerConnectionState.CLOSED,
                     PeerConnection.PeerConnectionState.FAILED,
                     PeerConnection.PeerConnectionState.DISCONNECTED -> {
-                        if (hasEverConnected) {
-                            scope.launch { onRemoteDisconnected?.invoke() }
-                        }
+                        scheduleIceFailureCheck("pc:$state")
                     }
                     PeerConnection.PeerConnectionState.CONNECTED -> {
                         hasEverConnected = true
+                        iceFailureJob?.cancel()
+                        iceFailureJob = null
                         _connectionState.value = WebRtcConnectionState.IN_CALL
                     }
                     else -> {}
@@ -528,7 +549,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     }
 
     fun hangup(sendSignal: Boolean = true) {
-        if (sendSignal && !hangupSent) {
+        if (sendSignal && !hangupSent && currentCallId != null) {
             try {
                 val json = JSONObject().apply {
                     put("type", "hangup")
