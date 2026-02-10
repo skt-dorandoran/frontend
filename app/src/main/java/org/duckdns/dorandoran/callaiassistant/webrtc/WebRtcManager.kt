@@ -559,11 +559,9 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     put("roomId", WEBRTC_ROOM_ID)
                     currentCallId?.let { put("callId", it) }
                 }
-                if (useListeningSocketForSignaling) {
-                    sendSignaling(json.toString())
-                } else {
-                    webSocket?.send(json.toString())
-                }
+                // 신호 누락을 막기 위해 listening/join 소켓 모두로 전송 시도
+                signalingManager?.sendSignalingMessage(json.toString())
+                webSocket?.send(json.toString())
                 hangupSent = true
                 log("WS -> hangup sent")
                 // 웹소켓 닫기를 지연시켜 서버로 메시지가 전달될 시간을 확보

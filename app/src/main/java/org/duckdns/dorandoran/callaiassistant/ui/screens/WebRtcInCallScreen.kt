@@ -19,12 +19,15 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -53,11 +56,26 @@ fun WebRtcInCallScreen(
     connectionState: WebRtcConnectionState,
     callDurationSeconds: Long,
     logMessages: List<String> = emptyList(),
+    sttText: String = "",
+    aiSuggestions: List<String> = listOf("잠시만요, 다시 말씀해주실 수 있나요?", "네, 확인했습니다. 바로 처리하겠습니다."),
+    onSendAiSuggestion: (String) -> Unit = {},
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var isSpeakerphoneOn by remember { mutableStateOf<Boolean>(false) }
+    var isAiCorrectionMode by remember { mutableStateOf(false) }
+    var suggestionSetIndex by remember { mutableStateOf(0) }
+    var selectedSuggestionIndex by remember { mutableStateOf<Int?>(null) }
+    val suggestionSets = remember(aiSuggestions) {
+        listOf(
+            aiSuggestions.take(2).ifEmpty {
+                listOf("잠시만요, 다시 말씀해주실 수 있나요?", "네, 확인했습니다. 바로 처리하겠습니다.")
+            },
+            listOf("조금만 기다려 주세요.", "지금 바로 확인해서 알려드릴게요.")
+        )
+    }
+    val currentSuggestions = suggestionSets[suggestionSetIndex % suggestionSets.size]
     val displayNumber = if (phoneNumber.isNotBlank()) formatPhoneNumber(phoneNumber) else "상대방"
     val context = LocalContext.current
     val textScale = remember { SettingsStore.getCallTextScale(context) }
@@ -114,7 +132,96 @@ fun WebRtcInCallScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            if (isAiCorrectionMode) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = if (sttText.isNotBlank()) sttText else "상대방의 말이 여기에 표시됩니다",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = "AI 추천",
+                                tint = primaryBlue,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "AI 추천 답변",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                suggestionSetIndex = (suggestionSetIndex + 1) % suggestionSets.size
+                                selectedSuggestionIndex = null
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "추천 새로고침",
+                                tint = secondaryTextColor
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        currentSuggestions.forEachIndexed { index, suggestion ->
+                            val selected = selectedSuggestionIndex == index
+                            OutlinedButton(
+                                onClick = {
+                                    selectedSuggestionIndex = index
+                                    onSendAiSuggestion(suggestion)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(999.dp),
+                                border = BorderStroke(
+                                    width = if (selected) 2.dp else 1.dp,
+                                    color = if (selected) primaryBlue else MaterialTheme.colorScheme.outline
+                                ),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (selected) primaryBlue.copy(alpha = 0.08f) else Color.Transparent,
+                                    contentColor = MaterialTheme.colorScheme.onBackground
+                                )
+                            ) {
+                                Text(
+                                    text = suggestion,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+            }
 
             Column(
                 modifier = Modifier
@@ -145,26 +252,27 @@ fun WebRtcInCallScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Button(
-                        onClick = { },
+                        onClick = { isAiCorrectionMode = false },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = primaryBlue,
-                            contentColor = Color.White
+                            containerColor = if (!isAiCorrectionMode) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (!isAiCorrectionMode) Color.White else MaterialTheme.colorScheme.onSurface
                         ),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                     ) {
                         Text("직접 말하기")
                     }
 
-                    OutlinedButton(
-                        onClick = { },
+                    Button(
+                        onClick = { isAiCorrectionMode = true },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, primaryBlue),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = primaryBlue
-                        )
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isAiCorrectionMode) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (isAiCorrectionMode) Color.White else MaterialTheme.colorScheme.onSurface
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                     ) {
                         Text("AI 교정")
                     }
