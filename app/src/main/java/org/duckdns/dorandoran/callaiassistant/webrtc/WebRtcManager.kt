@@ -145,6 +145,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         scope.launch {
             withContext(Dispatchers.IO) {
                 hasEverConnected = false
+                hangupSent = false
                 useListeningSocketForSignaling = false
                 // listening 소켓에서 callee_joined를 받을 수 있도록 연결
                 signalingManager?.onSignalingMessage = { text ->
@@ -163,6 +164,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     fun joinAsCallee(callId: String) {
         hangup(sendSignal = false)
         hasEverConnected = false
+        hangupSent = false
         useListeningSocketForSignaling = true
         currentCallId = callId  // hangup 후에 설정하여 초기화 방지
         receivedOffer = false
@@ -185,6 +187,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     private fun doJoin(role: String, callId: String? = null) {
         hangup(sendSignal = false)
         hasEverConnected = false
+        hangupSent = false
         receivedOffer = false
         offerSent = false
         pendingIceCandidates.clear()
@@ -556,7 +559,11 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     put("roomId", WEBRTC_ROOM_ID)
                     currentCallId?.let { put("callId", it) }
                 }
-                webSocket?.send(json.toString())
+                if (useListeningSocketForSignaling) {
+                    sendSignaling(json.toString())
+                } else {
+                    webSocket?.send(json.toString())
+                }
                 hangupSent = true
                 log("WS -> hangup sent")
                 // 웹소켓 닫기를 지연시켜 서버로 메시지가 전달될 시간을 확보
