@@ -220,6 +220,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 when (role) {
                     "caller" -> {
                         log("Join sent (caller), waiting for callee_joined...")
+                        scheduleCallIfFirst()
                     }
                     "callee" -> {
                         // Do NOT send 'accept' from the join socket. The server requires
@@ -378,13 +379,16 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
             when (type) {
                 "callee_joined", "joined" -> {
                     val cid = msg.optString("callId", "")
-                    if (cid.isNotEmpty()) {
-                        updateCallId(cid)
+                    val callIdToUse = if (cid.isNotEmpty()) cid else (currentCallId ?: lastKnownCallId)
+                    if (!callIdToUse.isNullOrBlank()) {
+                        updateCallId(callIdToUse)
                         log("Callee joined, sending offer...")
                         if (!offerSent) {
                             offerSent = true
                             call()
                         }
+                    } else {
+                        log("Joined without callId; waiting for callId to send offer")
                     }
                 }
                 "rejected" -> {
