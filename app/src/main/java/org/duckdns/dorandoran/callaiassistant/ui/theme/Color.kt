@@ -61,3 +61,11 @@ val DarkOnError = Color(0xFF601410)
 val DarkErrorContainer = Color(0xFF8C1D18)
 val DarkOnErrorContainer = Color(0xFFF9DEDC)
 val DarkOutline = Color(0xFF938F99)
+
+
+private val BluePrimary = Color(0xFF2196F3)
+private val GrayBackgroundDark = Color(0xFFEEEEEE)
+private val TextPrimary = Color(0xFF212121)
+private val TextSecondary = Color(0xFF757575)
+private val ButtonDisabledBg = Color(0xFFE0E0E0)
+private val ButtonDisabledText = Color(0xFF9E9E9E)
