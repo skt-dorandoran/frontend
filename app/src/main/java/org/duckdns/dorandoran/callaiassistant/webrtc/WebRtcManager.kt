@@ -91,6 +91,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     private val pendingIceCandidates = mutableListOf<IceCandidate>()
     private var hasEverConnected = false
     private var currentCallId: String? = null
+    private var lastKnownCallId: String? = null
     private var hangupSent: Boolean = false
     private var useListeningSocketForSignaling: Boolean = true
     private var iceFailureJob: Job? = null
@@ -166,7 +167,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         hasEverConnected = false
         hangupSent = false
         useListeningSocketForSignaling = true
-        currentCallId = callId  // hangup 후에 설정하여 초기화 방지
+        updateCallId(callId)  // hangup 후에 설정하여 초기화 방지
         receivedOffer = false
         offerSent = false
         pendingIceCandidates.clear()
@@ -191,7 +192,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         receivedOffer = false
         offerSent = false
         pendingIceCandidates.clear()
-        currentCallId = callId
+        updateCallId(callId)
         log("WS connecting ($role)...")
 
         val request = Request.Builder()
@@ -378,7 +379,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 "callee_joined", "joined" -> {
                     val cid = msg.optString("callId", "")
                     if (cid.isNotEmpty()) {
-                        currentCallId = cid
+                        updateCallId(cid)
                         log("Callee joined, sending offer...")
                         if (!offerSent) {
                             offerSent = true
@@ -392,6 +393,10 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 }
                 "offer" -> {
                     receivedOffer = true
+                    val offerCallId = msg.optString("callId", "")
+                    if (offerCallId.isNotEmpty()) {
+                        updateCallId(offerCallId)
+                    }
                     val offerSdp = msg.optJSONObject("offer")
                     if (offerSdp != null) {
                         val sdp = offerSdp.optString("sdp")
@@ -437,6 +442,10 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     }
                 }
                 "answer" -> {
+                    val answerCallId = msg.optString("callId", "")
+                    if (answerCallId.isNotEmpty()) {
+                        updateCallId(answerCallId)
+                    }
                     val answerSdp = msg.optJSONObject("answer")
                     if (answerSdp != null) {
                         val sdp = answerSdp.optString("sdp")
@@ -453,6 +462,10 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     }
                 }
                 "ice" -> {
+                    val iceCallId = msg.optString("callId", "")
+                    if (iceCallId.isNotEmpty()) {
+                        updateCallId(iceCallId)
+                    }
                     val candidateObj = msg.optJSONObject("candidate")
                     if (candidateObj != null) {
                         val sdp = candidateObj.optString("candidate")
@@ -551,13 +564,21 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         }
     }
 
+    private fun updateCallId(callId: String?) {
+        if (!callId.isNullOrBlank()) {
+            currentCallId = callId
+            lastKnownCallId = callId
+        }
+    }
+
     fun hangup(sendSignal: Boolean = true) {
-        if (sendSignal && !hangupSent && currentCallId != null) {
+        val effectiveCallId = currentCallId ?: lastKnownCallId
+        if (sendSignal && !hangupSent && effectiveCallId != null) {
             try {
                 val json = JSONObject().apply {
                     put("type", "hangup")
                     put("roomId", WEBRTC_ROOM_ID)
-                    currentCallId?.let { put("callId", it) }
+                    put("callId", effectiveCallId)
                 }
                 // 신호 누락을 막기 위해 listening/join 소켓 모두로 전송 시도
                 signalingManager?.sendSignalingMessage(json.toString())
@@ -590,6 +611,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         _remoteAudioTrack.value = null
         _connectionState.value = WebRtcConnectionState.DISCONNECTED
         currentCallId = null
+        lastKnownCallId = null
         hasEverConnected = false
         log("Hangup")
         
