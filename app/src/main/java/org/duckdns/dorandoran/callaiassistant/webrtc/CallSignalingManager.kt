@@ -182,6 +182,10 @@ class CallSignalingManager(private val context: Context) {
                     }
                 }
                 "peer_left" -> {
+                    if (isCaller || _incomingCall.value == null) {
+                        Log.d(TAG, "Ignoring peer_left (caller or no incoming)")
+                        return
+                    }
                     Log.d(TAG, "peer_left received, clearing incoming state")
                     _incomingCall.value = null
                     acceptedCallId = null
