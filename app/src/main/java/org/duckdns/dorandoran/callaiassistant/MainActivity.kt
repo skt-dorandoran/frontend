@@ -524,23 +524,7 @@ private fun PhoneAppContent(
         onDispose { }
     }
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.List, contentDescription = "전화 기록") },
-                    label = { Text("최근 기록") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Call, contentDescription = "다이얼러") },
-                    label = { Text("키패드") }
-                )
-            }
-        }
+        modifier = Modifier.fillMaxSize()
     ) { innerPadding ->
         when (selectedTab) {
             0 -> Box(
@@ -549,6 +533,7 @@ private fun PhoneAppContent(
                     .fillMaxSize()
             ) {
                 DialerScreen(
+                    onOpenCallHistory = { selectedTab = 1 },
                     initialPhoneNumber = initialPhoneNumber,
                     lastCalledNumber = lastCalledPhoneNumber,
                     onCallStarted = { phoneNumber ->
