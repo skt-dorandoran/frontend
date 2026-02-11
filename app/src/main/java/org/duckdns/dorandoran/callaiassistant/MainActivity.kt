@@ -579,6 +579,7 @@ private fun PhoneAppContent(
                     callSignalingManager.clearIncoming()
                     startOutgoingCall(phoneNumber)
                 },
+                onOpenDialer = { selectedTab = 0 },
                 modifier = Modifier.padding(innerPadding)
             )
         }
