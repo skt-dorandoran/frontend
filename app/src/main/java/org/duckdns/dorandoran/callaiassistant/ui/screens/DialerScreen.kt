@@ -6,6 +6,20 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,6 +34,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository
+import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository.ContactMatch
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -35,6 +54,8 @@ import android.media.ToneGenerator
 import org.duckdns.dorandoran.callaiassistant.R
 import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository
 import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository.ContactMatch
+import androidx.compose.ui.tooling.preview.Preview
+import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -77,7 +98,49 @@ fun DialerScreen(
         }
     }
 
-    Column(
+    DialerContent(
+        phoneNumber = phoneNumber,
+        onPhoneNumberChange = { phoneNumber = it },
+        lastCalledNumber = lastCalledNumber,
+        showLastCalledNumber = showLastCalledNumber,
+        onShowLastCalledNumberChange = { showLastCalledNumber = it },
+        contactMatches = contactMatches,
+        contactTotalCount = contactTotalCount,
+        onCallStarted = onCallStarted,
+        onOpenSettings = onOpenSettings,
+        onOpenContactSearch = onOpenContactSearch,
+        onPlayTone = { digit ->
+            digitToTone(digit)?.let { tone ->
+                try {
+                    toneGenerator.startTone(tone, 120)
+                } catch (_: Throwable) {
+                }
+            }
+        },
+        modifier = modifier
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DialerContent(
+    phoneNumber: String,
+    onPhoneNumberChange: (String) -> Unit,
+    lastCalledNumber: String?,
+    showLastCalledNumber: Boolean,
+    onShowLastCalledNumberChange: (Boolean) -> Unit,
+    contactMatches: List<ContactMatch>,
+    contactTotalCount: Int,
+    onCallStarted: (String) -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenContactSearch: (String) -> Unit,
+    onPlayTone: (Char) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val configuration = LocalConfiguration.current
+    val screenHeightDp = configuration.screenHeightDp
+
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .padding(top = 16.dp, bottom = 24.dp),
@@ -120,10 +183,10 @@ fun DialerScreen(
         // 2. 전화번호 표시
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
+                .fillMaxSize()
+                .padding(outerPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Top
         ) {
             Text(
                 text = if (showLastCalledNumber && lastCalledNumber != null) {
@@ -143,12 +206,21 @@ fun DialerScreen(
             if (!showLastCalledNumber && lastCalledNumber != null && phoneNumber.isBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "마지막 통화: ${formatPhoneNumber(lastCalledNumber)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "T.mate",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.align(Alignment.CenterStart)
                 )
+                IconButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "환경설정"
+                    )
+                }
             }
-        }
 
         // 3. 연락처 검색 결과
         Column(
@@ -185,7 +257,6 @@ fun DialerScreen(
                     Text("검색 결과 ${contactTotalCount}건 보기 >")
                 }
             }
-        }
 
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -259,6 +330,7 @@ fun DialerScreen(
                             phoneNumber.isNotBlank() -> {
                                 onCallStarted(phoneNumber)
                             }
+                            onPhoneNumberChange(phoneNumber + key.digit)
                         }
                     }
                 )
@@ -356,11 +428,14 @@ fun DialerScreen(
 // ▼▼▼ 하위 컴포넌트 및 유틸리티 함수들 ▼▼▼
 
 @Composable
-private fun DialPadButton(
+private fun DialPadButtonResponsive(
     digit: String,
     hangul: String,
     latin: String,
     modifier: Modifier = Modifier,
+    compact: Boolean,
+    veryCompact: Boolean,
+    keyRowHeight: androidx.compose.ui.unit.Dp,
     onClick: () -> Unit
 ) {
     val pretendard = try {

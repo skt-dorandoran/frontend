@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -90,8 +91,10 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     private val pendingIceCandidates = mutableListOf<IceCandidate>()
     private var hasEverConnected = false
     private var currentCallId: String? = null
+    private var lastKnownCallId: String? = null
     private var hangupSent: Boolean = false
     private var useListeningSocketForSignaling: Boolean = true
+    private var iceFailureJob: Job? = null
 
     init {
         initPeerConnectionFactory()
@@ -121,6 +124,21 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         }
     }
 
+    private fun scheduleIceFailureCheck(reason: String) {
+        if (!hasEverConnected) {
+            return
+        }
+        if (iceFailureJob?.isActive == true) {
+            return
+        }
+        iceFailureJob = scope.launch {
+            log("ICE failure grace period started ($reason)")
+            delay(8000)
+            log("ICE failure grace period ended ($reason)")
+            onRemoteDisconnected?.invoke()
+        }
+    }
+
     /**
      * 호출자: room 접속 후 offer 전송 (callee_joined 수신 시)
      */
@@ -128,6 +146,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         scope.launch {
             withContext(Dispatchers.IO) {
                 hasEverConnected = false
+                hangupSent = false
                 useListeningSocketForSignaling = false
                 // listening 소켓에서 callee_joined를 받을 수 있도록 연결
                 signalingManager?.onSignalingMessage = { text ->
@@ -146,8 +165,9 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     fun joinAsCallee(callId: String) {
         hangup(sendSignal = false)
         hasEverConnected = false
+        hangupSent = false
         useListeningSocketForSignaling = true
-        currentCallId = callId  // hangup 후에 설정하여 초기화 방지
+        updateCallId(callId)  // hangup 후에 설정하여 초기화 방지
         receivedOffer = false
         offerSent = false
         pendingIceCandidates.clear()
@@ -166,12 +186,13 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     }
 
     private fun doJoin(role: String, callId: String? = null) {
-        hangup()
+        hangup(sendSignal = false)
         hasEverConnected = false
+        hangupSent = false
         receivedOffer = false
         offerSent = false
         pendingIceCandidates.clear()
-        currentCallId = callId
+        updateCallId(callId)
         log("WS connecting ($role)...")
 
         val request = Request.Builder()
@@ -199,6 +220,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 when (role) {
                     "caller" -> {
                         log("Join sent (caller), waiting for callee_joined...")
+                        scheduleCallIfFirst()
                     }
                     "callee" -> {
                         // Do NOT send 'accept' from the join socket. The server requires
@@ -251,6 +273,8 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
 
         val rtcConfig = PeerConnection.RTCConfiguration(ICE_SERVERS).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
+            continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
+            iceCandidatePoolSize = 2
         }
 
         val constraints = MediaConstraints()
@@ -286,14 +310,16 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 log("ICE connection: $state")
                 when (state) {
                     PeerConnection.IceConnectionState.CONNECTED,
-                    PeerConnection.IceConnectionState.COMPLETED -> log("ICE connected!")
+                    PeerConnection.IceConnectionState.COMPLETED -> {
+                        iceFailureJob?.cancel()
+                        iceFailureJob = null
+                        log("ICE connected!")
+                    }
                     PeerConnection.IceConnectionState.DISCONNECTED,
                     PeerConnection.IceConnectionState.FAILED,
                     PeerConnection.IceConnectionState.CLOSED -> {
                         log("ICE failed/closed")
-                        if (hasEverConnected) {
-                            scope.launch { onRemoteDisconnected?.invoke() }
-                        }
+                        scheduleIceFailureCheck("ice:$state")
                     }
                     else -> {}
                 }
@@ -322,12 +348,12 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     PeerConnection.PeerConnectionState.CLOSED,
                     PeerConnection.PeerConnectionState.FAILED,
                     PeerConnection.PeerConnectionState.DISCONNECTED -> {
-                        if (hasEverConnected) {
-                            scope.launch { onRemoteDisconnected?.invoke() }
-                        }
+                        scheduleIceFailureCheck("pc:$state")
                     }
                     PeerConnection.PeerConnectionState.CONNECTED -> {
                         hasEverConnected = true
+                        iceFailureJob?.cancel()
+                        iceFailureJob = null
                         _connectionState.value = WebRtcConnectionState.IN_CALL
                     }
                     else -> {}
@@ -353,13 +379,16 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
             when (type) {
                 "callee_joined", "joined" -> {
                     val cid = msg.optString("callId", "")
-                    if (cid.isNotEmpty()) {
-                        currentCallId = cid
+                    val callIdToUse = if (cid.isNotEmpty()) cid else (currentCallId ?: lastKnownCallId)
+                    if (!callIdToUse.isNullOrBlank()) {
+                        updateCallId(callIdToUse)
                         log("Callee joined, sending offer...")
                         if (!offerSent) {
                             offerSent = true
                             call()
                         }
+                    } else {
+                        log("Joined without callId; waiting for callId to send offer")
                     }
                 }
                 "rejected" -> {
@@ -368,6 +397,10 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 }
                 "offer" -> {
                     receivedOffer = true
+                    val offerCallId = msg.optString("callId", "")
+                    if (offerCallId.isNotEmpty()) {
+                        updateCallId(offerCallId)
+                    }
                     val offerSdp = msg.optJSONObject("offer")
                     if (offerSdp != null) {
                         val sdp = offerSdp.optString("sdp")
@@ -413,6 +446,10 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     }
                 }
                 "answer" -> {
+                    val answerCallId = msg.optString("callId", "")
+                    if (answerCallId.isNotEmpty()) {
+                        updateCallId(answerCallId)
+                    }
                     val answerSdp = msg.optJSONObject("answer")
                     if (answerSdp != null) {
                         val sdp = answerSdp.optString("sdp")
@@ -429,6 +466,10 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     }
                 }
                 "ice" -> {
+                    val iceCallId = msg.optString("callId", "")
+                    if (iceCallId.isNotEmpty()) {
+                        updateCallId(iceCallId)
+                    }
                     val candidateObj = msg.optJSONObject("candidate")
                     if (candidateObj != null) {
                         val sdp = candidateObj.optString("candidate")
@@ -527,14 +568,24 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         }
     }
 
+    private fun updateCallId(callId: String?) {
+        if (!callId.isNullOrBlank()) {
+            currentCallId = callId
+            lastKnownCallId = callId
+        }
+    }
+
     fun hangup(sendSignal: Boolean = true) {
-        if (sendSignal && !hangupSent) {
+        val effectiveCallId = currentCallId ?: lastKnownCallId
+        if (sendSignal && !hangupSent && effectiveCallId != null) {
             try {
                 val json = JSONObject().apply {
                     put("type", "hangup")
                     put("roomId", WEBRTC_ROOM_ID)
-                    currentCallId?.let { put("callId", it) }
+                    put("callId", effectiveCallId)
                 }
+                // 신호 누락을 막기 위해 listening/join 소켓 모두로 전송 시도
+                signalingManager?.sendSignalingMessage(json.toString())
                 webSocket?.send(json.toString())
                 hangupSent = true
                 log("WS -> hangup sent")
@@ -564,6 +615,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         _remoteAudioTrack.value = null
         _connectionState.value = WebRtcConnectionState.DISCONNECTED
         currentCallId = null
+        lastKnownCallId = null
         hasEverConnected = false
         log("Hangup")
         

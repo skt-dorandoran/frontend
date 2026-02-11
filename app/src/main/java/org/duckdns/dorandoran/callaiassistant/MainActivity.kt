@@ -339,14 +339,13 @@ private fun PhoneAppContent(
 
     var autoCallConsumed by remember { mutableStateOf(false) }
 
-    // [수정] remember { Unit } 에러 해결 -> DisposableEffect 사용
-    DisposableEffect(Unit) {
+    // WebRtcManager 콜백 설정 - 통화 종료 시 알림 취소
+    androidx.compose.runtime.SideEffect {
         webRtcManager.onCallEnded = {
             activity.startService(Intent(activity, CallListeningService::class.java).apply {
                 action = CallListeningService.ACTION_CALL_HANDLED
             })
         }
-        onDispose { }
     }
 
     LaunchedEffect(Unit) {
@@ -410,12 +409,14 @@ private fun PhoneAppContent(
     // 통화 중(발신/수신)이면 수신 화면보다 통화 화면 우선
     if (showWebRtcCall) {
         DisposableEffect(Unit) {
+            activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             WindowCompat.setDecorFitsSystemWindows(activity.window, false)
             WindowInsetsControllerCompat(activity.window, activity.window.decorView).apply {
                 hide(WindowInsetsCompat.Type.navigationBars())
                 systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
             onDispose {
+                activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 WindowInsetsControllerCompat(activity.window, activity.window.decorView).show(WindowInsetsCompat.Type.navigationBars())
                 WindowCompat.setDecorFitsSystemWindows(activity.window, true)
             }
