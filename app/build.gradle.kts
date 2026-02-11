@@ -57,4 +57,8 @@ dependencies {
     implementation(libs.webrtc.android)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(platform("androidx.compose:compose-bom:2023.10.01"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.material3:material3") // Material3 필수
+    implementation("androidx.compose.ui:ui-tooling-preview")
 }

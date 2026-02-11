@@ -1,8 +1,11 @@
 package org.duckdns.dorandoran.callaiassistant.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
@@ -18,27 +21,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.material3.TextButton
@@ -47,30 +41,47 @@ import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository
 import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository.ContactMatch
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import android.media.AudioManager
 import android.media.ToneGenerator
+import org.duckdns.dorandoran.callaiassistant.R
+import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository
+import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository.ContactMatch
 import androidx.compose.ui.tooling.preview.Preview
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DialerScreen(
+    modifier: Modifier = Modifier,
     initialPhoneNumber: String = "",
     lastCalledNumber: String? = null,
     onCallStarted: (String) -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenContactSearch: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    onOpenCallHistory: () -> Unit = {},
 ) {
     var phoneNumber by remember(initialPhoneNumber) { mutableStateOf(initialPhoneNumber) }
     var showLastCalledNumber by remember { mutableStateOf(false) }
     val context = LocalContext.current
+
     val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_DTMF, 80) }
     val repository = remember { CallLogRepository(context) }
     var contactMatches by remember { mutableStateOf<List<ContactMatch>>(emptyList()) }
-    var contactTotalCount by remember { mutableStateOf(0) }
+    var contactTotalCount by remember { mutableIntStateOf(0) }
+
+    val pretendardFont = try {
+        FontFamily(Font(R.font.pretendard_medium, FontWeight.Medium))
+    } catch (_: Exception) {
+        FontFamily.Default
+    }
 
     DisposableEffect(Unit) {
         onDispose { toneGenerator.release() }
@@ -132,75 +143,44 @@ private fun DialerContent(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
+            .padding(top = 16.dp, bottom = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        val compact = screenHeightDp <= 640
-        val veryCompact = screenHeightDp <= 560
-
-        val outerPadding = when {
-            veryCompact -> 6.dp
-            compact -> 12.dp
-            else -> 16.dp
-        }
-        val sectionSpacing = when {
-            veryCompact -> 4.dp
-            compact -> 6.dp
-            else -> 8.dp
-        }
-        val dialPadSpacing = when {
-            veryCompact -> 2.dp
-            compact -> 6.dp
-            else -> 8.dp
-        }
-        val titleBarHeight = when {
-            veryCompact -> 44.dp
-            compact -> 52.dp
-            else -> 56.dp
-        }
-        val numberAreaMinHeight = when {
-            veryCompact -> 56.dp
-            compact -> 72.dp
-            else -> 96.dp
-        }
-        val contactSectionHeight = when {
-            veryCompact -> 0.dp
-            compact -> 64.dp
-            else -> 96.dp
-        }
-        val actionButtonSize = when {
-            veryCompact -> 56.dp
-            compact -> 64.dp
-            else -> 72.dp
-        }
-        val actionIconSize = actionButtonSize * 0.44f
-        val actionRowHeight = actionButtonSize + if (veryCompact) 4.dp else 8.dp
-        val numberFontSize = when {
-            veryCompact -> 26.sp
-            compact -> 30.sp
-            else -> 34.sp
-        }
-        val dialKeyMinHeight = when {
-            veryCompact -> 32.dp
-            compact -> 42.dp
-            else -> 52.dp
-        }
-        val dialKeyMaxHeight = when {
-            veryCompact -> 48.dp
-            compact -> 64.dp
-            else -> 90.dp
+        // 1. 헤더
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .height(43.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "T.mate",
+                style = TextStyle(
+                    fontSize = 35.sp,
+                    fontFamily = pretendardFont,
+                    fontWeight = FontWeight(700),
+                    color = Color(0xFF1D1D1F)
+                )
+            )
+            IconButton(
+                onClick = onOpenSettings,
+                modifier = Modifier
+                    .size(34.dp)
+                    .padding(1.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "설정",
+                    tint = Color(0xFF1D1D1F),
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
 
-        val fixedHeights = titleBarHeight + numberAreaMinHeight + contactSectionHeight + actionRowHeight
-        val fixedSpacing = sectionSpacing * 3
-        val availableForDialPad = (maxHeight - fixedHeights - fixedSpacing - outerPadding * 2)
-            .coerceAtLeast(0.dp)
-        val availableForKeys = (availableForDialPad - dialPadSpacing * 3).coerceAtLeast(0.dp)
-        val rawRowHeight = availableForKeys / 4
-        var keyRowHeight = rawRowHeight.coerceIn(dialKeyMinHeight, dialKeyMaxHeight)
-        if (keyRowHeight * 4 + dialPadSpacing * 3 > availableForDialPad) {
-            keyRowHeight = rawRowHeight.coerceAtLeast(20.dp).coerceAtMost(dialKeyMaxHeight)
-        }
-        val dialPadHeight = (keyRowHeight * 4 + dialPadSpacing * 3).coerceAtMost(availableForDialPad)
-
+        // 2. 전화번호 표시
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -208,11 +188,23 @@ private fun DialerContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(titleBarHeight)
-            ) {
+            Text(
+                text = if (showLastCalledNumber && lastCalledNumber != null) {
+                    formatPhoneNumber(lastCalledNumber)
+                } else if (phoneNumber.isBlank()) {
+                    ""
+                } else {
+                    formatPhoneNumber(phoneNumber)
+                },
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontFamily = pretendardFont,
+                    fontWeight = FontWeight.Medium
+                ),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (!showLastCalledNumber && lastCalledNumber != null && phoneNumber.isBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "T.mate",
                     style = MaterialTheme.typography.titleLarge,
@@ -230,266 +222,210 @@ private fun DialerContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(sectionSpacing))
-
-            // 전화번호 표시 영역
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = numberAreaMinHeight),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = if (showLastCalledNumber && lastCalledNumber != null) {
-                        formatPhoneNumber(lastCalledNumber)
-                    } else if (phoneNumber.isBlank()) {
-                        ""
-                    } else {
-                        formatPhoneNumber(phoneNumber)
-                    },
-                    style = MaterialTheme.typography.headlineMedium.copy(fontSize = numberFontSize),
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (!showLastCalledNumber && lastCalledNumber != null && phoneNumber.isBlank()) {
-                    Spacer(modifier = Modifier.height(6.dp))
+        // 3. 연락처 검색 결과
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            if (contactMatches.isNotEmpty()) {
+                val match = contactMatches.first()
+                TextButton(onClick = { onCallStarted(match.number) }) {
                     Text(
-                        text = "마지막 통화: ${formatPhoneNumber(lastCalledNumber)}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "${match.name} ",
+                        style = TextStyle(
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1D1D1F)
+                        )
                     )
+                    Text(
+                        text = buildHighlightedNumber(
+                            formatPhoneNumber(match.number),
+                            phoneNumber.filter { it.isDigit() }
+                        ),
+                        style = TextStyle(
+                            fontSize = 14.sp,
+                            color = Color.Gray
+                        )
+                    )
+                }
+            } else if (contactTotalCount > 0) {
+                TextButton(onClick = { onOpenContactSearch(phoneNumber) }) {
+                    Text("검색 결과 ${contactTotalCount}건 보기 >")
                 }
             }
 
-            if (!veryCompact) {
-                Spacer(modifier = Modifier.height(sectionSpacing))
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(contactSectionHeight)
-                ) {
-                    if (contactMatches.isNotEmpty()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            contactMatches.forEach { match ->
-                                Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(horizontal = 4.dp)
-                                        .clickable { onCallStarted(match.number) },
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = match.name,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        textAlign = TextAlign.Center
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = buildHighlightedNumber(
-                                            formatPhoneNumber(match.number),
-                                            phoneNumber.filter { it.isDigit() }
-                                        ),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                        }
+        Spacer(modifier = Modifier.height(10.dp))
 
-                        val moreCount = contactTotalCount - contactMatches.size
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            if (moreCount > 0) {
-                                TextButton(onClick = { onOpenContactSearch(phoneNumber) }) {
-                                    Text("${moreCount}건 더보기")
+        // 4. 키패드
+        Column(
+            modifier = Modifier
+                .width(271.dp)
+                .height(305.dp),
+            verticalArrangement = Arrangement.spacedBy(19.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            val dialPad = listOf(
+                listOf(DialPadKey("1", "ㄱㅋ", ".QZ"), DialPadKey("2", "ㄴ", "ABC"), DialPadKey("3", "ㄷㅌ", "DEF")),
+                listOf(DialPadKey("4", "ㄹ", "GHI"), DialPadKey("5", "ㅁ", "JKL"), DialPadKey("6", "ㅂㅍ", "NMO")),
+                listOf(DialPadKey("7", "ㅅ", "PRS"), DialPadKey("8", "ㅇ", "TUV"), DialPadKey("9", "ㅈㅊ", "WXY")),
+                listOf(DialPadKey("*", ",", ""), DialPadKey("0", "ㅎ", "+"), DialPadKey("#", ";", ""))
+            )
+
+            dialPad.forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    row.forEach { key ->
+                        DialPadButton(
+                            digit = key.digit,
+                            hangul = key.hangul,
+                            latin = key.latin,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(66.dp),
+                            onClick = {
+                                if (key.digit.length == 1) {
+                                    digitToTone(key.digit[0])?.let { tone ->
+                                        try { toneGenerator.startTone(tone, 120) } catch (_: Throwable) {}
+                                    }
                                 }
-                            } else {
-                                Spacer(modifier = Modifier.height(36.dp))
+                                phoneNumber += key.digit
                             }
-                        }
-                    } else {
-                        Spacer(modifier = Modifier.height(contactSectionHeight))
+                        )
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(sectionSpacing))
-
-            DialPadFixedHeight(
-                phoneNumber = phoneNumber,
-                onPhoneNumberChange = onPhoneNumberChange,
-                onPlayTone = onPlayTone,
-                keyRowHeight = keyRowHeight,
-                dialPadHeight = dialPadHeight,
-                dialPadSpacing = dialPadSpacing,
-                compact = compact,
-                veryCompact = veryCompact
-            )
-
-            Spacer(modifier = Modifier.height(sectionSpacing))
-
-            ActionRowFixedHeight(
-                height = actionRowHeight,
-                buttonSize = actionButtonSize,
-                iconSize = actionIconSize,
-                phoneNumber = phoneNumber,
-                lastCalledNumber = lastCalledNumber,
-                showLastCalledNumber = showLastCalledNumber,
-                onShowLastCalledNumberChange = onShowLastCalledNumberChange,
-                onPhoneNumberChange = onPhoneNumberChange,
-                onCallStarted = onCallStarted
-            )
         }
-    }
-}
 
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun DialPadFixedHeight(
-    phoneNumber: String,
-    onPhoneNumberChange: (String) -> Unit,
-    onPlayTone: (Char) -> Unit,
-    keyRowHeight: androidx.compose.ui.unit.Dp,
-    dialPadHeight: androidx.compose.ui.unit.Dp,
-    dialPadSpacing: androidx.compose.ui.unit.Dp,
-    compact: Boolean,
-    veryCompact: Boolean
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(dialPadHeight),
-        verticalArrangement = Arrangement.spacedBy(dialPadSpacing)
-    ) {
-        val dialPad = listOf(
-            listOf(
-                DialPadKey("1", "ㄱㅋ", ".QZ"),
-                DialPadKey("2", "ㄴ", "ABC"),
-                DialPadKey("3", "ㄷㅌ", "DEF")
-            ),
-            listOf(
-                DialPadKey("4", "ㄹ", "GHI"),
-                DialPadKey("5", "ㅁ", "JKL"),
-                DialPadKey("6", "ㅂㅍ", "NMO")
-            ),
-            listOf(
-                DialPadKey("7", "ㅅ", "PRS"),
-                DialPadKey("8", "ㅇ", "TUV"),
-                DialPadKey("9", "ㅈㅊ", "WXY")
-            ),
-            listOf(
-                DialPadKey("*", ",", ""),
-                DialPadKey("0", "ㅎ", "+"),
-                DialPadKey("#", ";", "")
-            )
-        )
+        Spacer(modifier = Modifier.height(24.dp))
 
-        dialPad.forEach { row ->
+        // 5. 하단 영역 (통화 버튼 + 토글 바)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            // (1) 통화 버튼 Row
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(keyRowHeight),
-                horizontalArrangement = Arrangement.spacedBy(dialPadSpacing)
+                modifier = Modifier.width(271.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                row.forEach { key ->
-                    DialPadButtonResponsive(
-                        digit = key.digit,
-                        hangul = key.hangul,
-                        latin = key.latin,
-                        modifier = Modifier.weight(1f),
-                        compact = compact,
-                        veryCompact = veryCompact,
-                        keyRowHeight = keyRowHeight,
-                        onClick = {
-                            if (key.digit.length == 1) {
-                                onPlayTone(key.digit[0])
+                Spacer(modifier = Modifier.size(72.dp))
+
+                CallButton(
+                    onClick = {
+                        when {
+                            phoneNumber.isBlank() && lastCalledNumber != null && !showLastCalledNumber -> {
+                                showLastCalledNumber = true
+                            }
+                            showLastCalledNumber && lastCalledNumber != null -> {
+                                onCallStarted(lastCalledNumber)
+                                showLastCalledNumber = false
+                            }
+                            phoneNumber.isNotBlank() -> {
+                                onCallStarted(phoneNumber)
                             }
                             onPhoneNumberChange(phoneNumber + key.digit)
                         }
+                    }
+                )
+
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .combinedClickable(
+                            onClick = {
+                                if (showLastCalledNumber) {
+                                    showLastCalledNumber = false
+                                } else if (phoneNumber.isNotEmpty()) {
+                                    phoneNumber = phoneNumber.dropLast(1)
+                                }
+                            },
+                            onLongClick = {
+                                phoneNumber = ""
+                                showLastCalledNumber = false
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Backspace,
+                        contentDescription = "삭제",
+                        tint = Color(0xFF000000)
                     )
+                }
+            }
+
+            // (2) 하단 토글 바
+            Box(
+                modifier = Modifier
+                    .width(363.dp)
+                    .height(47.dp)
+                    .background(color = Color(0xFFF4F5F8), shape = RoundedCornerShape(size = 23.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(167.dp)
+                            .height(39.dp)
+                            .clip(RoundedCornerShape(23.dp))
+                            .clickable { onOpenCallHistory() }
+                            .padding(10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "최근 기록",
+                            style = TextStyle(
+                                fontSize = 15.sp,
+                                fontFamily = pretendardFont,
+                                fontWeight = FontWeight(500),
+                                color = Color(0xFF73777F),
+                                textAlign = TextAlign.Center,
+                            )
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .shadow(
+                                elevation = 24.dp,
+                                spotColor = Color(0x33959DA5),
+                                ambientColor = Color(0x33959DA5),
+                                shape = RoundedCornerShape(size = 23.dp)
+                            )
+                            .width(167.dp)
+                            .height(39.dp)
+                            .background(color = Color(0xFFFFFFFF), shape = RoundedCornerShape(size = 23.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "키패드",
+                            style = TextStyle(
+                                fontSize = 15.sp,
+                                fontFamily = pretendardFont,
+                                fontWeight = FontWeight(500),
+                                color = Color(0xFF1D1D1F),
+                                textAlign = TextAlign.Center,
+                            )
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun ActionRowFixedHeight(
-    height: androidx.compose.ui.unit.Dp,
-    buttonSize: androidx.compose.ui.unit.Dp,
-    iconSize: androidx.compose.ui.unit.Dp,
-    phoneNumber: String,
-    lastCalledNumber: String?,
-    showLastCalledNumber: Boolean,
-    onShowLastCalledNumberChange: (Boolean) -> Unit,
-    onPhoneNumberChange: (String) -> Unit,
-    onCallStarted: (String) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(height),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Spacer(modifier = Modifier.size(buttonSize))
-        CallButtonSized(
-            size = buttonSize,
-            iconSize = iconSize,
-            enabled = true,
-            onClick = {
-                when {
-                    phoneNumber.isBlank() && lastCalledNumber != null && !showLastCalledNumber -> {
-                        onShowLastCalledNumberChange(true)
-                    }
-                    showLastCalledNumber && lastCalledNumber != null -> {
-                        onCallStarted(lastCalledNumber)
-                        onShowLastCalledNumberChange(false)
-                    }
-                    phoneNumber.isNotBlank() -> {
-                        onCallStarted(phoneNumber)
-                    }
-                }
-            }
-        )
-        Box(
-            modifier = Modifier
-                .size(buttonSize)
-                .combinedClickable(
-                    onClick = {
-                        if (showLastCalledNumber) {
-                            onShowLastCalledNumberChange(false)
-                        } else if (phoneNumber.isNotEmpty()) {
-                            onPhoneNumberChange(phoneNumber.dropLast(1))
-                        }
-                    },
-                    onLongClick = {
-                        onPhoneNumberChange("")
-                        onShowLastCalledNumberChange(false)
-                    }
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Backspace,
-                contentDescription = "삭제"
-            )
-        }
-    }
-}
+// ▼▼▼ 하위 컴포넌트 및 유틸리티 함수들 ▼▼▼
 
 @Composable
 private fun DialPadButtonResponsive(
@@ -502,102 +438,94 @@ private fun DialPadButtonResponsive(
     keyRowHeight: androidx.compose.ui.unit.Dp,
     onClick: () -> Unit
 ) {
-    val base = keyRowHeight.value
-    val digitSize = (base * 0.55f).coerceIn(14f, 24f).sp
-    val hangulSize = (base * 0.22f).coerceIn(6f, 12f).sp
-    val latinSize = (base * 0.2f).coerceIn(6f, 11f).sp
-    val labelSpacing = if (veryCompact) 4.dp else 6.dp
+    val pretendard = try {
+        FontFamily(Font(R.font.pretendard_medium, FontWeight.Medium))
+    } catch (_: Exception) { FontFamily.Default }
+
+    val digitColor = Color(0xFF000000)
+
     Box(
-        modifier = modifier
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
+        modifier = modifier.clickable(onClick = onClick),
+        contentAlignment = Alignment.TopCenter
     ) {
-        if (compact) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Top
+        ) {
+            Box(
+                modifier = Modifier.height(38.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = digit,
-                    fontSize = digitSize,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    style = TextStyle(
+                        fontSize = 32.sp,
+                        fontFamily = pretendard,
+                        fontWeight = FontWeight(500),
+                        color = digitColor,
+                        textAlign = TextAlign.Center
+                    )
                 )
-                Spacer(modifier = Modifier.width(labelSpacing))
-                Column(
-                    horizontalAlignment = Alignment.Start,
-                    verticalArrangement = Arrangement.Center
-                ) {
+            }
+            Column(
+                modifier = Modifier.height(28.dp),
+                verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.Top),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (hangul.isNotBlank()) {
                     Text(
                         text = hangul,
-                        fontSize = hangulSize,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = if (latin.isBlank()) " " else latin,
-                        fontSize = latinSize,
-                        color = if (latin.isBlank()) Color.Transparent else MaterialTheme.colorScheme.onSurfaceVariant
+                        style = TextStyle(
+                            fontSize = 12.sp,
+                            fontFamily = pretendard,
+                            fontWeight = FontWeight(600),
+                            color = digitColor,
+                            textAlign = TextAlign.Center,
+                            letterSpacing = 1.2.sp
+                        ),
+                        modifier = Modifier.height(14.dp)
                     )
                 }
-            }
-        } else {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
                 Text(
-                    text = digit,
-                    fontSize = digitSize,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = hangul,
-                    fontSize = hangulSize,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(1.dp))
-                Text(
-                    text = if (latin.isBlank()) " " else latin,
-                    fontSize = latinSize,
-                    color = if (latin.isBlank()) Color.Transparent else MaterialTheme.colorScheme.onSurfaceVariant
+                    text = latin.ifBlank { " " },
+                    style = TextStyle(
+                        fontSize = 11.sp,
+                        fontFamily = pretendard,
+                        fontWeight = FontWeight(500),
+                        color = if (latin.isBlank()) Color.Transparent else digitColor,
+                        textAlign = TextAlign.Center
+                    ),
+                    modifier = Modifier.height(13.dp)
                 )
             }
         }
     }
 }
 
-private data class DialPadKey(
-    val digit: String,
-    val hangul: String,
-    val latin: String
-)
+private data class DialPadKey(val digit: String, val hangul: String, val latin: String)
 
 @Composable
-private fun CallButtonSized(
-    size: androidx.compose.ui.unit.Dp,
-    iconSize: androidx.compose.ui.unit.Dp,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
+private fun CallButton(onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(
-                if (enabled) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surfaceVariant
+            .shadow(
+                elevation = 24.dp,
+                shape = CircleShape,
+                spotColor = Color(0x33959DA5),
+                ambientColor = Color(0x33959DA5)
             )
-            .clickable(enabled = enabled, onClick = onClick),
+            .size(73.dp)
+            .background(color = Color.White, shape = CircleShape)
+            .border(width = 1.dp, color = Color(0xFFEEF0F5), shape = CircleShape)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = Icons.Default.Call,
             contentDescription = "통화",
-            tint = if (enabled) MaterialTheme.colorScheme.onPrimary
-            else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(iconSize)
+            tint = Color(0xFF2E7D32),
+            modifier = Modifier.size(32.dp)
         )
     }
 }
@@ -636,6 +564,7 @@ private fun buildHighlightedNumber(text: String, queryDigits: String): Annotated
     }
 }
 
+// ★★★ 이 함수가 누락되어 에러가 났습니다. 다시 포함시켰습니다! ★★★
 private fun digitToTone(digit: Char): Int? {
     return when (digit) {
         '0' -> ToneGenerator.TONE_DTMF_0
@@ -651,48 +580,5 @@ private fun digitToTone(digit: Char): Int? {
         '*' -> ToneGenerator.TONE_DTMF_S
         '#' -> ToneGenerator.TONE_DTMF_P
         else -> null
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun DialerScreenPreview() {
-    CallaiassistantTheme {
-        DialerContent(
-            phoneNumber = "0101234",
-            onPhoneNumberChange = {},
-            lastCalledNumber = "01098765432",
-            showLastCalledNumber = false,
-            onShowLastCalledNumberChange = {},
-            contactMatches = listOf(
-                ContactMatch("홍길동", "01012345678"),
-                ContactMatch("김철수", "01012344321")
-            ),
-            contactTotalCount = 5,
-            onCallStarted = {},
-            onOpenSettings = {},
-            onOpenContactSearch = {},
-            onPlayTone = {}
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun DialerScreenEmptyPreview() {
-    CallaiassistantTheme {
-        DialerContent(
-            phoneNumber = "",
-            onPhoneNumberChange = {},
-            lastCalledNumber = null,
-            showLastCalledNumber = false,
-            onShowLastCalledNumberChange = {},
-            contactMatches = emptyList(),
-            contactTotalCount = 0,
-            onCallStarted = {},
-            onOpenSettings = {},
-            onOpenContactSearch = {},
-            onPlayTone = {}
-        )
     }
 }
