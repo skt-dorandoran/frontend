@@ -130,7 +130,7 @@ private fun SettingsContent(
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp)
             ) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 // --- Text Size Slider Section ---
                 Text(
