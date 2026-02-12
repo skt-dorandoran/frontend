@@ -1,5 +1,7 @@
 package org.duckdns.dorandoran.callaiassistant.ui.screens
 
+import android.media.AudioManager
+import android.media.ToneGenerator
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -21,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CallEnd
-import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
@@ -32,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,9 +66,11 @@ fun WebRtcInCallScreen(
     modifier: Modifier = Modifier
 ) {
     var isSpeakerphoneOn by remember { mutableStateOf<Boolean>(false) }
-    var isAiCorrectionMode by remember { mutableStateOf(false) }
+    var selectedMode by remember { mutableStateOf(CallMode.DIRECT) }
     var suggestionSetIndex by remember { mutableStateOf(0) }
     var selectedSuggestionIndex by remember { mutableStateOf<Int?>(null) }
+    var isKeypadVisible by remember { mutableStateOf(false) }
+    val isAiCorrectionMode = selectedMode == CallMode.AI_CORRECTION
     val suggestionSets = remember(aiSuggestions) {
         listOf(
             aiSuggestions.take(2).ifEmpty {
@@ -84,6 +88,13 @@ fun WebRtcInCallScreen(
     val cardColor = if (isDark) Color(0xFF16161A) else Color(0xFFFFFFFF)
     val secondaryTextColor = if (isDark) Color(0xFFB0B0B6) else Color(0xFF8E8E93)
     val primaryBlue = Color(0xFF2F5BFF)
+    val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_DTMF, 80) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            toneGenerator.release()
+        }
+    }
 
     Box(
         modifier = modifier
@@ -249,15 +260,15 @@ fun WebRtcInCallScreen(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Button(
-                        onClick = { isAiCorrectionMode = false },
+                        onClick = { selectedMode = CallMode.DIRECT },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (!isAiCorrectionMode) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (!isAiCorrectionMode) Color.White else MaterialTheme.colorScheme.onSurface
+                            containerColor = if (selectedMode == CallMode.DIRECT) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (selectedMode == CallMode.DIRECT) Color.White else MaterialTheme.colorScheme.onSurface
                         ),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                     ) {
@@ -265,16 +276,29 @@ fun WebRtcInCallScreen(
                     }
 
                     Button(
-                        onClick = { isAiCorrectionMode = true },
+                        onClick = { selectedMode = CallMode.AI_CORRECTION },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isAiCorrectionMode) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (isAiCorrectionMode) Color.White else MaterialTheme.colorScheme.onSurface
+                            containerColor = if (selectedMode == CallMode.AI_CORRECTION) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (selectedMode == CallMode.AI_CORRECTION) Color.White else MaterialTheme.colorScheme.onSurface
                         ),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                     ) {
                         Text("AI 교정")
+                    }
+
+                    Button(
+                        onClick = { selectedMode = CallMode.TEXT },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedMode == CallMode.TEXT) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (selectedMode == CallMode.TEXT) Color.White else MaterialTheme.colorScheme.onSurface
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                    ) {
+                        Text("텍스트 통화")
                     }
                 }
 
@@ -354,19 +378,17 @@ fun WebRtcInCallScreen(
                                 .size(56.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                                .clickable { },
+                                .clickable { isKeypadVisible = !isKeypadVisible },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Keyboard,
-                                contentDescription = "텍스트 통화",
+                            KeypadDotsIcon(
                                 tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "텍스트 통화",
+                            text = "숫자 키패드",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -374,7 +396,137 @@ fun WebRtcInCallScreen(
                 }
             }
         }
+
+        if (isKeypadVisible) {
+            KeypadOverlay(
+                onDismiss = { isKeypadVisible = false },
+                onKeyPress = { key ->
+                    playDtmfTone(toneGenerator, key)
+                }
+            )
+        }
     }
+}
+
+private enum class CallMode {
+    DIRECT,
+    AI_CORRECTION,
+    TEXT
+}
+
+@Composable
+private fun KeypadOverlay(
+    onDismiss: () -> Unit,
+    onKeyPress: (Char) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.45f))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp, vertical = 120.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .clickable(onClick = {})
+                .padding(vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            val keypadRows = listOf(
+                listOf('1', '2', '3'),
+                listOf('4', '5', '6'),
+                listOf('7', '8', '9'),
+                listOf('*', '0', '#')
+            )
+            keypadRows.forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    row.forEach { key ->
+                        KeypadButton(
+                            key = key,
+                            onClick = { onKeyPress(key) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun KeypadButton(
+    key: Char,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(64.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = key.toString(),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun KeypadDotsIcon(
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        repeat(3) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(3) {
+                    Box(
+                        modifier = Modifier
+                            .size(4.dp)
+                            .clip(CircleShape)
+                            .background(tint)
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun playDtmfTone(toneGenerator: ToneGenerator, key: Char) {
+    val tone = when (key) {
+        '1' -> ToneGenerator.TONE_DTMF_1
+        '2' -> ToneGenerator.TONE_DTMF_2
+        '3' -> ToneGenerator.TONE_DTMF_3
+        '4' -> ToneGenerator.TONE_DTMF_4
+        '5' -> ToneGenerator.TONE_DTMF_5
+        '6' -> ToneGenerator.TONE_DTMF_6
+        '7' -> ToneGenerator.TONE_DTMF_7
+        '8' -> ToneGenerator.TONE_DTMF_8
+        '9' -> ToneGenerator.TONE_DTMF_9
+        '0' -> ToneGenerator.TONE_DTMF_0
+        '*' -> ToneGenerator.TONE_DTMF_S
+        '#' -> ToneGenerator.TONE_DTMF_P
+        else -> null
+    }
+    tone?.let { toneGenerator.startTone(it, 140) }
 }
 
 private fun formatPhoneNumber(number: String): String {
