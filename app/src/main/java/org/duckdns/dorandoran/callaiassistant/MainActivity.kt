@@ -378,7 +378,7 @@ private fun PhoneAppContent(
                 }
             }
             val callerNumber = getOwnPhoneNumber(activity.applicationContext)
-            val callId = callSignalingManager.initiateCall(callerNumber)
+            val callId = callSignalingManager.initiateCall(callerNumber, number)
             if (callId.isBlank()) {
                 bannerMessage = "통화 연결을 준비 중입니다"
                 bannerLocked = true
