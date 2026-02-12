@@ -69,7 +69,9 @@ class CallPermissionsActivity : ComponentActivity() {
                             }
                             Text(
                                 text = "통화 필수 권한",
-                                style = MaterialTheme.typography.headlineSmall
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Medium
+                                )
                             )
                         }
 

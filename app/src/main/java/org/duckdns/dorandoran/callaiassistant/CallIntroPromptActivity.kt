@@ -88,7 +88,9 @@ private fun CallIntroPromptContent(
                 }
                 Text(
                     text = "통화 시작 안내 멘트",
-                    style = MaterialTheme.typography.headlineSmall
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Medium
+                    )
                 )
             }
 
@@ -103,7 +105,7 @@ private fun CallIntroPromptContent(
                     Text(
                         text = "통화 시작 안내 멘트 설정",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Medium
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(

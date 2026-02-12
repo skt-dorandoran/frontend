@@ -121,7 +121,7 @@ private fun SettingsContent(
                 Text(
                     text = "설정",
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         fontSize = 18.sp
                     )
                 )
@@ -136,7 +136,7 @@ private fun SettingsContent(
                 Text(
                     text = "통화 중 글자 크기",
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Medium,
                         fontSize = 16.sp
                     )
                 )
@@ -303,7 +303,7 @@ private fun SettingsMenuRow(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.Medium,
                     fontSize = 16.sp,
                     color = Color.Black
                 )
