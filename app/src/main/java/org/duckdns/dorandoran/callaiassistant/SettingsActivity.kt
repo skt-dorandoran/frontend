@@ -130,7 +130,7 @@ private fun SettingsContent(
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp)
             ) {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // --- Text Size Slider Section ---
                 Text(
@@ -152,7 +152,7 @@ private fun SettingsContent(
                     lineHeight = previewLineHeight
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 // 슬라이더 라벨 (A ... A)
                 Row(
@@ -166,7 +166,7 @@ private fun SettingsContent(
                     Text(text = "A", fontSize = 20.sp, fontWeight = FontWeight.Medium, color = Color.Black)
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(0.dp))
 
                 // [수정됨] 슬라이더: 트랙에 세로 구분선(Tick) 추가
                 Slider(
@@ -233,7 +233,7 @@ private fun SettingsContent(
                     }
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 SettingsDivider()
 

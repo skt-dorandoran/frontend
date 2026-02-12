@@ -5,37 +5,20 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Contacts
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material3.Button
-import androidx.compose.material3.Divider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 
 class CallPermissionsActivity : ComponentActivity() {
@@ -45,7 +28,7 @@ class CallPermissionsActivity : ComponentActivity() {
             CallaiassistantTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = Color.White
                 ) {
                     val context = this@CallPermissionsActivity
                     Column(
@@ -53,67 +36,65 @@ class CallPermissionsActivity : ComponentActivity() {
                             .fillMaxSize()
                             .statusBarsPadding()
                             .navigationBarsPadding()
-                            .padding(24.dp),
-                        verticalArrangement = Arrangement.Top,
-                        horizontalAlignment = Alignment.Start
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            IconButton(onClick = { finish() }) {
+                            IconButton(
+                                onClick = { finish() },
+                                modifier = Modifier.size(24.dp)
+                            ) {
                                 Icon(
-                                    imageVector = Icons.Default.ArrowBack,
-                                    contentDescription = "뒤로가기"
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                    contentDescription = "뒤로가기",
+                                    tint = Color.Black
                                 )
                             }
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "통화 필수 권한",
                                 style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Medium
-                                )
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 18.sp
+                                ),
+                                color = Color.Black
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                        PermissionItem(
-                            icon = Icons.Default.Mic,
-                            title = "마이크",
-                            description = "통화 중 음성 입력을 인식하고 전달하기 위해 필요합니다."
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Divider()
-                        Spacer(modifier = Modifier.height(8.dp))
-                        PermissionItem(
-                            icon = Icons.Default.Notifications,
-                            title = "알림",
-                            description = "수신 통화 및 통화 상태 알림을 표시하기 위해 필요합니다."
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Divider()
-                        Spacer(modifier = Modifier.height(8.dp))
-                        PermissionItem(
-                            icon = Icons.Default.Contacts,
-                            title = "연락처",
-                            description = "연락처 검색과 발신자 정보를 표시하기 위해 필요합니다."
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Divider()
-                        Spacer(modifier = Modifier.height(8.dp))
-                        PermissionItem(
-                            icon = Icons.Default.Phone,
-                            title = "전화",
-                            description = "통화 연결과 전화 상태 확인을 위해 필요합니다."
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Divider()
-                        Spacer(modifier = Modifier.height(8.dp))
-                        PermissionItem(
-                            icon = Icons.Default.History,
-                            title = "통화 기록",
-                            description = "최근 통화 기록을 표시하기 위해 필요합니다."
-                        )
+                        Column(
+                            modifier = Modifier.padding(horizontal = 24.dp)
+                        ) {
+                            PermissionRow(
+                                icon = Icons.Default.Mic,
+                                title = "마이크",
+                                description = "통화 중 음성 입력을 인식하고 전달하기 위해 필요"
+                            )
+                            PermissionRow(
+                                icon = Icons.Default.Notifications,
+                                title = "알림",
+                                description = "수신 통화 및 통화 상태 알림을 표시하기 위해 필요"
+                            )
+                            PermissionRow(
+                                icon = Icons.Default.Contacts,
+                                title = "연락처",
+                                description = "연락처 검색과 발신자 정보를 표시하기 위해 필요"
+                            )
+                            PermissionRow(
+                                icon = Icons.Default.Phone,
+                                title = "전화",
+                                description = "통화 연결과 전화 상태 확인을 위해 필요"
+                            )
+                            PermissionRow(
+                                icon = Icons.Default.History,
+                                title = "통화 기록",
+                                description = "최근 통화 기록을 표시하기 위해 필요"
+                            )
+                        }
 
                         Spacer(modifier = Modifier.weight(1f))
 
@@ -127,9 +108,18 @@ class CallPermissionsActivity : ComponentActivity() {
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp)
+                                .padding(horizontal = 24.dp, vertical = 16.dp)
+                                .height(52.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF4263EA)
+                            )
                         ) {
-                            Text("권한 설정 변경")
+                            Text(
+                                text = "권한 설정 변경",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                 }
@@ -139,33 +129,41 @@ class CallPermissionsActivity : ComponentActivity() {
 }
 
 @Composable
-private fun PermissionItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+private fun PermissionRow(
+    icon: ImageVector,
     title: String,
     description: String
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary
+            tint = Color(0xFF4263EA),
+            modifier = Modifier.size(24.dp)
         )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.fillMaxWidth()) {
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF1A1A1A)
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                fontSize = 13.sp,
+                color = Color(0xFF888888),
+                lineHeight = 18.sp
             )
         }
+
     }
 }
