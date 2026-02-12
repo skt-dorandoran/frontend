@@ -2,8 +2,10 @@ package org.duckdns.dorandoran.callaiassistant.ui.screens
 
 import android.media.AudioManager
 import android.media.ToneGenerator
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -43,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -67,10 +71,11 @@ fun WebRtcInCallScreen(
 ) {
     var isSpeakerphoneOn by remember { mutableStateOf<Boolean>(false) }
     var selectedMode by remember { mutableStateOf(CallMode.DIRECT) }
+    var callScreenState by remember { mutableStateOf(CallScreenState.MODE_SELECT) }
     var suggestionSetIndex by remember { mutableStateOf(0) }
     var selectedSuggestionIndex by remember { mutableStateOf<Int?>(null) }
-    var isKeypadVisible by remember { mutableStateOf(false) }
     val isAiCorrectionMode = selectedMode == CallMode.AI_CORRECTION
+    val isKeypadActive = callScreenState == CallScreenState.KEYPAD
     val suggestionSets = remember(aiSuggestions) {
         listOf(
             aiSuggestions.take(2).ifEmpty {
@@ -94,6 +99,10 @@ fun WebRtcInCallScreen(
         onDispose {
             toneGenerator.release()
         }
+    }
+
+    BackHandler(enabled = callScreenState == CallScreenState.KEYPAD) {
+        callScreenState = CallScreenState.MODE_SELECT
     }
 
     Box(
@@ -143,100 +152,114 @@ fun WebRtcInCallScreen(
                 )
             }
 
-            if (isAiCorrectionMode) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = if (sttText.isNotBlank()) sttText else "상대방의 말이 여기에 표시됩니다",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            when (callScreenState) {
+                CallScreenState.MODE_SELECT -> {
+                    if (isAiCorrectionMode) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = "AI 추천",
-                                tint = primaryBlue,
-                                modifier = Modifier.size(18.dp)
-                            )
                             Text(
-                                text = "AI 추천 답변",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onBackground
+                                text = if (sttText.isNotBlank()) sttText else "상대방의 말이 여기에 표시됩니다",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
                             )
-                        }
-                        IconButton(
-                            onClick = {
-                                suggestionSetIndex = (suggestionSetIndex + 1) % suggestionSets.size
-                                selectedSuggestionIndex = null
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "추천 새로고침",
-                                tint = secondaryTextColor
-                            )
-                        }
-                    }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
 
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        currentSuggestions.forEachIndexed { index, suggestion ->
-                            val selected = selectedSuggestionIndex == index
-                            OutlinedButton(
-                                onClick = {
-                                    selectedSuggestionIndex = index
-                                    onSendAiSuggestion(suggestion)
-                                },
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(999.dp),
-                                border = BorderStroke(
-                                    width = if (selected) 2.dp else 1.dp,
-                                    color = if (selected) primaryBlue else MaterialTheme.colorScheme.outline
-                                ),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (selected) primaryBlue.copy(alpha = 0.08f) else Color.Transparent,
-                                    contentColor = MaterialTheme.colorScheme.onBackground
-                                )
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(
-                                    text = suggestion,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    textAlign = TextAlign.Center
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = "AI 추천",
+                                        tint = primaryBlue,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "AI 추천 답변",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        suggestionSetIndex = (suggestionSetIndex + 1) % suggestionSets.size
+                                        selectedSuggestionIndex = null
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = "추천 새로고침",
+                                        tint = secondaryTextColor
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                currentSuggestions.forEachIndexed { index, suggestion ->
+                                    val selected = selectedSuggestionIndex == index
+                                    OutlinedButton(
+                                        onClick = {
+                                            selectedSuggestionIndex = index
+                                            onSendAiSuggestion(suggestion)
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(999.dp),
+                                        border = BorderStroke(
+                                            width = if (selected) 2.dp else 1.dp,
+                                            color = if (selected) primaryBlue else MaterialTheme.colorScheme.outline
+                                        ),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            containerColor = if (selected) primaryBlue.copy(alpha = 0.08f) else Color.Transparent,
+                                            contentColor = MaterialTheme.colorScheme.onBackground
+                                        )
+                                    ) {
+                                        Text(
+                                            text = suggestion,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
                             }
                         }
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
-            } else {
-                Spacer(modifier = Modifier.weight(1f))
+                CallScreenState.KEYPAD -> {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
             }
 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .then(
+                        if (callScreenState == CallScreenState.KEYPAD) {
+                            Modifier.fillMaxHeight(0.75f)
+                        } else {
+                            Modifier
+                        }
+                    )
                     .navigationBarsPadding()
                     .shadow(
                         elevation = 12.dp,
@@ -246,63 +269,95 @@ fun WebRtcInCallScreen(
                     .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                     .background(cardColor)
                     .padding(horizontal = 20.dp, vertical = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = "모드를 선택해주세요",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = secondaryTextColor,
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Start
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Button(
-                        onClick = { selectedMode = CallMode.DIRECT },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedMode == CallMode.DIRECT) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (selectedMode == CallMode.DIRECT) Color.White else MaterialTheme.colorScheme.onSurface
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                    ) {
-                        Text("직접 말하기")
-                    }
+                    if (callScreenState == CallScreenState.MODE_SELECT) {
+                        Text(
+                            text = "전화 모드를 선택해주세요",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = secondaryTextColor,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Start
+                        )
 
-                    Button(
-                        onClick = { selectedMode = CallMode.AI_CORRECTION },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedMode == CallMode.AI_CORRECTION) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (selectedMode == CallMode.AI_CORRECTION) Color.White else MaterialTheme.colorScheme.onSurface
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                    ) {
-                        Text("AI 교정")
-                    }
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    Button(
-                        onClick = { selectedMode = CallMode.TEXT },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedMode == CallMode.TEXT) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (selectedMode == CallMode.TEXT) Color.White else MaterialTheme.colorScheme.onSurface
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                    ) {
-                        Text("텍스트 통화")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = { selectedMode = CallMode.DIRECT },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (selectedMode == CallMode.DIRECT) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = if (selectedMode == CallMode.DIRECT) Color.White else MaterialTheme.colorScheme.onSurface
+                                ),
+                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                            ) {
+                                Text("직접 말하기")
+                            }
+
+                            Button(
+                                onClick = { selectedMode = CallMode.AI_CORRECTION },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (selectedMode == CallMode.AI_CORRECTION) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = if (selectedMode == CallMode.AI_CORRECTION) Color.White else MaterialTheme.colorScheme.onSurface
+                                ),
+                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                            ) {
+                                Text("AI 교정")
+                            }
+
+                            Button(
+                                onClick = { selectedMode = CallMode.TEXT },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (selectedMode == CallMode.TEXT) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = if (selectedMode == CallMode.TEXT) Color.White else MaterialTheme.colorScheme.onSurface
+                                ),
+                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                            ) {
+                                Text("텍스트 통화")
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(width = 44.dp, height = 5.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                                .pointerInput(Unit) {
+                                    detectVerticalDragGestures { change, _ ->
+                                        change.consume()
+                                    }
+                                }
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        KeypadScreenContent(
+                            modifier = Modifier.fillMaxWidth(),
+                            onKeyPress = { key ->
+                                playDtmfTone(toneGenerator, key)
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -377,18 +432,27 @@ fun WebRtcInCallScreen(
                             modifier = Modifier
                                 .size(56.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                                .clickable { isKeypadVisible = !isKeypadVisible },
+                                .background(
+                                    if (isKeypadActive) primaryBlue.copy(alpha = 0.15f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                )
+                                .clickable {
+                                    callScreenState = if (callScreenState == CallScreenState.KEYPAD) {
+                                        CallScreenState.MODE_SELECT
+                                    } else {
+                                        CallScreenState.KEYPAD
+                                    }
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             KeypadDotsIcon(
-                                tint = MaterialTheme.colorScheme.onSurface,
+                                tint = if (isKeypadActive) primaryBlue else MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "숫자 키패드",
+                            text = "키패드",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -396,16 +460,12 @@ fun WebRtcInCallScreen(
                 }
             }
         }
-
-        if (isKeypadVisible) {
-            KeypadOverlay(
-                onDismiss = { isKeypadVisible = false },
-                onKeyPress = { key ->
-                    playDtmfTone(toneGenerator, key)
-                }
-            )
-        }
     }
+}
+
+private enum class CallScreenState {
+    MODE_SELECT,
+    KEYPAD
 }
 
 private enum class CallMode {
@@ -415,44 +475,46 @@ private enum class CallMode {
 }
 
 @Composable
-private fun KeypadOverlay(
-    onDismiss: () -> Unit,
+private fun KeypadScreenContent(
+    modifier: Modifier = Modifier,
     onKeyPress: (Char) -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.45f))
-            .clickable(onClick = onDismiss),
-        contentAlignment = Alignment.BottomCenter
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Top
     ) {
+        val dialPad = listOf(
+            listOf(InCallDialPadKey("1", "ㄱㅋ", ".QZ"), InCallDialPadKey("2", "ㄴ", "ABC"), InCallDialPadKey("3", "ㄷㅌ", "DEF")),
+            listOf(InCallDialPadKey("4", "ㄹ", "GHI"), InCallDialPadKey("5", "ㅁ", "JKL"), InCallDialPadKey("6", "ㅂㅍ", "NMO")),
+            listOf(InCallDialPadKey("7", "ㅅ", "PRS"), InCallDialPadKey("8", "ㅇ", "TUV"), InCallDialPadKey("9", "ㅈㅊ", "WXY")),
+            listOf(InCallDialPadKey("*", ",", ""), InCallDialPadKey("0", "ㅎ", "+"), InCallDialPadKey("#", ";", ""))
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 32.dp, vertical = 120.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .clickable(onClick = {})
-                .padding(vertical = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val keypadRows = listOf(
-                listOf('1', '2', '3'),
-                listOf('4', '5', '6'),
-                listOf('7', '8', '9'),
-                listOf('*', '0', '#')
-            )
-            keypadRows.forEach { row ->
+            dialPad.forEach { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     row.forEach { key ->
-                        KeypadButton(
-                            key = key,
-                            onClick = { onKeyPress(key) }
-                        )
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            InCallDialPadButton(
+                                key = key,
+                                onClick = {
+                                    key.digit.firstOrNull()?.let { onKeyPress(it) }
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -461,26 +523,45 @@ private fun KeypadOverlay(
 }
 
 @Composable
-private fun KeypadButton(
-    key: Char,
+private fun InCallDialPadButton(
+    key: InCallDialPadKey,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
-            .size(64.dp)
+            .size(72.dp)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = key.toString(),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = key.digit,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (key.hangul.isNotBlank() || key.latin.isNotBlank()) {
+                Text(
+                    text = key.hangul,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = key.latin.ifBlank { " " },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (key.latin.isBlank()) Color.Transparent else MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
     }
 }
+
+private data class InCallDialPadKey(val digit: String, val hangul: String, val latin: String)
 
 @Composable
 private fun KeypadDotsIcon(
