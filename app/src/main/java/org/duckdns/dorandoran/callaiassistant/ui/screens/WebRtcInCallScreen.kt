@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.navigation.NavController
 import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
@@ -74,6 +75,7 @@ fun WebRtcInCallScreen(
     onSendAiSuggestion: (String) -> Unit = {},
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
+    navController: NavController? = null,
     modifier: Modifier = Modifier
 ) {
     var isSpeakerphoneOn by remember { mutableStateOf<Boolean>(false) }
@@ -402,7 +404,10 @@ fun WebRtcInCallScreen(
                                 }
 
                                 Button(
-                                    onClick = { selectedMode = CallMode.TEXT },
+                                    onClick = {
+                                        selectedMode = CallMode.TEXT
+                                        navController?.navigate("call_typing")
+                                    },
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(14.dp),
                                     colors = ButtonDefaults.buttonColors(
