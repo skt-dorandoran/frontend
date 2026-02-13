@@ -1,5 +1,6 @@
 package org.duckdns.dorandoran.callaiassistant.ui.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -50,6 +51,9 @@ fun CallNavHost(
         startDestination = CallRoutes.INTRO
     ) {
         composable(CallRoutes.INTRO) {
+            // 통화 중일 때 뒤로가기 버튼 무시
+            BackHandler { }
+            
             WebRtcInCallScreen(
                 phoneNumber = phoneNumber,
                 connectionState = connectionState,
