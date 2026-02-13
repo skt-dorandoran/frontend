@@ -483,13 +483,23 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     }
                 }
                 "hangup" -> {
-                    log("Remote hangup received")
+                    val hangupCallId = msg.optString("callId", "")
+                    if (!isRelevantCall(hangupCallId)) {
+                        log("Ignoring hangup for non-matching callId=$hangupCallId")
+                        return
+                    }
+                    log("Remote hangup received (callId=$hangupCallId)")
                     // 원격에서 hangup을 받으면 로컬 연결 정리 (신호 전송은 하지 않음)
                     scope.launch { onRemoteDisconnected?.invoke() }
                     hangup(sendSignal = false)
                 }
                 "peer_left" -> {
-                    log("Remote peer_left received")
+                    val peerLeftCallId = msg.optString("callId", "")
+                    if (!isRelevantCall(peerLeftCallId)) {
+                        log("Ignoring peer_left for non-matching callId=$peerLeftCallId")
+                        return
+                    }
+                    log("Remote peer_left received (callId=$peerLeftCallId)")
                     scope.launch { onRemoteDisconnected?.invoke() }
                     hangup(sendSignal = false)
                 }
@@ -574,6 +584,17 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
             currentCallId = callId
             lastKnownCallId = callId
         }
+    }
+
+    private fun isRelevantCall(callIdFromMsg: String?): Boolean {
+        val effectiveCallId = currentCallId ?: lastKnownCallId
+        if (effectiveCallId.isNullOrBlank()) {
+            return false
+        }
+        if (callIdFromMsg.isNullOrBlank()) {
+            return false
+        }
+        return callIdFromMsg == effectiveCallId
     }
 
     fun hangup(sendSignal: Boolean = true) {

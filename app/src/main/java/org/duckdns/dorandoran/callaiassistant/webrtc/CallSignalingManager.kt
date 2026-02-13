@@ -185,7 +185,7 @@ class CallSignalingManager(private val context: Context) {
                     Log.d(TAG, "hangup received for callId=$callId")
                     // incoming call 상태 정리 (수신 알림 취소용)
                     val current = _incomingCall.value
-                    if (current != null && (callId.isEmpty() || callId == current.callId)) {
+                    if (current != null && callId.isNotEmpty() && callId == current.callId) {
                         _incomingCall.value = null
                         onRemoteHangup?.invoke()    // 원격 hangup 콜백 호출 (알림 취소)
                         Log.d(TAG, "Cleared incoming due to hangup")
@@ -196,7 +196,8 @@ class CallSignalingManager(private val context: Context) {
                 "peer_left" -> {
                     Log.d(TAG, "peer_left received")
                     // incoming call 상태 정리 (수신 알림 취소용)
-                    if (!isCaller && _incomingCall.value != null) {
+                    val callId = msg.optString("callId", "")
+                    if (!isCaller && callId.isNotEmpty() && _incomingCall.value?.callId == callId) {
                         Log.d(TAG, "Clearing incoming state due to peer_left")
                         _incomingCall.value = null
                         acceptedCallId = null
