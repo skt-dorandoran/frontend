@@ -63,4 +63,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3") // Material3 필수
     implementation("androidx.compose.ui:ui-tooling-preview")
+    
+    // sherpa-onnx TTS (Espeak)
+    implementation(files("libs/sherpa-onnx-1.12.24.aar"))
 }

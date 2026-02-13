@@ -107,8 +107,8 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
             .createInitializationOptions()
         PeerConnectionFactory.initialize(initOptions)
 
-        // Android에서 오디오 캡처/재생을 명시적으로 구성
-        audioDeviceModule = JavaAudioDeviceModule.builder(context)
+        // Custom AudioDeviceModule: 에코 캔슬러 활성화 + TTS PCM 믹싱
+        audioDeviceModule = CustomAudioDeviceModule.builder(context)
             .setUseHardwareAcousticEchoCanceler(true)
             .setUseHardwareNoiseSuppressor(true)
             .createAudioDeviceModule()

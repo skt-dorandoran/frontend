@@ -31,8 +31,10 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.navigation.NavController
 import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
+import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage
+import android.util.Log
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,13 +55,28 @@ fun CallTypingScreen(
         context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
     }
     var messageTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
+    var isTtsReady by remember { mutableStateOf(false) }
     
     val listState = rememberLazyListState()
 
+    // TTS 초기화 - 통화 시작 시 1회만
+    LaunchedEffect(Unit) {
+        TtsManager.initializeForCall(
+            context = context,
+            onReady = { tts ->
+                messageTts = tts
+                isTtsReady = true
+                Log.d("CallTypingScreen", "TTS ready for CallTypingScreen")
+            }
+        )
+    }
+
     DisposableEffect(Unit) {
         onDispose {
-            TtsManager.shutdown(messageTts)
+            // TTS 종료하지 말고 (다른 화면에서 사용할 수 있음) 큐만 정리
+            CustomAudioDeviceModule.clearTtsQueue()
             messageTts = null
+            isTtsReady = false
         }
     }
     
@@ -259,17 +276,18 @@ fun CallTypingScreen(
                             if (textToSend.isEmpty()) return@IconButton
                             viewModel.sendMessage(textToSend)
                             inputText = TextFieldValue()
-                            messageTts = TtsManager.initializeForCall(
-                                context = context,
-                                onReady = { tts ->
-                                    messageTts = tts
-                                    TtsManager.speak(tts, textToSend, audioManager)
-                                },
-                                onDone = {
-                                    TtsManager.shutdown(messageTts)
-                                    messageTts = null
-                                }
-                            )
+                            
+                            // TTS로 메시지 재생
+                            if (isTtsReady) {
+                                TtsManager.speak(
+                                    tts = messageTts,
+                                    text = textToSend,
+                                    audioManager = audioManager,
+                                    onDone = {
+                                        Log.d("CallTypingScreen", "TTS playback completed for: $textToSend")
+                                    }
+                                )
+                            }
                         },
                         modifier = Modifier
                             .size(48.dp)

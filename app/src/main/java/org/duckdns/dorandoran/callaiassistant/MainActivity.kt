@@ -714,15 +714,15 @@ private fun WebRtcCallContent(
             context = context,
             onReady = { tts ->
                 introTts = tts
-                if (useVoiceClone) {
-                    TtsManager.speak(tts, message, audioManager)
-                } else {
-                    TtsManager.speak(tts, message, audioManager)
-                }
-            },
-            onDone = {
-                TtsManager.shutdown(introTts)
-                introTts = null
+                TtsManager.speak(
+                    tts = tts,
+                    text = message,
+                    audioManager = audioManager,
+                    onDone = {
+                        TtsManager.shutdown(introTts)
+                        introTts = null
+                    }
+                )
             }
         )
     }
