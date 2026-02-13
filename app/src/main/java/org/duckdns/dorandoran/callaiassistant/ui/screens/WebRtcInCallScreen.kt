@@ -74,6 +74,7 @@ fun WebRtcInCallScreen(
     sttText: String = "",
     aiSuggestions: List<String> = listOf("잠시만요, 다시 말씀해주실 수 있나요?", "네, 확인했습니다. 바로 처리하겠습니다."),
     onSendAiSuggestion: (String) -> Unit = {},
+    onDirectMessageSent: (String) -> Unit = {},
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
     navController: NavController? = null,
@@ -346,6 +347,7 @@ fun WebRtcInCallScreen(
                                 onClick = {
                                     val textToSend = userInputText
                                     isSendingMessage = true
+                                    onDirectMessageSent(textToSend)
                                     
                                     // TTS 초기화 및 재생
                                     messageTts = TtsManager.initializeForCall(

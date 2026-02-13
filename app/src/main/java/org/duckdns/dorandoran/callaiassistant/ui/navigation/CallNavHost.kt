@@ -69,6 +69,9 @@ fun CallNavHost(
                 sttText = sttText,
                 aiSuggestions = aiSuggestions,
                 onSendAiSuggestion = onSendAiSuggestion,
+                onDirectMessageSent = { message ->
+                    callViewModel.sendMessage(message)
+                },
                 onEndCall = onEndCall,
                 onSpeakerphoneToggle = onSpeakerphoneToggle,
                 navController = navController
