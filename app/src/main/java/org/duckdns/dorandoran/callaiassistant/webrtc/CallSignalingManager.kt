@@ -16,6 +16,7 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
+import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -148,6 +149,15 @@ class CallSignalingManager(private val context: Context) {
                     val callId = msg.optString("callId", "")
                     val roomId = msg.optString("roomId", WEBRTC_ROOM_ID)
                     val callerNumber = msg.optString("callerNumber", "")
+                    val calleeNumber = msg.optString("calleeNumber", "")
+                    if (calleeNumber.isNotBlank()) {
+                        val myNumber = normalizeNumber(SettingsStore.getMyPhoneNumber(context))
+                        val targetNumber = normalizeNumber(calleeNumber)
+                        if (myNumber.isNotBlank() && targetNumber.isNotBlank() && myNumber != targetNumber) {
+                            Log.d(TAG, "Incoming ignored (callee mismatch): target=$targetNumber, mine=$myNumber")
+                            return
+                        }
+                    }
                     if (acceptedCallId == callId) {
                         Log.d(TAG, "Incoming ignored (already accepted): callId=$callId")
                         return
@@ -173,24 +183,27 @@ class CallSignalingManager(private val context: Context) {
                 "hangup" -> {
                     val callId = msg.optString("callId", "")
                     Log.d(TAG, "hangup received for callId=$callId")
+                    // incoming call 상태 정리 (수신 알림 취소용)
                     val current = _incomingCall.value
                     if (current != null && (callId.isEmpty() || callId == current.callId)) {
                         _incomingCall.value = null
-                        onRemoteHangup?.invoke()    // 원격 hangup 콜백 호출
-                        onCallEnded?.invoke()       // 통화 종료 콜백 호출
+                        onRemoteHangup?.invoke()    // 원격 hangup 콜백 호출 (알림 취소)
                         Log.d(TAG, "Cleared incoming due to hangup")
                     }
+                    // hangup 메시지를 WebRtcManager로 전달 (실제 통화 종료 처리)
+                    onSignalingMessage?.invoke(text)
                 }
                 "peer_left" -> {
-                    if (isCaller || _incomingCall.value == null) {
-                        Log.d(TAG, "Ignoring peer_left (caller or no incoming)")
-                        return
+                    Log.d(TAG, "peer_left received")
+                    // incoming call 상태 정리 (수신 알림 취소용)
+                    if (!isCaller && _incomingCall.value != null) {
+                        Log.d(TAG, "Clearing incoming state due to peer_left")
+                        _incomingCall.value = null
+                        acceptedCallId = null
+                        onRemoteHangup?.invoke()    // 원격 hangup 콜백 호출 (알림 취소)
                     }
-                    Log.d(TAG, "peer_left received, clearing incoming state")
-                    _incomingCall.value = null
-                    acceptedCallId = null
-                    onRemoteHangup?.invoke()    // 원격 hangup 콜백 호출
-                    onCallEnded?.invoke()       // 통화 종료 콜백 호출
+                    // peer_left 메시지를 WebRtcManager로 전달 (실제 통화 종료 처리)
+                    onSignalingMessage?.invoke(text)
                 }
                 "offer", "answer", "ice", "callee_joined", "joined", "rejected" -> {
                     // WebRTC 시그널링 메시지를 WebRtcManager로 전달
@@ -260,14 +273,13 @@ class CallSignalingManager(private val context: Context) {
     }
 
     /**
-     * 원격 hangup 수신 - 수신 상태 취소 및 콜백 호출
+     * 원격 hangup 수신 - 수신 상태 취소 (알림 취소용)
      * (B가 수신 알림 상태일 때 A가 hangup을 보낸 경우 처리)
      */
     fun handleRemoteHangup() {
         _incomingCall.value = null
         acceptedCallId = null
         onRemoteHangup?.invoke()
-        onCallEnded?.invoke()
         Log.d(TAG, "Remote hangup handled - incoming call cleared")
     }
 
@@ -283,7 +295,7 @@ class CallSignalingManager(private val context: Context) {
      * 호출자: 현재 열려있는 listening WebSocket을 통해 room에 'call'을 보냄
      * 서버는 이 메시지를 받고 call을 생성하여 다른 참가자에게 알림을 보낼 것입니다.
      */
-    fun initiateCall(callerNumber: String): String {
+    fun initiateCall(callerNumber: String, calleeNumber: String): String {
         val ws = webSocketRef.get()
         if (ws == null) {
             Log.w(TAG, "Cannot initiate call: not listening (no websocket)")
@@ -296,11 +308,16 @@ class CallSignalingManager(private val context: Context) {
             put("roomId", WEBRTC_ROOM_ID)
             put("callId", newCallId)
             put("callerNumber", callerNumber)
+            put("calleeNumber", normalizeNumber(calleeNumber))
         }.toString()
         Log.d(TAG, "WS -> call: $callMsg")
         ws.send(callMsg)
         Log.d(TAG, "Call initiated via signaling socket - callId=$newCallId")
         return newCallId
+    }
+
+    private fun normalizeNumber(number: String): String {
+        return number.filter { it.isDigit() }
     }
 
     /**

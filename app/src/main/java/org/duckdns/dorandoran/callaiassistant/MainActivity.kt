@@ -76,7 +76,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import org.duckdns.dorandoran.callaiassistant.ui.screens.CallHistoryScreen
 import org.duckdns.dorandoran.callaiassistant.ui.screens.DialerScreen
 import org.duckdns.dorandoran.callaiassistant.ui.screens.IncomingCallScreen
-import org.duckdns.dorandoran.callaiassistant.ui.screens.WebRtcInCallScreen
+import org.duckdns.dorandoran.callaiassistant.ui.navigation.CallNavHost
 import org.duckdns.dorandoran.callaiassistant.webrtc.CallAudioManager
 import org.duckdns.dorandoran.callaiassistant.webrtc.RingbackToneHelper
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
@@ -378,7 +378,7 @@ private fun PhoneAppContent(
                 }
             }
             val callerNumber = getOwnPhoneNumber(activity.applicationContext)
-            val callId = callSignalingManager.initiateCall(callerNumber)
+            val callId = callSignalingManager.initiateCall(callerNumber, number)
             if (callId.isBlank()) {
                 bannerMessage = "통화 연결을 준비 중입니다"
                 bannerLocked = true
@@ -744,7 +744,7 @@ private fun WebRtcCallContent(
         onEndCall()
     }
 
-    WebRtcInCallScreen(
+    CallNavHost(
         phoneNumber = phoneNumber,
         connectionState = connectionState,
         callDurationSeconds = callDuration,

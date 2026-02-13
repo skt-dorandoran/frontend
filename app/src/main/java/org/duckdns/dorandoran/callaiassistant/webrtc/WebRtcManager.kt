@@ -93,6 +93,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     private var currentCallId: String? = null
     private var lastKnownCallId: String? = null
     private var hangupSent: Boolean = false
+    private var callEndedInvoked: Boolean = false
     private var useListeningSocketForSignaling: Boolean = true
     private var iceFailureJob: Job? = null
 
@@ -147,6 +148,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
             withContext(Dispatchers.IO) {
                 hasEverConnected = false
                 hangupSent = false
+                callEndedInvoked = false
                 useListeningSocketForSignaling = false
                 // listening 소켓에서 callee_joined를 받을 수 있도록 연결
                 signalingManager?.onSignalingMessage = { text ->
@@ -166,6 +168,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         hangup(sendSignal = false)
         hasEverConnected = false
         hangupSent = false
+        callEndedInvoked = false
         useListeningSocketForSignaling = true
         updateCallId(callId)  // hangup 후에 설정하여 초기화 방지
         receivedOffer = false
@@ -482,8 +485,6 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 "hangup" -> {
                     log("Remote hangup received")
                     // 원격에서 hangup을 받으면 로컬 연결 정리 (신호 전송은 하지 않음)
-                    // B가 수신 알림 상태일 때 A가 hangup을 보내는 경우 처리
-                    signalingManager?.handleRemoteHangup()
                     scope.launch { onRemoteDisconnected?.invoke() }
                     hangup(sendSignal = false)
                 }
@@ -576,6 +577,12 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     }
 
     fun hangup(sendSignal: Boolean = true) {
+        // 이미 hangup이 실행된 경우 중복 실행 방지
+        if (peerConnection == null && _connectionState.value == WebRtcConnectionState.DISCONNECTED) {
+            log("Hangup already executed, skipping")
+            return
+        }
+        
         val effectiveCallId = currentCallId ?: lastKnownCallId
         if (sendSignal && !hangupSent && effectiveCallId != null) {
             try {
@@ -619,8 +626,11 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         hasEverConnected = false
         log("Hangup")
         
-        // 통화 종료 콜백 호출 (알림 취소 등)
-        onCallEnded?.invoke()
+        // 통화 종료 콜백 호출 (알림 취소 등) - 한 번만 호출
+        if (!callEndedInvoked) {
+            callEndedInvoked = true
+            onCallEnded?.invoke()
+        }
     }
 
     fun clearLog() {
