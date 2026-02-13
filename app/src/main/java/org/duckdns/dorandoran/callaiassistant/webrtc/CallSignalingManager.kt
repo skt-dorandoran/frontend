@@ -190,17 +190,20 @@ class CallSignalingManager(private val context: Context) {
                         onCallEnded?.invoke()       // 통화 종료 콜백 호출
                         Log.d(TAG, "Cleared incoming due to hangup")
                     }
+                    // hangup 메시지를 WebRtcManager로도 전달 (통화 중일 때 처리용)
+                    onSignalingMessage?.invoke(text)
                 }
                 "peer_left" -> {
-                    if (isCaller || _incomingCall.value == null) {
-                        Log.d(TAG, "Ignoring peer_left (caller or no incoming)")
-                        return
+                    Log.d(TAG, "peer_left received")
+                    if (!isCaller && _incomingCall.value != null) {
+                        Log.d(TAG, "Clearing incoming state due to peer_left")
+                        _incomingCall.value = null
+                        acceptedCallId = null
+                        onRemoteHangup?.invoke()    // 원격 hangup 콜백 호출
+                        onCallEnded?.invoke()       // 통화 종료 콜백 호출
                     }
-                    Log.d(TAG, "peer_left received, clearing incoming state")
-                    _incomingCall.value = null
-                    acceptedCallId = null
-                    onRemoteHangup?.invoke()    // 원격 hangup 콜백 호출
-                    onCallEnded?.invoke()       // 통화 종료 콜백 호출
+                    // peer_left 메시지를 WebRtcManager로도 전달 (통화 중일 때 처리용)
+                    onSignalingMessage?.invoke(text)
                 }
                 "offer", "answer", "ice", "callee_joined", "joined", "rejected" -> {
                     // WebRTC 시그널링 메시지를 WebRtcManager로 전달
