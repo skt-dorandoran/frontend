@@ -1,5 +1,6 @@
 package org.duckdns.dorandoran.callaiassistant.ui.screens
 
+import android.media.AudioManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -12,12 +13,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextRange
@@ -26,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.imePadding
 import androidx.navigation.NavController
+import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage
 
@@ -39,10 +43,23 @@ fun CallTypingScreen(
     val callInfo by viewModel.callInfo.collectAsState()
     val messages by viewModel.messages.collectAsState()
     var inputText by remember { mutableStateOf(TextFieldValue()) }
+    var suggestionSetIndex by remember { mutableStateOf(0) }
     val isDark = isSystemInDarkTheme()
     val primaryBlue = Color(0xFF2F5BFF)
+    val context = LocalContext.current
+    val audioManager = remember {
+        context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+    }
+    var messageTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
     
     val listState = rememberLazyListState()
+
+    DisposableEffect(Unit) {
+        onDispose {
+            TtsManager.shutdown(messageTts)
+            messageTts = null
+        }
+    }
     
     // 메시지가 추가되면 스크롤을 가장 아래로 즉시 이동
     LaunchedEffect(messages.size) {
@@ -58,11 +75,19 @@ fun CallTypingScreen(
         }
     }
     
-    val aiSuggestions = listOf(
-        "예약 시간 문의드려요",
-        "진료확인서 발급 방법 알려주세요",
-        "접수 마감이 몇시인가요?"
+    val suggestionSets = listOf(
+        listOf(
+            "예약 시간 문의드려요",
+            "진료확인서 발급 방법 알려주세요",
+            "접수 마감이 몇시인가요?"
+        ),
+        listOf(
+            "오늘 진료 가능할까요?",
+            "초진 접수 절차 알려주세요",
+            "보험 청구서 발급되나요?"
+        )
     )
+    val aiSuggestions = suggestionSets[suggestionSetIndex % suggestionSets.size]
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -170,6 +195,16 @@ fun CallTypingScreen(
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold
                     )
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(
+                        onClick = { suggestionSetIndex = (suggestionSetIndex + 1) % suggestionSets.size }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "추천 새로고침",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 
                 // 추천 답변 버튼들
@@ -218,8 +253,21 @@ fun CallTypingScreen(
                     )
                     IconButton(
                         onClick = {
-                            viewModel.sendMessage(inputText.text)
+                            val textToSend = inputText.text.trim()
+                            if (textToSend.isEmpty()) return@IconButton
+                            viewModel.sendMessage(textToSend)
                             inputText = TextFieldValue()
+                            messageTts = TtsManager.initializeForCall(
+                                context = context,
+                                onReady = { tts ->
+                                    messageTts = tts
+                                    TtsManager.speak(tts, textToSend, audioManager)
+                                },
+                                onDone = {
+                                    TtsManager.shutdown(messageTts)
+                                    messageTts = null
+                                }
+                            )
                         },
                         modifier = Modifier
                             .size(48.dp)
