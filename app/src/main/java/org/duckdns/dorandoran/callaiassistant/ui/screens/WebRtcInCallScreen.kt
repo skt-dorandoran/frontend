@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -87,6 +88,9 @@ fun WebRtcInCallScreen(
     var isSendingMessage by remember { mutableStateOf(false) }
     val isAiCorrectionMode = selectedMode == CallMode.AI_CORRECTION
     val isKeypadActive = callScreenState == CallScreenState.KEYPAD
+    val shouldAvoidIme = callScreenState == CallScreenState.MODE_SELECT &&
+        selectedMode == CallMode.DIRECT &&
+        connectionState == WebRtcConnectionState.IN_CALL
     val coroutineScope = rememberCoroutineScope()
     var messageTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
     val context = LocalContext.current
@@ -282,6 +286,7 @@ fun WebRtcInCallScreen(
                         }
                     )
                     .navigationBarsPadding()
+                    .then(if (shouldAvoidIme) Modifier.imePadding() else Modifier)
                     .shadow(
                         elevation = 12.dp,
                         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
