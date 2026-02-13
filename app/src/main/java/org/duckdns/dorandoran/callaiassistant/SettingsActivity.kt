@@ -130,14 +130,14 @@ private fun SettingsContent(
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp)
             ) {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // --- Text Size Slider Section ---
                 Text(
                     text = "통화 중 글자 크기",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Medium,
-                        fontSize = 16.sp
+                        fontSize = 15.sp
                     )
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -147,18 +147,19 @@ private fun SettingsContent(
                     text = "통화 중 입력하는 텍스트를 보기 편한 크기로 설정해요",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = Color(0xFF888888),
-                        fontSize = previewFontSize // 동적 폰트 크기 적용
+                        fontSize = previewFontSize, // 동적 폰트 크기 적용
+                        fontWeight = FontWeight.Normal
                     ),
                     lineHeight = previewLineHeight
                 )
 
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // 슬라이더 라벨 (A ... A)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 10.dp),
+                        .padding(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -177,7 +178,9 @@ private fun SettingsContent(
                     },
                     steps = 1,
                     valueRange = 0f..2f,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp),
                     // 1. 커스텀 썸 (손잡이)
                     thumb = {
                         Surface(
@@ -198,7 +201,7 @@ private fun SettingsContent(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(2.dp)
+                                    .height(1.dp)
                                     .background(Color(0xFFE0E0E0)) // 연한 회색 트랙
                             )
 
@@ -210,22 +213,22 @@ private fun SettingsContent(
                                 // 시작점 Tick
                                 Box(
                                     modifier = Modifier
-                                        .width(2.dp)
-                                        .height(10.dp) // 트랙보다 길게 설정
+                                        .width(1.dp)
+                                        .height(12.dp) // 트랙보다 길게 설정
                                         .background(Color(0xFFE0E0E0))
                                 )
                                 // 중간점 Tick
                                 Box(
                                     modifier = Modifier
-                                        .width(2.dp)
-                                        .height(10.dp)
+                                        .width(1.dp)
+                                        .height(12.dp)
                                         .background(Color(0xFFE0E0E0))
                                 )
                                 // 끝점 Tick
                                 Box(
                                     modifier = Modifier
-                                        .width(2.dp)
-                                        .height(10.dp)
+                                        .width(1.dp)
+                                        .height(12.dp)
                                         .background(Color(0xFFE0E0E0))
                                 )
                             }
@@ -241,6 +244,8 @@ private fun SettingsContent(
                 SettingsMenuRow(
                     title = "음성 클론",
                     description = "미리 등록한 목소리로 통화 중 입력한 문장을 읽어드려요",
+                    titleFontSize = 15.sp,
+                    descriptionFontWeight = FontWeight.Normal,
                     onClick = onOpenVoiceClone
                 )
                 SettingsDivider()
@@ -255,6 +260,7 @@ private fun SettingsContent(
                 SettingsMenuRow(
                     title = "통화 필수 권한",
                     description = null,
+                    titleFontSize = 15.sp,
                     onClick = onOpenPermissions
                 )
                 SettingsDivider()
@@ -262,6 +268,8 @@ private fun SettingsContent(
                 SettingsMenuRow(
                     title = "통화 시작 안내 멘트",
                     description = "상대방이 전화를 받으면 AI 통화 중임을 알리는 멘트를 먼저 송출해요",
+                    titleFontSize = 15.sp,
+                    descriptionFontWeight = FontWeight.Normal,
                     onClick = onOpenCallIntroPrompt
                 )
             }
@@ -282,6 +290,9 @@ private fun SettingsDivider() {
 private fun SettingsMenuRow(
     title: String,
     description: String?,
+    titleFontSize: androidx.compose.ui.unit.TextUnit = 16.sp,
+    titleFontWeight: FontWeight = FontWeight.Medium,
+    descriptionFontWeight: FontWeight? = null,
     onClick: () -> Unit
 ) {
     Row(
@@ -303,8 +314,8 @@ private fun SettingsMenuRow(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 16.sp,
+                    fontWeight = titleFontWeight,
+                    fontSize = titleFontSize,
                     color = Color.Black
                 )
             )
@@ -314,7 +325,8 @@ private fun SettingsMenuRow(
                     text = description,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = Color(0xFF999999),
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+                        fontWeight = descriptionFontWeight ?: FontWeight.Normal
                     ),
                     lineHeight = 19.sp
                 )
