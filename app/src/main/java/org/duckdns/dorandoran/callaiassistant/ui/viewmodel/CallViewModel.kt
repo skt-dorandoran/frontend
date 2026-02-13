@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 data class CallInfo(
     val phoneNumber: String = "",
     val hospitalName: String = "보라매 병원",
-    val callTime: String = "00:00"
+    val callTime: String = "연결 중..."
 )
 
 data class ChatMessage(

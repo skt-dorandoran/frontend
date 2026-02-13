@@ -34,10 +34,17 @@ fun CallNavHost(
 ) {
     val callViewModel: CallViewModel = viewModel()
     
-    // callDurationSeconds를 시간 문자열로 변환
-    val minutes = callDurationSeconds / 60
-    val seconds = callDurationSeconds % 60
-    val callTimeString = String.format("%02d:%02d", minutes, seconds)
+    // connectionState에 따라 callTime 설정
+    val callTimeString = when (connectionState) {
+        WebRtcConnectionState.CONNECTED -> "연결 중..."
+        WebRtcConnectionState.IN_CALL -> {
+            // 통화 중일 때만 시간 표시  
+            val minutes = callDurationSeconds / 60
+            val seconds = callDurationSeconds % 60
+            String.format("%02d:%02d", minutes, seconds)
+        }
+        WebRtcConnectionState.DISCONNECTED -> ""
+    }
     
     // ViewModel에 통화 정보 업데이트
     callViewModel.updateCallInfo(

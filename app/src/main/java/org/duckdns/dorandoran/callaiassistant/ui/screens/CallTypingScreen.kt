@@ -20,6 +20,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.imePadding
@@ -36,16 +38,23 @@ fun CallTypingScreen(
 ) {
     val callInfo by viewModel.callInfo.collectAsState()
     val messages by viewModel.messages.collectAsState()
-    var inputText by remember { mutableStateOf("") }
+    var inputText by remember { mutableStateOf(TextFieldValue()) }
     val isDark = isSystemInDarkTheme()
     val primaryBlue = Color(0xFF2F5BFF)
     
     val listState = rememberLazyListState()
     
-    // 메시지가 추가되면 스크롤을 가장 아래로 이동
-    LaunchedEffect(messages) {
+    // 메시지가 추가되면 스크롤을 가장 아래로 즉시 이동
+    LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+            listState.scrollToItem(index = 0)
+        }
+    }
+    
+    // 입력 필드 포커스 시에도 스크롤 유지
+    LaunchedEffect(inputText.text) {
+        if (messages.isNotEmpty()) {
+            listState.scrollToItem(index = 0)
         }
     }
     
@@ -61,15 +70,19 @@ fun CallTypingScreen(
         // TopBar (고정)
         TopAppBar(
             title = {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 0.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Start
                 ) {
                     Text(
-                        text = callInfo.hospitalName,
+                        text = callInfo.phoneNumber,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = callInfo.callTime,
                         style = MaterialTheme.typography.labelSmall,
@@ -89,14 +102,16 @@ fun CallTypingScreen(
                 IconButton(
                     onClick = onEndCall,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.error)
+                        .padding(4.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.CallEnd,
                         contentDescription = "통화 종료",
-                        tint = MaterialTheme.colorScheme.onError
+                        tint = MaterialTheme.colorScheme.onError,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             },
@@ -112,16 +127,17 @@ fun CallTypingScreen(
                 .weight(1f)
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            reverseLayout = true
         ) {
-            // 상대 발화 말풍선
-            items(messages.filter { !it.isFromMe }) { message ->
-                RemoteMessageBubble(message = message)
-            }
-            
-            // 내가 보낸 메시지들
-            items(messages.filter { it.isFromMe }) { message ->
-                MyMessageBubble(message = message)
+            // 메시지를 역순으로 표시 (최신 메시지가 맨 아래)
+            items(messages.size) { index ->
+                val message = messages[messages.size - 1 - index]
+                if (!message.isFromMe) {
+                    RemoteMessageBubble(message = message)
+                } else {
+                    MyMessageBubble(message = message)
+                }
             }
         }
 
@@ -166,7 +182,12 @@ fun CallTypingScreen(
                     aiSuggestions.forEach { suggestion ->
                         SuggestionButton(
                             text = suggestion,
-                            onClick = { inputText = suggestion }
+                            onClick = {
+                                inputText = TextFieldValue(
+                                    text = suggestion,
+                                    selection = TextRange(suggestion.length)
+                                )
+                            }
                         )
                     }
                 }
@@ -197,18 +218,18 @@ fun CallTypingScreen(
                     )
                     IconButton(
                         onClick = {
-                            viewModel.sendMessage(inputText)
-                            inputText = ""
+                            viewModel.sendMessage(inputText.text)
+                            inputText = TextFieldValue()
                         },
                         modifier = Modifier
                             .size(48.dp)
                             .clip(CircleShape)
-                            .background(if (inputText.isNotBlank()) primaryBlue else MaterialTheme.colorScheme.surfaceVariant)
+                            .background(if (inputText.text.isNotBlank()) primaryBlue else MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = "전송",
-                            tint = if (inputText.isNotBlank()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (inputText.text.isNotBlank()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
