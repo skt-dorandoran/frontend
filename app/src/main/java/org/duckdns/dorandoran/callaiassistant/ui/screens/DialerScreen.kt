@@ -8,18 +8,19 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Backspace
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -28,6 +29,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.media.AudioManager
@@ -80,15 +82,14 @@ fun DialerScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(top = 16.dp, bottom = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
+            .background(Color.White)
+            .padding(top = 40.dp, bottom = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 1. 헤더
+        // 1. 헤더 (고정) - 피그마 치수인 289dp로 복구 완료
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
+                .width(250.dp)
                 .height(43.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -96,28 +97,30 @@ fun DialerScreen(
             Text(
                 text = "T.mate",
                 style = TextStyle(
-                    fontSize = 35.sp,
+                    fontSize = 30.sp,
                     fontFamily = pretendardFont,
                     fontWeight = FontWeight(700),
                     color = Color(0xFF1D1D1F)
                 )
             )
-            IconButton(
-                onClick = onOpenSettings,
+            // IconButton의 기본 패딩이 레이아웃을 왜곡하는 것을 막기 위해 Box로 교체
+            Box(
                 modifier = Modifier
                     .size(34.dp)
-                    .padding(1.dp)
+                    .clip(CircleShape)
+                    .clickable { onOpenSettings() },
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Settings,
+                    painter = painterResource(id = R.drawable.setting),
                     contentDescription = "설정",
-                    tint = Color(0xFF1D1D1F),
-                    modifier = Modifier.fillMaxSize()
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
 
-        // 2. 전화번호 표시
+        // 2 & 3. 번호 표시 및 검색 결과
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -133,67 +136,72 @@ fun DialerScreen(
                 } else {
                     formatPhoneNumber(phoneNumber)
                 },
-                style = MaterialTheme.typography.headlineMedium.copy(
+                style = TextStyle(
+                    fontSize = 28.sp,
+                    lineHeight = 22.sp,
                     fontFamily = pretendardFont,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight(900),
+                    color = Color(0xFF000000),
+                    textAlign = TextAlign.Center,
                 ),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 44.dp)
+                    .wrapContentHeight(Alignment.CenterVertically)
             )
+
             if (!showLastCalledNumber && lastCalledNumber != null && phoneNumber.isBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "마지막 통화: ${formatPhoneNumber(lastCalledNumber)}",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
                 )
             }
-        }
 
-        // 3. 연락처 검색 결과
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            if (contactMatches.isNotEmpty()) {
-                val match = contactMatches.first()
-                TextButton(onClick = { onCallStarted(match.number) }) {
-                    Text(
-                        text = "${match.name} ",
-                        style = TextStyle(
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1D1D1F)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (contactMatches.isNotEmpty()) {
+                    val match = contactMatches.first()
+                    TextButton(onClick = { onCallStarted(match.number) }) {
+                        Text(
+                            text = "${match.name} ",
+                            style = TextStyle(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1D1D1F)
+                            )
                         )
-                    )
-                    Text(
-                        text = buildHighlightedNumber(
-                            formatPhoneNumber(match.number),
-                            phoneNumber.filter { it.isDigit() }
-                        ),
-                        style = TextStyle(
-                            fontSize = 14.sp,
-                            color = Color.Gray
+                        Text(
+                            text = buildHighlightedNumber(
+                                formatPhoneNumber(match.number),
+                                phoneNumber.filter { it.isDigit() }
+                            ),
+                            style = TextStyle(
+                                fontSize = 14.sp,
+                                color = Color.Gray
+                            )
                         )
-                    )
-                }
-            } else if (contactTotalCount > 0) {
-                TextButton(onClick = { onOpenContactSearch(phoneNumber) }) {
-                    Text("검색 결과 ${contactTotalCount}건 보기 >")
+                    }
+                } else if (contactTotalCount > 0) {
+                    TextButton(onClick = { onOpenContactSearch(phoneNumber) }) {
+                        Text("검색 결과 ${contactTotalCount}건 보기 >")
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // 4. 키패드
         Column(
             modifier = Modifier
                 .width(271.dp)
-                .height(305.dp),
+                .wrapContentHeight(),
             verticalArrangement = Arrangement.spacedBy(19.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -223,7 +231,9 @@ fun DialerScreen(
                                         try { toneGenerator.startTone(tone, 120) } catch (_: Throwable) {}
                                     }
                                 }
-                                phoneNumber += key.digit
+                                if (phoneNumber.length < 11) {
+                                    phoneNumber += key.digit
+                                }
                             }
                         )
                     }
@@ -231,14 +241,13 @@ fun DialerScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
         // 5. 하단 영역 (통화 버튼 + 토글 바)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // (1) 통화 버튼 Row
             Row(
                 modifier = Modifier.width(271.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -263,52 +272,59 @@ fun DialerScreen(
                     }
                 )
 
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .combinedClickable(
-                            onClick = {
-                                if (showLastCalledNumber) {
+                if (phoneNumber.isNotEmpty() || showLastCalledNumber) {
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .combinedClickable(
+                                onClick = {
+                                    if (showLastCalledNumber) {
+                                        showLastCalledNumber = false
+                                    } else if (phoneNumber.isNotEmpty()) {
+                                        phoneNumber = phoneNumber.dropLast(1)
+                                    }
+                                },
+                                onLongClick = {
+                                    phoneNumber = ""
                                     showLastCalledNumber = false
-                                } else if (phoneNumber.isNotEmpty()) {
-                                    phoneNumber = phoneNumber.dropLast(1)
                                 }
-                            },
-                            onLongClick = {
-                                phoneNumber = ""
-                                showLastCalledNumber = false
-                            }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Backspace,
-                        contentDescription = "삭제",
-                        tint = Color(0xFF000000)
-                    )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.backspace),
+                            contentDescription = "삭제",
+                            tint = Color.Unspecified
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.size(72.dp))
                 }
             }
 
             // (2) 하단 토글 바
             Box(
                 modifier = Modifier
-                    .width(363.dp)
-                    .height(47.dp)
-                    .background(color = Color(0xFFF4F5F8), shape = RoundedCornerShape(size = 23.dp)),
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(47.dp)
+                        .background(color = Color(0xFFF4F5F8), shape = RoundedCornerShape(size = 23.dp))
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // 최근 기록 (Inactive)
                     Box(
                         modifier = Modifier
-                            .width(167.dp)
+                            .weight(1f)
                             .height(39.dp)
                             .clip(RoundedCornerShape(23.dp))
-                            .clickable { onOpenCallHistory() }
-                            .padding(10.dp),
+                            .clickable { onOpenCallHistory() },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -323,16 +339,17 @@ fun DialerScreen(
                         )
                     }
 
+                    // 키패드 (Active)
                     Box(
                         modifier = Modifier
+                            .weight(1f)
+                            .height(39.dp)
                             .shadow(
                                 elevation = 24.dp,
                                 spotColor = Color(0x33959DA5),
                                 ambientColor = Color(0x33959DA5),
                                 shape = RoundedCornerShape(size = 23.dp)
                             )
-                            .width(167.dp)
-                            .height(39.dp)
                             .background(color = Color(0xFFFFFFFF), shape = RoundedCornerShape(size = 23.dp)),
                         contentAlignment = Alignment.Center
                     ) {
@@ -429,27 +446,52 @@ private fun DialPadButton(
 
 private data class DialPadKey(val digit: String, val hangul: String, val latin: String)
 
+fun Modifier.figmaDropShadow(
+    color: Color = Color(0xFF959DA5),
+    alpha: Float = 0.1f, // 투명도 20%
+    blurRadius: Dp = 24.dp, // 흐림 24
+    offsetX: Dp = 0.dp, // X 0
+    offsetY: Dp = 8.dp, // Y 8
+) = this.drawBehind {
+    val shadowColor = color.copy(alpha = alpha).toArgb()
+    val transparentColor = color.copy(alpha = 0f).toArgb()
+
+    drawIntoCanvas { canvas ->
+        val paint = Paint()
+        val frameworkPaint = paint.asFrameworkPaint()
+        frameworkPaint.color = transparentColor
+
+        frameworkPaint.setShadowLayer(
+            blurRadius.toPx(),
+            offsetX.toPx(),
+            offsetY.toPx(),
+            shadowColor
+        )
+
+        canvas.drawCircle(
+            center = center,
+            radius = size.width / 2,
+            paint = paint
+        )
+    }
+}
+
 @Composable
 private fun CallButton(onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .shadow(
-                elevation = 24.dp,
-                shape = CircleShape,
-                spotColor = Color(0x33959DA5),
-                ambientColor = Color(0x33959DA5)
-            )
+            .figmaDropShadow()
             .size(73.dp)
-            .background(color = Color.White, shape = CircleShape)
+            .background(color = Color(0xFFFFFFFF), shape = CircleShape)
             .border(width = 1.dp, color = Color(0xFFEEF0F5), shape = CircleShape)
             .clip(CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Default.Call,
+            painter = painterResource(id = R.drawable.phone_icon),
             contentDescription = "통화",
-            tint = Color(0xFF2E7D32),
+            tint = Color(0xFF5BC774),
             modifier = Modifier.size(32.dp)
         )
     }
@@ -489,7 +531,6 @@ private fun buildHighlightedNumber(text: String, queryDigits: String): Annotated
     }
 }
 
-// ★★★ 이 함수가 누락되어 에러가 났습니다. 다시 포함시켰습니다! ★★★
 private fun digitToTone(digit: Char): Int? {
     return when (digit) {
         '0' -> ToneGenerator.TONE_DTMF_0

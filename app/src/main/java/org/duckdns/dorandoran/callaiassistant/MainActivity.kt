@@ -525,7 +525,8 @@ private fun PhoneAppContent(
         onDispose { }
     }
     Scaffold(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
+        containerColor = Color.White
     ) { innerPadding ->
         when (selectedTab) {
             0 -> Box(
@@ -579,6 +580,7 @@ private fun PhoneAppContent(
                     callSignalingManager.clearIncoming()
                     startOutgoingCall(phoneNumber)
                 },
+                onOpenDialer = { selectedTab = 0 },
                 modifier = Modifier.padding(innerPadding)
             )
         }

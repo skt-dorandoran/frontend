@@ -3,26 +3,32 @@ package org.duckdns.dorandoran.callaiassistant
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Divider
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,8 +38,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 
 class CallIntroPromptActivity : ComponentActivity() {
@@ -55,6 +68,7 @@ private fun CallIntroPromptContent(
     val context = androidx.compose.ui.platform.LocalContext.current
     var enabled by remember { mutableStateOf(SettingsStore.isCallIntroPromptEnabled(context)) }
     var selectedStyle by remember { mutableStateOf(SettingsStore.getCallIntroPromptStyle(context)) }
+    val primaryBlue = Color(0xFF537CEC)
 
     LaunchedEffect(enabled) {
         SettingsStore.setCallIntroPromptEnabled(context, enabled)
@@ -66,91 +80,162 @@ private fun CallIntroPromptContent(
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
+        color = Color.White
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .padding(24.dp),
+                .statusBarsPadding(),
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.Start
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.size(24.dp)
+                ) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "뒤로가기"
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                        contentDescription = "뒤로가기",
+                        tint = Color.Black
                     )
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
                 Text(
                     text = "통화 시작 안내 멘트",
-                    style = MaterialTheme.typography.headlineSmall
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold
+                    )
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                Spacer(modifier = Modifier.height(12.dp))
 
-            Box(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .padding(end = 64.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         text = "통화 시작 안내 멘트 설정",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 16.sp
+                        )
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "통화 시작 전, 상대방에게 AI 음성 변환 서비스를 사용 중임을 미리 안내하여 원활한 소통을 돕습니다.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    FilledSwitch(
+                        checked = enabled,
+                        onCheckedChange = { enabled = it },
+                        checkedTrackColor = primaryBlue,
+                        uncheckedTrackColor = Color(0xFFE0E0E0)
                     )
                 }
-                Switch(
-                    checked = enabled,
-                    onCheckedChange = { enabled = it },
-                    modifier = Modifier.align(Alignment.CenterEnd)
-                )
-            }
 
-            if (enabled) {
                 Spacer(modifier = Modifier.height(16.dp))
-                Divider()
-                Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "상세 설정",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
+                    text = "통화 시작 전, 상대방에게 AI 음성 변환 서비스를 사용 중임을 미리 안내하여 원활한 소통을 돕습니다.",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = Color(0xFF888888),
+                        fontSize = 13.sp
+                    ),
+                    lineHeight = 20.sp
                 )
-                Spacer(modifier = Modifier.height(8.dp))
 
-                PromptStyleOption(
-                    title = "기본형",
-                    description = "\"안녕하세요, 원활한 소통을 위해 AI 음성 변환 서비스를 이용중입니다. 제 말이 조금 늦더라도 양해 부탁드립니다.\"",
-                    selected = selectedStyle == CallIntroPromptStyle.BASIC.value,
-                    onSelect = { selectedStyle = CallIntroPromptStyle.BASIC.value }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                PromptStyleOption(
-                    title = "상황 설명형",
-                    description = "\"안녕하세요. 청각/언어의 어려움으로 텍스트를 음성으로 변환하여 대화하고 있습니다. 천천히 말씀해 주시면 감사하겠습니다.\"",
-                    selected = selectedStyle == CallIntroPromptStyle.SITUATION.value,
-                    onSelect = { selectedStyle = CallIntroPromptStyle.SITUATION.value }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                PromptStyleOption(
-                    title = "비서형",
-                    description = "\"안녕하세요. 지금은 AI 통화 비서가 대화를 돕고 있습니다. 문자로 입력한 내용을 음성으로 전달해 드릴게요.\"",
-                    selected = selectedStyle == CallIntroPromptStyle.ASSISTANT.value,
-                    onSelect = { selectedStyle = CallIntroPromptStyle.ASSISTANT.value }
-                )
+                if (enabled) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "상세 설정",
+                        style = TextStyle(
+                            fontSize = 16.sp,
+                            lineHeight = 20.8.sp,
+                            fontFamily = FontFamily(Font(R.font.pretendard)),
+                            fontWeight = FontWeight.Normal,
+                            color = Color(0xFF202020)
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    PromptStyleOption(
+                        title = "기본형",
+                        description = "\"안녕하세요, 원활한 소통을 위해 AI 음성 변환 서비스를 이용중입니다. 제 말이 조금 늦더라도 양해 부탁드립니다.\"",
+                        selected = selectedStyle == CallIntroPromptStyle.BASIC.value,
+                        onSelect = { selectedStyle = CallIntroPromptStyle.BASIC.value }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    PromptStyleOption(
+                        title = "상황 설명형",
+                        description = "\"안녕하세요. 청각/언어의 어려움으로 텍스트를 음성으로 변환하여 대화하고 있습니다. 천천히 말씀해 주시면 감사하겠습니다.\"",
+                        selected = selectedStyle == CallIntroPromptStyle.SITUATION.value,
+                        onSelect = { selectedStyle = CallIntroPromptStyle.SITUATION.value }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    PromptStyleOption(
+                        title = "비서형",
+                        description = "\"안녕하세요. 지금은 AI 통화 비서가 대화를 돕고 있습니다. 문자로 입력한 내용을 음성으로 전달해 드릴게요.\"",
+                        selected = selectedStyle == CallIntroPromptStyle.ASSISTANT.value,
+                        onSelect = { selectedStyle = CallIntroPromptStyle.ASSISTANT.value }
+                    )
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun FilledSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    checkedTrackColor: Color,
+    uncheckedTrackColor: Color,
+    modifier: Modifier = Modifier,
+    thumbColor: Color = Color.White
+) {
+    val switchWidth = 52.dp
+    val switchHeight = 32.dp
+    val thumbSize = 24.dp
+    val padding = 4.dp
+    val trackColor by animateColorAsState(
+        targetValue = if (checked) checkedTrackColor else uncheckedTrackColor,
+        label = "SwitchTrackColor"
+    )
+    val thumbOffset by animateDpAsState(
+        targetValue = if (checked) switchWidth - thumbSize - (padding * 2) else 0.dp,
+        label = "SwitchThumbOffset"
+    )
+
+    Box(
+        modifier = modifier
+            .size(width = switchWidth, height = switchHeight)
+            .clip(CircleShape)
+            .background(trackColor)
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange
+            ),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = padding),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Box(
+                modifier = Modifier
+                    .offset(x = thumbOffset)
+                    .size(thumbSize)
+                    .background(thumbColor, CircleShape)
+            )
         }
     }
 }
@@ -169,26 +254,52 @@ private fun PromptStyleOption(
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.Top
     ) {
-        RadioButton(
+        PromptSelectionCircle(
             selected = selected,
-            onClick = onSelect
+            modifier = Modifier.padding(top = 6.dp)
         )
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .weight(1f)
                 .padding(start = 8.dp)
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+                style = TextStyle(
+                    fontSize = 16.sp,
+                    lineHeight = 20.8.sp,
+                    fontFamily = FontFamily(Font(R.font.pretendard)),
+                    fontWeight = FontWeight.Normal,
+                    color = Color(0xFF808080)
+                )
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = TextStyle(
+                    fontSize = 16.sp,
+                    lineHeight = 20.8.sp,
+                    fontFamily = FontFamily(Font(R.font.pretendard)),
+                    fontWeight = FontWeight.Normal,
+                    color = Color(0xFF000000)
+                )
             )
         }
     }
+}
+
+@Composable
+private fun PromptSelectionCircle(
+    selected: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val ringColor = if (selected) Color(0xFF537CEC) else Color(0xFFD9D9D9)
+
+    Box(
+        modifier = modifier
+            .size(18.dp)
+            .clip(CircleShape)
+            .background(Color.White)
+            .border(width = 4.5.dp, color = ringColor, shape = CircleShape)
+    )
 }
