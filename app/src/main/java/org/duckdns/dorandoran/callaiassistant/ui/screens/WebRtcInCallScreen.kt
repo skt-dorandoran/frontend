@@ -34,13 +34,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import org.duckdns.dorandoran.callaiassistant.SettingsStore
+import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState
 
@@ -74,8 +81,16 @@ fun WebRtcInCallScreen(
     var callScreenState by remember { mutableStateOf(CallScreenState.MODE_SELECT) }
     var suggestionSetIndex by remember { mutableStateOf(0) }
     var selectedSuggestionIndex by remember { mutableStateOf<Int?>(null) }
+    var userInputText by remember { mutableStateOf("") }
+    var isSendingMessage by remember { mutableStateOf(false) }
     val isAiCorrectionMode = selectedMode == CallMode.AI_CORRECTION
     val isKeypadActive = callScreenState == CallScreenState.KEYPAD
+    val coroutineScope = rememberCoroutineScope()
+    var messageTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
+    val context = LocalContext.current
+    val audioManager = remember {
+        context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+    }
     val suggestionSets = remember(aiSuggestions) {
         listOf(
             aiSuggestions.take(2).ifEmpty {
@@ -86,7 +101,6 @@ fun WebRtcInCallScreen(
     }
     val currentSuggestions = suggestionSets[suggestionSetIndex % suggestionSets.size]
     val displayNumber = if (phoneNumber.isNotBlank()) formatPhoneNumber(phoneNumber) else "상대방"
-    val context = LocalContext.current
     val textScale = remember { SettingsStore.getCallTextScale(context) }
     val isDark = isSystemInDarkTheme()
     val backgroundColor = if (isDark) Color(0xFF0B0B0C) else Color(0xFFF6F6F9)
@@ -98,6 +112,8 @@ fun WebRtcInCallScreen(
     DisposableEffect(Unit) {
         onDispose {
             toneGenerator.release()
+            TtsManager.shutdown(messageTts)
+            messageTts = null
         }
     }
 
@@ -155,6 +171,8 @@ fun WebRtcInCallScreen(
             when (callScreenState) {
                 CallScreenState.MODE_SELECT -> {
                     if (isAiCorrectionMode) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    } else if (selectedMode == CallMode.DIRECT && connectionState == WebRtcConnectionState.IN_CALL) {
                         Column(
                             modifier = Modifier
                                 .weight(1f)
@@ -219,6 +237,7 @@ fun WebRtcInCallScreen(
                                     OutlinedButton(
                                         onClick = {
                                             selectedSuggestionIndex = index
+                                            userInputText = suggestion
                                             onSendAiSuggestion(suggestion)
                                         },
                                         modifier = Modifier.fillMaxWidth(),
@@ -277,57 +296,123 @@ fun WebRtcInCallScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     if (callScreenState == CallScreenState.MODE_SELECT) {
-                        Text(
-                            text = "전화 모드를 선택해주세요",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = secondaryTextColor,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Start
-                        )
+                        if (connectionState == WebRtcConnectionState.IN_CALL && selectedMode == CallMode.DIRECT) {
+                            OutlinedTextField(
+                                value = userInputText,
+                                onValueChange = { userInputText = it },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(80.dp),
+                                placeholder = {
+                                    Text(
+                                        text = "직접 말씀하시거나\n위의 추천 답변을 선택하세요",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = secondaryTextColor
+                                    )
+                                },
+                                shape = RoundedCornerShape(14.dp),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                    focusedIndicatorColor = primaryBlue,
+                                    unfocusedIndicatorColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                ),
+                                textStyle = MaterialTheme.typography.bodyMedium
+                            )
+                        } else {
+                            Text(
+                                text = "전화 모드를 선택해주세요",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = secondaryTextColor,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Start
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
+                        if (connectionState == WebRtcConnectionState.IN_CALL && 
+                            selectedMode == CallMode.DIRECT && 
+                            userInputText.isNotBlank()) {
+                            // 보내기 버튼 (텍스트 입력 시)
                             Button(
-                                onClick = { selectedMode = CallMode.DIRECT },
-                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    val textToSend = userInputText
+                                    isSendingMessage = true
+                                    
+                                    // TTS 초기화 및 재생
+                                    messageTts = TtsManager.initializeForCall(
+                                        context = context,
+                                        onReady = { tts ->
+                                            messageTts = tts
+                                            TtsManager.speak(tts, textToSend, audioManager)
+                                        },
+                                        onDone = {
+                                            coroutineScope.launch {
+                                                delay(300)
+                                                TtsManager.shutdown(messageTts)
+                                                messageTts = null
+                                                userInputText = ""
+                                                isSendingMessage = false
+                                            }
+                                        }
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (selectedMode == CallMode.DIRECT) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
-                                    contentColor = if (selectedMode == CallMode.DIRECT) Color.White else MaterialTheme.colorScheme.onSurface
+                                    containerColor = if (isSendingMessage) MaterialTheme.colorScheme.surfaceVariant else primaryBlue,
+                                    contentColor = if (isSendingMessage) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else Color.White
                                 ),
+                                enabled = !isSendingMessage,
                                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                             ) {
-                                Text("직접 말하기")
+                                Text("보내기")
                             }
-
-                            Button(
-                                onClick = { selectedMode = CallMode.AI_CORRECTION },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (selectedMode == CallMode.AI_CORRECTION) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
-                                    contentColor = if (selectedMode == CallMode.AI_CORRECTION) Color.White else MaterialTheme.colorScheme.onSurface
-                                ),
-                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                        } else {
+                            // 모드 선택 버튼들
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Text("AI 교정")
-                            }
+                                Button(
+                                    onClick = { selectedMode = CallMode.DIRECT },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (selectedMode == CallMode.DIRECT) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
+                                        contentColor = if (selectedMode == CallMode.DIRECT) Color.White else MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                                ) {
+                                    Text("직접 말하기")
+                                }
 
-                            Button(
-                                onClick = { selectedMode = CallMode.TEXT },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (selectedMode == CallMode.TEXT) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
-                                    contentColor = if (selectedMode == CallMode.TEXT) Color.White else MaterialTheme.colorScheme.onSurface
-                                ),
-                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                            ) {
-                                Text("텍스트 통화")
+                                Button(
+                                    onClick = { selectedMode = CallMode.AI_CORRECTION },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (selectedMode == CallMode.AI_CORRECTION) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
+                                        contentColor = if (selectedMode == CallMode.AI_CORRECTION) Color.White else MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                                ) {
+                                    Text("AI 교정")
+                                }
+
+                                Button(
+                                    onClick = { selectedMode = CallMode.TEXT },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (selectedMode == CallMode.TEXT) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
+                                        contentColor = if (selectedMode == CallMode.TEXT) Color.White else MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                                ) {
+                                    Text("텍스트 통화")
+                                }
                             }
                         }
 
@@ -416,12 +501,6 @@ fun WebRtcInCallScreen(
                                 modifier = Modifier.size(32.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "통화 종료",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
                     }
 
                     Column(
@@ -452,7 +531,7 @@ fun WebRtcInCallScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "키패드",
+                            text = "숫자 키패드",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
