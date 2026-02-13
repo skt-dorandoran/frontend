@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.imePadding
 import androidx.navigation.NavController
+import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage
@@ -47,6 +48,7 @@ fun CallTypingScreen(
     val isDark = isSystemInDarkTheme()
     val primaryBlue = Color(0xFF2F5BFF)
     val context = LocalContext.current
+    val textScale = SettingsStore.getCallTextScale(context)
     val audioManager = remember {
         context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
     }
@@ -159,9 +161,9 @@ fun CallTypingScreen(
             items(messages.size) { index ->
                 val message = messages[messages.size - 1 - index]
                 if (!message.isFromMe) {
-                    RemoteMessageBubble(message = message)
+                    RemoteMessageBubble(message = message, textScale = textScale)
                 } else {
-                    MyMessageBubble(message = message)
+                    MyMessageBubble(message = message, textScale = textScale)
                 }
             }
         }
@@ -287,7 +289,7 @@ fun CallTypingScreen(
 }
 
 @Composable
-private fun RemoteMessageBubble(message: ChatMessage) {
+private fun RemoteMessageBubble(message: ChatMessage, textScale: Float) {
     Surface(
         modifier = Modifier
             .fillMaxWidth(0.8f),
@@ -303,14 +305,17 @@ private fun RemoteMessageBubble(message: ChatMessage) {
         Text(
             text = message.text,
             modifier = Modifier.padding(12.dp),
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale,
+                lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * textScale
+            ),
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
 
 @Composable
-private fun MyMessageBubble(message: ChatMessage) {
+private fun MyMessageBubble(message: ChatMessage, textScale: Float) {
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.CenterEnd
@@ -329,7 +334,10 @@ private fun MyMessageBubble(message: ChatMessage) {
             Text(
                 text = message.text,
                 modifier = Modifier.padding(12.dp),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale,
+                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * textScale
+                ),
                 color = Color.White
             )
         }
