@@ -1,5 +1,6 @@
 package org.duckdns.dorandoran.callaiassistant.ui.screens
 
+import android.media.AudioManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -12,12 +13,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextRange
@@ -26,8 +29,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.imePadding
 import androidx.navigation.NavController
+import org.duckdns.dorandoran.callaiassistant.SettingsStore
+import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
+import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage
+import android.util.Log
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,10 +46,39 @@ fun CallTypingScreen(
     val callInfo by viewModel.callInfo.collectAsState()
     val messages by viewModel.messages.collectAsState()
     var inputText by remember { mutableStateOf(TextFieldValue()) }
+    var suggestionSetIndex by remember { mutableStateOf(0) }
     val isDark = isSystemInDarkTheme()
     val primaryBlue = Color(0xFF2F5BFF)
+    val context = LocalContext.current
+    val textScale = SettingsStore.getCallTextScale(context)
+    val audioManager = remember {
+        context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+    }
+    var messageTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
+    var isTtsReady by remember { mutableStateOf(false) }
     
     val listState = rememberLazyListState()
+
+    // TTS 초기화 - 통화 시작 시 1회만
+    LaunchedEffect(Unit) {
+        TtsManager.initializeForCall(
+            context = context,
+            onReady = { tts ->
+                messageTts = tts
+                isTtsReady = true
+                Log.d("CallTypingScreen", "TTS ready for CallTypingScreen")
+            }
+        )
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            // TTS 종료하지 말고 (다른 화면에서 사용할 수 있음) 큐만 정리
+            CustomAudioDeviceModule.clearTtsQueue()
+            messageTts = null
+            isTtsReady = false
+        }
+    }
     
     // 메시지가 추가되면 스크롤을 가장 아래로 즉시 이동
     LaunchedEffect(messages.size) {
@@ -58,11 +94,19 @@ fun CallTypingScreen(
         }
     }
     
-    val aiSuggestions = listOf(
-        "예약 시간 문의드려요",
-        "진료확인서 발급 방법 알려주세요",
-        "접수 마감이 몇시인가요?"
+    val suggestionSets = listOf(
+        listOf(
+            "예약 시간 문의드려요",
+            "진료확인서 발급 방법 알려주세요",
+            "접수 마감이 몇시인가요?"
+        ),
+        listOf(
+            "오늘 진료 가능할까요?",
+            "초진 접수 절차 알려주세요",
+            "보험 청구서 발급되나요?"
+        )
     )
+    val aiSuggestions = suggestionSets[suggestionSetIndex % suggestionSets.size]
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -134,9 +178,9 @@ fun CallTypingScreen(
             items(messages.size) { index ->
                 val message = messages[messages.size - 1 - index]
                 if (!message.isFromMe) {
-                    RemoteMessageBubble(message = message)
+                    RemoteMessageBubble(message = message, textScale = textScale)
                 } else {
-                    MyMessageBubble(message = message)
+                    MyMessageBubble(message = message, textScale = textScale)
                 }
             }
         }
@@ -170,6 +214,16 @@ fun CallTypingScreen(
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold
                     )
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(
+                        onClick = { suggestionSetIndex = (suggestionSetIndex + 1) % suggestionSets.size }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "추천 새로고침",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 
                 // 추천 답변 버튼들
@@ -218,8 +272,22 @@ fun CallTypingScreen(
                     )
                     IconButton(
                         onClick = {
-                            viewModel.sendMessage(inputText.text)
+                            val textToSend = inputText.text.trim()
+                            if (textToSend.isEmpty()) return@IconButton
+                            viewModel.sendMessage(textToSend)
                             inputText = TextFieldValue()
+                            
+                            // TTS로 메시지 재생
+                            if (isTtsReady) {
+                                TtsManager.speak(
+                                    tts = messageTts,
+                                    text = textToSend,
+                                    audioManager = audioManager,
+                                    onDone = {
+                                        Log.d("CallTypingScreen", "TTS playback completed for: $textToSend")
+                                    }
+                                )
+                            }
                         },
                         modifier = Modifier
                             .size(48.dp)
@@ -239,7 +307,7 @@ fun CallTypingScreen(
 }
 
 @Composable
-private fun RemoteMessageBubble(message: ChatMessage) {
+private fun RemoteMessageBubble(message: ChatMessage, textScale: Float) {
     Surface(
         modifier = Modifier
             .fillMaxWidth(0.8f),
@@ -255,14 +323,17 @@ private fun RemoteMessageBubble(message: ChatMessage) {
         Text(
             text = message.text,
             modifier = Modifier.padding(12.dp),
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale,
+                lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * textScale
+            ),
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
 
 @Composable
-private fun MyMessageBubble(message: ChatMessage) {
+private fun MyMessageBubble(message: ChatMessage, textScale: Float) {
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.CenterEnd
@@ -281,7 +352,10 @@ private fun MyMessageBubble(message: ChatMessage) {
             Text(
                 text = message.text,
                 modifier = Modifier.padding(12.dp),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale,
+                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * textScale
+                ),
                 color = Color.White
             )
         }

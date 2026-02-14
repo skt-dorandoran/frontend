@@ -2,6 +2,7 @@ package org.duckdns.dorandoran.callaiassistant.ui.screens
 
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -61,6 +63,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavController
 import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
+import org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager
+import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState
 
@@ -73,6 +77,7 @@ fun WebRtcInCallScreen(
     sttText: String = "",
     aiSuggestions: List<String> = listOf("잠시만요, 다시 말씀해주실 수 있나요?", "네, 확인했습니다. 바로 처리하겠습니다."),
     onSendAiSuggestion: (String) -> Unit = {},
+    onDirectMessageSent: (String) -> Unit = {},
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
     navController: NavController? = null,
@@ -87,6 +92,9 @@ fun WebRtcInCallScreen(
     var isSendingMessage by remember { mutableStateOf(false) }
     val isAiCorrectionMode = selectedMode == CallMode.AI_CORRECTION
     val isKeypadActive = callScreenState == CallScreenState.KEYPAD
+    val shouldAvoidIme = callScreenState == CallScreenState.MODE_SELECT &&
+        selectedMode == CallMode.DIRECT &&
+        connectionState == WebRtcConnectionState.IN_CALL
     val coroutineScope = rememberCoroutineScope()
     var messageTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
     val context = LocalContext.current
@@ -111,11 +119,21 @@ fun WebRtcInCallScreen(
     val primaryBlue = Color(0xFF2F5BFF)
     val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_DTMF, 80) }
 
+    // 통화가 완전히 끝났을 때만 TTS 정리
+    LaunchedEffect(connectionState) {
+        if (connectionState == WebRtcConnectionState.DISCONNECTED) {
+            Log.d("WebRtcInCallScreen", "Connection state DISCONNECTED - shutting down TTS")
+            TtsManager.shutdown(messageTts)
+            messageTts = null
+            SherpaOnnxTtsManager.shutdown()
+        }
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             toneGenerator.release()
-            TtsManager.shutdown(messageTts)
-            messageTts = null
+            // 화면 전환 시에는 TTS를 종료하지 말고 큐만 정리
+            CustomAudioDeviceModule.clearTtsQueue()
         }
     }
 
@@ -282,6 +300,7 @@ fun WebRtcInCallScreen(
                         }
                     )
                     .navigationBarsPadding()
+                    .then(if (shouldAvoidIme) Modifier.imePadding() else Modifier)
                     .shadow(
                         elevation = 12.dp,
                         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -341,22 +360,23 @@ fun WebRtcInCallScreen(
                                 onClick = {
                                     val textToSend = userInputText
                                     isSendingMessage = true
+                                    onDirectMessageSent(textToSend)
                                     
                                     // TTS 초기화 및 재생
                                     messageTts = TtsManager.initializeForCall(
                                         context = context,
                                         onReady = { tts ->
                                             messageTts = tts
-                                            TtsManager.speak(tts, textToSend, audioManager)
-                                        },
-                                        onDone = {
-                                            coroutineScope.launch {
-                                                delay(300)
-                                                TtsManager.shutdown(messageTts)
-                                                messageTts = null
-                                                userInputText = ""
-                                                isSendingMessage = false
-                                            }
+                                            TtsManager.speak(
+                                                tts = tts,
+                                                text = textToSend,
+                                                audioManager = audioManager,
+                                                onDone = {
+                                                    // TTS 재생 완료 시 버튼 재활성화
+                                                    userInputText = ""
+                                                    isSendingMessage = false
+                                                }
+                                            )
                                         }
                                     )
                                 },
