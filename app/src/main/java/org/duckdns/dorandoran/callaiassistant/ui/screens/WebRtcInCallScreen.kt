@@ -153,6 +153,9 @@ fun WebRtcInCallScreen(
             connectionState == WebRtcConnectionState.IN_CALL &&
             !hasPlayedIntroPrompt && introPromptEnabled
         ) {
+            // 안내 멘트 재생 전 TTS 완전 shutdown
+            TtsManager.shutdown(messageTts)
+            messageTts = null
             hasPlayedIntroPrompt = true
             messageTts = TtsManager.initializeForCall(
                 context = context,
