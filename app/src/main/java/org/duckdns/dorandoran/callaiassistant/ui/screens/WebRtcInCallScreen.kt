@@ -1,4 +1,6 @@
 package org.duckdns.dorandoran.callaiassistant.ui.screens
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveable
 
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -87,7 +89,8 @@ fun WebRtcInCallScreen(
     modifier: Modifier = Modifier
 ) {
     // 안내 멘트 TTS 재생 여부 플래그
-    var hasPlayedIntroPrompt by remember { mutableStateOf(false) }
+    var hasPlayedIntroPrompt by rememberSaveable { mutableStateOf(false) }
+    var prevConnectionState by rememberSaveable { mutableStateOf<WebRtcConnectionState?>(null) }
     var isSpeakerphoneOn by remember { mutableStateOf<Boolean>(false) }
     var selectedMode by remember { mutableStateOf(CallMode.DIRECT) }
     var callScreenState by remember { mutableStateOf(CallScreenState.MODE_SELECT) }
@@ -136,15 +139,20 @@ fun WebRtcInCallScreen(
     val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_DTMF, 80) }
 
     // 통화가 완전히 끝났을 때만 TTS 정리 및 안내 멘트 재생
+    // 안내 멘트는 최초 통화 시작 시에만 재생, 직접 말하기 모드 복귀 시에는 재생하지 않음
     LaunchedEffect(connectionState) {
-        if (connectionState == WebRtcConnectionState.DISCONNECTED) {
+        if (prevConnectionState == WebRtcConnectionState.IN_CALL && connectionState == WebRtcConnectionState.DISCONNECTED) {
             Log.d("WebRtcInCallScreen", "Connection state DISCONNECTED - shutting down TTS")
             TtsManager.shutdown(messageTts)
             messageTts = null
             SherpaOnnxTtsManager.shutdown()
             hasPlayedIntroPrompt = false
-        } else if (connectionState == WebRtcConnectionState.IN_CALL && !hasPlayedIntroPrompt && introPromptEnabled) {
-            // 안내 멘트 최초 1회만 재생
+        }
+        if (
+            prevConnectionState != WebRtcConnectionState.IN_CALL &&
+            connectionState == WebRtcConnectionState.IN_CALL &&
+            !hasPlayedIntroPrompt && introPromptEnabled
+        ) {
             hasPlayedIntroPrompt = true
             messageTts = TtsManager.initializeForCall(
                 context = context,
@@ -158,14 +166,7 @@ fun WebRtcInCallScreen(
                 }
             )
         }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            toneGenerator.release()
-            // 화면 전환 시에는 TTS를 종료하지 말고 큐만 정리
-            CustomAudioDeviceModule.clearTtsQueue()
-        }
+        prevConnectionState = connectionState
     }
 
     BackHandler(enabled = callScreenState == CallScreenState.KEYPAD) {
