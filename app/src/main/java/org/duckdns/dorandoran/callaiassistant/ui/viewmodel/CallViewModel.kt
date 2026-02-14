@@ -21,14 +21,10 @@ class CallViewModel : ViewModel() {
     private val _callInfo = MutableStateFlow(CallInfo())
     val callInfo: StateFlow<CallInfo> = _callInfo.asStateFlow()
     
-    private val _messages = MutableStateFlow<List<ChatMessage>>(
-        listOf(
-            ChatMessage(
-                text = "네, 보라매 병원입니다.\n무엇을 도와드릴까요?",
-                isFromMe = false
-            )
-        )
-    )
+    private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
+        fun clearHistory() {
+            _messages.value = emptyList()
+        }
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
     
     fun updateCallInfo(phoneNumber: String, hospitalName: String, callTime: String) {
