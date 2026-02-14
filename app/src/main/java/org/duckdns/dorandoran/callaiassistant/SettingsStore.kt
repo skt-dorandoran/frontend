@@ -3,6 +3,16 @@ package org.duckdns.dorandoran.callaiassistant
 import android.content.Context
 
 object SettingsStore {
+        private const val KEY_CALL_INTRO_PROMPT_CUSTOM = "call_intro_prompt_custom"
+        fun getCallIntroPromptCustom(context: Context): String {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            return prefs.getString(KEY_CALL_INTRO_PROMPT_CUSTOM, "") ?: ""
+        }
+
+        fun setCallIntroPromptCustom(context: Context, text: String) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit().putString(KEY_CALL_INTRO_PROMPT_CUSTOM, text).apply()
+        }
     private const val PREFS_NAME = "call_settings"
     private const val KEY_CALL_TEXT_SIZE_STEP = "call_text_size_step"
     private const val KEY_CALL_INTRO_PROMPT_ENABLED = "call_intro_prompt_enabled"
@@ -96,5 +106,6 @@ object SettingsStore {
 enum class CallIntroPromptStyle(val value: String) {
     BASIC("basic"),
     SITUATION("situation"),
-    ASSISTANT("assistant")
+    ASSISTANT("assistant"),
+    CUSTOM("custom")
 }

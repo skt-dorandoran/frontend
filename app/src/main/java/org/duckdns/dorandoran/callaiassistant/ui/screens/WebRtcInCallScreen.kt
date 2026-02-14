@@ -86,6 +86,8 @@ fun WebRtcInCallScreen(
     navController: NavController? = null,
     modifier: Modifier = Modifier
 ) {
+    // 안내 멘트 TTS 재생 여부 플래그
+    var hasPlayedIntroPrompt by remember { mutableStateOf(false) }
     var isSpeakerphoneOn by remember { mutableStateOf<Boolean>(false) }
     var selectedMode by remember { mutableStateOf(CallMode.DIRECT) }
     var callScreenState by remember { mutableStateOf(CallScreenState.MODE_SELECT) }
@@ -103,6 +105,17 @@ fun WebRtcInCallScreen(
     val context = LocalContext.current
     val audioManager = remember {
         context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+    }
+    // 안내 멘트 텍스트 결정
+    val introPromptEnabled = SettingsStore.isCallIntroPromptEnabled(context)
+    val introPromptStyle = SettingsStore.getCallIntroPromptStyle(context)
+    val introPromptCustom = SettingsStore.getCallIntroPromptCustom(context)
+    val introPromptText = when (introPromptStyle) {
+        "custom" -> introPromptCustom.ifBlank { "안녕하세요. 문자로 입력한 내용을 음성으로 안내해 드릴게요." }
+        "basic" -> "안녕하세요, 원활한 소통을 위해 AI 음성 변환 서비스를 이용중입니다. 제 말이 조금 늦더라도 양해 부탁드립니다."
+        "situation" -> "안녕하세요. 청각/언어의 어려움으로 텍스트를 음성으로 변환하여 대화하고 있습니다. 천천히 말씀해 주시면 감사하겠습니다."
+        "assistant" -> "안녕하세요. 지금은 AI 통화 비서가 대화를 돕고 있습니다. 문자로 입력한 내용을 음성으로 전달해 드릴게요."
+        else -> "안녕하세요, 원활한 소통을 위해 AI 음성 변환 서비스를 이용중입니다. 제 말이 조금 늦더라도 양해 부탁드립니다."
     }
     val suggestionSets = remember(aiSuggestions) {
         listOf(
@@ -122,13 +135,28 @@ fun WebRtcInCallScreen(
     val primaryBlue = Color(0xFF2F5BFF)
     val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_DTMF, 80) }
 
-    // 통화가 완전히 끝났을 때만 TTS 정리
+    // 통화가 완전히 끝났을 때만 TTS 정리 및 안내 멘트 재생
     LaunchedEffect(connectionState) {
         if (connectionState == WebRtcConnectionState.DISCONNECTED) {
             Log.d("WebRtcInCallScreen", "Connection state DISCONNECTED - shutting down TTS")
             TtsManager.shutdown(messageTts)
             messageTts = null
             SherpaOnnxTtsManager.shutdown()
+            hasPlayedIntroPrompt = false
+        } else if (connectionState == WebRtcConnectionState.IN_CALL && !hasPlayedIntroPrompt && introPromptEnabled) {
+            // 안내 멘트 최초 1회만 재생
+            hasPlayedIntroPrompt = true
+            messageTts = TtsManager.initializeForCall(
+                context = context,
+                onReady = { tts ->
+                    messageTts = tts
+                    TtsManager.speak(
+                        tts = tts,
+                        text = introPromptText,
+                        audioManager = audioManager
+                    )
+                }
+            )
         }
     }
 
