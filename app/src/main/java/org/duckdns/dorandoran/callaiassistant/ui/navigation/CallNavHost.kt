@@ -58,8 +58,6 @@ fun CallNavHost(
         startDestination = CallRoutes.INTRO
     ) {
         composable(CallRoutes.INTRO) {
-            // 통화 시작 시 history 초기화
-            callViewModel.clearHistory()
             // 통화 중일 때 뒤로가기 버튼 무시
             BackHandler { }
             WebRtcInCallScreen(
@@ -80,8 +78,6 @@ fun CallNavHost(
         }
 
         composable(CallRoutes.TYPING) {
-            // 통화 시작 시 history 초기화
-            callViewModel.clearHistory()
             CallTypingScreen(
                 navController = navController,
                 viewModel = callViewModel,
