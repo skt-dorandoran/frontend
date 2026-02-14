@@ -1,0 +1,49 @@
+FROM ubuntu:22.04
+
+# 기본 설정
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Seoul
+
+# 필수 패키지 설치
+RUN apt-get update && apt-get install -y \
+    git \
+    python3 \
+    python3-pip \
+    curl \
+    wget \
+    lsb-release \
+    sudo \
+    tzdata \
+    openjdk-11-jdk \
+    unzip \
+    zip \
+    ninja-build \
+    build-essential \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# 작업 디렉토리
+WORKDIR /workspace
+
+# depot_tools 설치
+RUN git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git /workspace/depot_tools
+ENV PATH="/workspace/depot_tools:${PATH}"
+
+# Android SDK 설치 (WebRTC 빌드용)
+RUN mkdir -p /workspace/android-sdk && \
+    cd /workspace/android-sdk && \
+    wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip && \
+    unzip commandlinetools-linux-9477386_latest.zip && \
+    rm commandlinetools-linux-9477386_latest.zip && \
+    mkdir -p cmdline-tools/latest && \
+    mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
+
+ENV ANDROID_HOME=/workspace/android-sdk
+ENV PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${PATH}"
+
+# WebRTC 체크아웃 디렉토리
+RUN mkdir -p /workspace/webrtc
+
+WORKDIR /workspace/webrtc
+
+CMD ["/bin/bash"]

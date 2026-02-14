@@ -16,6 +16,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Adding flatDir to include .aar files
+        flatDir {
+            dirs("app/libs")
+        }
     }
 }
 

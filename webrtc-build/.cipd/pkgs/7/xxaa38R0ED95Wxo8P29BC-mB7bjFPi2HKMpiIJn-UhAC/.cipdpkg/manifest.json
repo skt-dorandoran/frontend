@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_build_tools/manifest_merger",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "manifest-merger.jar",
+      "size": 45470314,
+      "hash": "xH3C6ce_G1kOOSky3kTwk1iXXPeJ1jTfwPjtwgr1qogC"
+    }
+  ]
+}

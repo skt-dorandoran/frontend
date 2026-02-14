@@ -1,0 +1,1007 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/wireplumber/linux-amd64",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "bin/wireplumber",
+      "size": 24504,
+      "executable": true,
+      "hash": "souwtRqKQ7kawOm7IPIdxDetIA9x9s442C8NcBO_FVUC"
+    },
+    {
+      "name": "bin/wpctl",
+      "size": 75232,
+      "executable": true,
+      "hash": "uXHGDeos8jIg8oyuUhlFLR_BvrmkLKjQLPWsDlaGMygC"
+    },
+    {
+      "name": "bin/wpexec",
+      "size": 24624,
+      "executable": true,
+      "hash": "6OHK9Sbt9FHRPe6WszAfMird4Ko2Vfpm1lm8WrDaZmoC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/base-dirs.h",
+      "size": 3107,
+      "hash": "fmZNRbFDqXtif5DPXAH1e0PSJq_5UNjEJHDli5DJdFkC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/client.h",
+      "size": 888,
+      "hash": "lPd-u7s_xNiShv5bRJU-bj3f9MT37dIA7pHhkPgg-GIC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/component-loader.h",
+      "size": 1404,
+      "hash": "zLuKEtrM99iR5bWS_ig2KXECIJSzyozPeWC2NXM5QOoC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/conf.h",
+      "size": 1160,
+      "hash": "z2C5VO6QCYpqWTH460dLznqD6nwAZvIChFlTNrpIp6wC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/core.h",
+      "size": 3555,
+      "hash": "znXHaO0gO8092YKlzh-T0XzR-D7PZjGy9WjdTlzoeGsC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/defs.h",
+      "size": 821,
+      "hash": "jS8EDDPWaioi7L-WVvPH1QwS1IsItJgY7SpHLI0fq-EC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/device.h",
+      "size": 1750,
+      "hash": "QzXtgAn5SFnPkI87PJsT05aE_4EPab5YHfTZPD28HxsC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/error.h",
+      "size": 1039,
+      "hash": "xGaD4zexlHQ0Kxvmj4bTaUbVQnEits6do8WgVHu5pA0C"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/event-dispatcher.h",
+      "size": 1199,
+      "hash": "l51JETgiDRONzpkD3O4cw7DMQXOmLqQvA-KKHMsvsvAC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/event-hook.h",
+      "size": 3437,
+      "hash": "cEiE7FwpCrTRcPSvRLv4BfxFvwfVzxc6lxUyoFaJsPIC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/event.h",
+      "size": 1740,
+      "hash": "czhTUoeiCujNfjFXvlCRo8EunZZnzjAyks1xd1-c62wC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/factory.h",
+      "size": 496,
+      "hash": "8f3xMzLVmDwM538qmNdt3800WPBBiG4KYZ7e558AJjIC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/global-proxy.h",
+      "size": 956,
+      "hash": "8L72k65169POKach_WYENKC4bYHLgXJVGMtYKyDp6GcC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/iterator.h",
+      "size": 2545,
+      "hash": "kuYjhFc5O7tm78CVWcULFY8D-jYln2By5mGrM9O2jNcC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/json-utils.h",
+      "size": 1211,
+      "hash": "ko0dmf_6zphOoFnXymDd-i8gQFCfeirUKscPrnrWSB0C"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/link.h",
+      "size": 1358,
+      "hash": "htLNMG7iEWuAZbrHgBex8ArfqlvELD76vAksuIo_PusC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/log.h",
+      "size": 6543,
+      "hash": "hu4lOC95UsH7i5OktljEPqzz34Uf5ZP9hWZm74vE_ooC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/metadata.h",
+      "size": 2349,
+      "hash": "C-RFKYGoFlGeGWNmatHINTE46CHY4V5AjA3qLUKPb94C"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/module.h",
+      "size": 720,
+      "hash": "W5YlUKHuSxseSPqpLLh-GGvblBn9dCMjdcR7LTZaZ_wC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/node.h",
+      "size": 2645,
+      "hash": "jpSvO5HnEJDqXOmTPLKzc_H74F-JrYiyKz_sAwA7ztsC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/object-interest.h",
+      "size": 4232,
+      "hash": "2a3KNMfmo9IigUlRvzKBmiNQwK9M1fazqBPk_55hJoEC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/object-manager.h",
+      "size": 2203,
+      "hash": "G5pf1j4Jon6lv6HUPtr8axZswQtfH8qkqCdOXr_a4mYC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/object.h",
+      "size": 3527,
+      "hash": "n9_Vz-mcywHKs2R1ZCQyqLsfG1yBrL6Rum9r--3U9AAC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/plugin.h",
+      "size": 1017,
+      "hash": "MUdBvsV_6x2KFPbA3JXyKVLpXgG3xv_O_lQ2BOMJkQoC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/port.h",
+      "size": 731,
+      "hash": "7u6SZoOMaflPckJITJ9ph_uwqjmy0wVIFB6WSGqYZF8C"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/proc-utils.h",
+      "size": 1040,
+      "hash": "OBjJaqa8k-znKpGjKtWxwuGtH9xlhzwiEcND4zchBgUC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/properties.h",
+      "size": 4659,
+      "hash": "JZ1YBnE0fHYPNJWsRTy9gfMz6NGb12FZlQVVhpxrD78C"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/proxy-interfaces.h",
+      "size": 2419,
+      "hash": "ArUeISlpJu3Nu8HfgIrTqKKM9iBlcLRm6G4suMx7lo0C"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/proxy.h",
+      "size": 2850,
+      "hash": "SvMbqpdgRpIO7jxOhb1n0S39TwJQO2EbjiYrotUrW6UC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/session-item.h",
+      "size": 2854,
+      "hash": "XHiNb9ddrDo_yU-hYMFemLgcD5WEvsoD76fs1bx06FMC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/settings.h",
+      "size": 4447,
+      "hash": "oGqPJWmJQGhhZZIe3a93il6OeO8muBM0yc2b8_IUGC4C"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/si-factory.h",
+      "size": 1111,
+      "hash": "Uc1QDgGWz0f-IEcCKYuVgs26GpMOmOqNdDJvGdfU6VQC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/si-interfaces.h",
+      "size": 4459,
+      "hash": "BLtxPCJ_xIu1jq031hQK8PImxG9qVfRQ3OuSL2pLzQkC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/spa-json.h",
+      "size": 6559,
+      "hash": "mnNq18EVtqGnSgaKsVyZsa0GrtCckXJXdSQNZ8SXzEcC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/spa-pod.h",
+      "size": 11041,
+      "hash": "zi2YyoX9Th3-pC5SMT4D2tmrw5L_cQBRcRkchftwj4EC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/spa-type.h",
+      "size": 3086,
+      "hash": "PeVqcZIYUg-BKLMwpdfvKTtsqfTIqGp7klGFC5BJMjIC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/state.h",
+      "size": 932,
+      "hash": "BjI9fUPf-MMv8zqm84zHq5aKkod2gaYJF7GOCaXgSjwC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/transition.h",
+      "size": 2452,
+      "hash": "jSIBWGW7RaT5F7JUd-YSwwCWMCXAZIZk8kaTamgqnw0C"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/wp.h",
+      "size": 1797,
+      "hash": "f_YvyJhW9XTKEkvBxlcYG_xfJbLrBcL7aGy8M5B91bwC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/wpenums.h",
+      "size": 3484,
+      "hash": "w2_9BsJzAoXri3r80JJAtNTI4CSIGxcJRMuP_SUj0iUC"
+    },
+    {
+      "name": "include/wireplumber-0.5/wp/wpversion.h",
+      "size": 75,
+      "hash": "NTlHrIvo4p6dG0RBcpnCmxZIrbYQzDk96y1WOXbGw3sC"
+    },
+    {
+      "name": "lib64/libwireplumber-0.5.so",
+      "size": 0,
+      "symlink": "libwireplumber-0.5.so.0"
+    },
+    {
+      "name": "lib64/libwireplumber-0.5.so.0",
+      "size": 0,
+      "symlink": "libwireplumber-0.5.so.0.511.0"
+    },
+    {
+      "name": "lib64/libwireplumber-0.5.so.0.511.0",
+      "size": 1005432,
+      "executable": true,
+      "hash": "tQcmdFVhZCURp6rFsZpUVGeWsVlLTOsT1wVh4BHYwKAC"
+    },
+    {
+      "name": "lib64/pkgconfig/wireplumber-0.5.pc",
+      "size": 341,
+      "hash": "CY6zQxdcoZPRjfj-41Tn5E20hNAbO_juLe3lfQYS7kEC"
+    },
+    {
+      "name": "lib64/wireplumber-0.5/libwireplumber-module-dbus-connection.so",
+      "size": 28696,
+      "executable": true,
+      "hash": "JDyDOhKQhYJobInbGSXZ-g61yCfL9h3liIKZ9m8M_MIC"
+    },
+    {
+      "name": "lib64/wireplumber-0.5/libwireplumber-module-default-nodes-api.so",
+      "size": 30096,
+      "executable": true,
+      "hash": "RHWvrk73nv_-xqXX3P5qcrq7l9upRx3ssIl_3xsn8K8C"
+    },
+    {
+      "name": "lib64/wireplumber-0.5/libwireplumber-module-file-monitor-api.so",
+      "size": 19416,
+      "executable": true,
+      "hash": "Da39iIVqZHYOYQU01nxzC3U2Wia3MRNdcgZYfXRuvDsC"
+    },
+    {
+      "name": "lib64/wireplumber-0.5/libwireplumber-module-log-settings.so",
+      "size": 18576,
+      "executable": true,
+      "hash": "1Jc74ZKFR_FjZ_KdXYseBPrk5vpk8hxlIpoKMBmwwy0C"
+    },
+    {
+      "name": "lib64/wireplumber-0.5/libwireplumber-module-lua-scripting.so",
+      "size": 601080,
+      "executable": true,
+      "hash": "Oh0m22DMmWAU-objYTlm6pG48DCZV27bdZ-1lsDMHc0C"
+    },
+    {
+      "name": "lib64/wireplumber-0.5/libwireplumber-module-mixer-api.so",
+      "size": 44816,
+      "executable": true,
+      "hash": "x6iwJu28DtNqkUyeAxfCmB9V7fMVC8umx9UKNkSonzIC"
+    },
+    {
+      "name": "lib64/wireplumber-0.5/libwireplumber-module-modem-manager.so",
+      "size": 28560,
+      "executable": true,
+      "hash": "PTozo689rQKs4TC_rEb6hRXCzCw341N4Y-oaEEN7Z2gC"
+    },
+    {
+      "name": "lib64/wireplumber-0.5/libwireplumber-module-mpris.so",
+      "size": 46208,
+      "executable": true,
+      "hash": "9Di-_V_FDzbEjnGGaMP5BqOP4-GEyNWrK1fgU9y_2zUC"
+    },
+    {
+      "name": "lib64/wireplumber-0.5/libwireplumber-module-portal-permissionstore.so",
+      "size": 24056,
+      "executable": true,
+      "hash": "goUONWLLrThPJrdEZOcbn97wlteg1c9t1VnY2_G8p58C"
+    },
+    {
+      "name": "lib64/wireplumber-0.5/libwireplumber-module-reserve-device.so",
+      "size": 92896,
+      "executable": true,
+      "hash": "kizbiFd2ULGVFPN2gvN_ABHy9vdHfPsdeM1ZgPl1JzoC"
+    },
+    {
+      "name": "lib64/wireplumber-0.5/libwireplumber-module-settings.so",
+      "size": 34048,
+      "executable": true,
+      "hash": "M_e2wPAdmZ6cFf-AnO5vCNOqLwag7C_T94S0L4eHuR0C"
+    },
+    {
+      "name": "lib64/wireplumber-0.5/libwireplumber-module-si-audio-adapter.so",
+      "size": 60432,
+      "executable": true,
+      "hash": "JVXZ-Xs8wLqE-_uuJuQalrqUJv5-dbNMBq-fCPzEsuQC"
+    },
+    {
+      "name": "lib64/wireplumber-0.5/libwireplumber-module-si-node.so",
+      "size": 29080,
+      "executable": true,
+      "hash": "BN71uIOHlg0n3kMIFMRP8RxtU5rC-151NOJ9WOmhFLIC"
+    },
+    {
+      "name": "lib64/wireplumber-0.5/libwireplumber-module-si-standard-link.so",
+      "size": 104600,
+      "executable": true,
+      "hash": "9HktQcFs5uPcLNL-djZ9fA4u-sT3OSUPoRcVBnRdSZcC"
+    },
+    {
+      "name": "lib64/wireplumber-0.5/libwireplumber-module-standard-event-source.so",
+      "size": 39992,
+      "executable": true,
+      "hash": "ScOIYvWBT4JMhYbvRUtnlBIj8U06mdoMpstZljth_2YC"
+    },
+    {
+      "name": "share/doc/wireplumber/examples/wireplumber.conf.d/access.conf",
+      "size": 985,
+      "hash": "qIIibmfPp_GqeGsoGCbkDUxc6awnJwCUXLCa4x7HY9EC"
+    },
+    {
+      "name": "share/doc/wireplumber/examples/wireplumber.conf.d/alsa.conf",
+      "size": 4164,
+      "hash": "gjtUvzW-tWAQoxS8_hCzpz1NxqP7XbaX_3-C4PqQQ-AC"
+    },
+    {
+      "name": "share/doc/wireplumber/examples/wireplumber.conf.d/bluetooth.conf",
+      "size": 6534,
+      "hash": "UNhPiPItBIJXstFD0j20qWOUOmbg4BthfzIP37ynGmQC"
+    },
+    {
+      "name": "share/doc/wireplumber/examples/wireplumber.conf.d/device.conf",
+      "size": 1197,
+      "hash": "MuKWbsDK3RsYQr6CB18y3lxsK-FCzYBRlYEvYk_C910C"
+    },
+    {
+      "name": "share/doc/wireplumber/examples/wireplumber.conf.d/libcamera.conf",
+      "size": 1144,
+      "hash": "1nmNPme9ka9ZZMDYD3dFKkAU0BIFRfsQUzzeHlnZTUMC"
+    },
+    {
+      "name": "share/doc/wireplumber/examples/wireplumber.conf.d/linking.conf",
+      "size": 473,
+      "hash": "-WnSEF9OEBkc-4bQMd1Y-lxBt8dHrf1C-ck3GXoVucAC"
+    },
+    {
+      "name": "share/doc/wireplumber/examples/wireplumber.conf.d/log.conf",
+      "size": 392,
+      "hash": "-LCLN7snxDjkaNZFMPlDx8PF9He4uEEtMycPvdVgiiwC"
+    },
+    {
+      "name": "share/doc/wireplumber/examples/wireplumber.conf.d/media-role-nodes.conf",
+      "size": 5408,
+      "hash": "o1cyX_Y71cg6CTLYeh5WrdlpedzdUfhOlpaMaS8acKwC"
+    },
+    {
+      "name": "share/doc/wireplumber/examples/wireplumber.conf.d/profile.conf",
+      "size": 386,
+      "hash": "ZMUX9HsaDqgkUpI2QkRTCHKtSToOYW7SIDrqLvo0rdYC"
+    },
+    {
+      "name": "share/doc/wireplumber/examples/wireplumber.conf.d/smart-equalizer.conf",
+      "size": 2334,
+      "hash": "523KB656WSXdzYWcT6NZOuaQt6hoYUF-qIc3Q1BNQ0YC"
+    },
+    {
+      "name": "share/doc/wireplumber/examples/wireplumber.conf.d/stream.conf",
+      "size": 1493,
+      "hash": "vKV8Wxl738aJXa8CHJtgGNO3tS6qUPIHvfss1STDRWMC"
+    },
+    {
+      "name": "share/doc/wireplumber/examples/wireplumber.conf.d/v4l2.conf",
+      "size": 1091,
+      "hash": "G2u-i4h264Z05MfXUq4gBWbICk-7byKdV50FBPmZ08IC"
+    },
+    {
+      "name": "share/locale/af/LC_MESSAGES/wireplumber.mo",
+      "size": 617,
+      "hash": "LEBeKtMJvbgfoF66BjSaBb6yJNWRfXOstS3lWGGT-XoC"
+    },
+    {
+      "name": "share/locale/as/LC_MESSAGES/wireplumber.mo",
+      "size": 648,
+      "hash": "JN7skDis5h8bZly-y1OETqNnzEcxq6cHo6W9oZCimFMC"
+    },
+    {
+      "name": "share/locale/be/LC_MESSAGES/wireplumber.mo",
+      "size": 932,
+      "hash": "lUsLtWXnYCZw-WY4JKbeQAZn-EGq7WrXKEHR1o2EZ1gC"
+    },
+    {
+      "name": "share/locale/bg/LC_MESSAGES/wireplumber.mo",
+      "size": 987,
+      "hash": "xpkT4aFX1m9rMbXPOo3yV1PHuS3E4S48Yn_6e8S1Jb0C"
+    },
+    {
+      "name": "share/locale/bn_IN/LC_MESSAGES/wireplumber.mo",
+      "size": 673,
+      "hash": "Fe_ig7MolPOnGtADp4oHLJt3h3MZ3VkQt1RokjzZehgC"
+    },
+    {
+      "name": "share/locale/ca/LC_MESSAGES/wireplumber.mo",
+      "size": 682,
+      "hash": "vpdg9WwuiY3y8uc4e3oRvjf9nVKnAhxN-25KbTwpwmEC"
+    },
+    {
+      "name": "share/locale/cs/LC_MESSAGES/wireplumber.mo",
+      "size": 793,
+      "hash": "IOSHssh8FqZSKHDYFvz7lcnq4L5bY0pH-xq0Vzs7O80C"
+    },
+    {
+      "name": "share/locale/da/LC_MESSAGES/wireplumber.mo",
+      "size": 540,
+      "hash": "3g62joV2kQSBJfM2ZjAXChmN9ORCviF3DufGsIgU45YC"
+    },
+    {
+      "name": "share/locale/de/LC_MESSAGES/wireplumber.mo",
+      "size": 796,
+      "hash": "wetvlz2OT5ajyrEcGb4Twp_mQXTTGwH9WA_4PuhKKb8C"
+    },
+    {
+      "name": "share/locale/de_CH/LC_MESSAGES/wireplumber.mo",
+      "size": 615,
+      "hash": "8MSRVlMrIXbN1oYOkWJeWU-iLZEp7QEyHzw1rNUP_HwC"
+    },
+    {
+      "name": "share/locale/el/LC_MESSAGES/wireplumber.mo",
+      "size": 647,
+      "hash": "2BcRUW7NZZGX2mC6Ts4jmXkp0KUKndKQIeE3x6LqY00C"
+    },
+    {
+      "name": "share/locale/eo/LC_MESSAGES/wireplumber.mo",
+      "size": 635,
+      "hash": "cyRnmzUtjKaOdQyFkdWlrbENlUDWv5vmYR8kpab60oMC"
+    },
+    {
+      "name": "share/locale/es/LC_MESSAGES/wireplumber.mo",
+      "size": 689,
+      "hash": "uVxRRYkYIMhU8jzd2BBjMrEmvm20cLNaw9eRY7qWQXAC"
+    },
+    {
+      "name": "share/locale/fa/LC_MESSAGES/wireplumber.mo",
+      "size": 781,
+      "hash": "T57xCHlAu7KiArtQQv0QZ3tTc3bfNTXkr1L0YEgJF8QC"
+    },
+    {
+      "name": "share/locale/fi/LC_MESSAGES/wireplumber.mo",
+      "size": 4921,
+      "hash": "HyR163K2yuwRttctW2qU36nSm58wWV5X8C_U43h0FRQC"
+    },
+    {
+      "name": "share/locale/fr/LC_MESSAGES/wireplumber.mo",
+      "size": 655,
+      "hash": "YV6PQOS5-BUPIsbCHbEGGwMFGqlFp7aPWxMkiyLhmIwC"
+    },
+    {
+      "name": "share/locale/gl/LC_MESSAGES/wireplumber.mo",
+      "size": 586,
+      "hash": "2wW0RsfWix-ITTz8xt7C14K4MMDB0gg-TfxwIV_pQvkC"
+    },
+    {
+      "name": "share/locale/gu/LC_MESSAGES/wireplumber.mo",
+      "size": 611,
+      "hash": "kYAH-8A6t39OcEJOqxZr_Kmkd_Y1aaP2V5RWgJ3I6cUC"
+    },
+    {
+      "name": "share/locale/he/LC_MESSAGES/wireplumber.mo",
+      "size": 879,
+      "hash": "aVHQcCLWW_Rda4s6sKChGwx-fTuZCknOWqIlI8Bm2JsC"
+    },
+    {
+      "name": "share/locale/hi/LC_MESSAGES/wireplumber.mo",
+      "size": 845,
+      "hash": "dN2vEGtn0KStRElwbE_XjZriEAuEB9BlGRCz_s2l1sYC"
+    },
+    {
+      "name": "share/locale/hr/LC_MESSAGES/wireplumber.mo",
+      "size": 762,
+      "hash": "rAQTkIV93yC_2cuEIhkF0ueOhuwKDlJxQzWMeRwMoOoC"
+    },
+    {
+      "name": "share/locale/hu/LC_MESSAGES/wireplumber.mo",
+      "size": 890,
+      "hash": "RV1A-6wUOMxT45k310X-2tpuc9Mo6PaMc9FuvipvUSUC"
+    },
+    {
+      "name": "share/locale/id/LC_MESSAGES/wireplumber.mo",
+      "size": 814,
+      "hash": "HaCFMWqofNTBcZU7HAZ92z4_rZHU7614vVOwdUzMTnQC"
+    },
+    {
+      "name": "share/locale/it/LC_MESSAGES/wireplumber.mo",
+      "size": 622,
+      "hash": "o2WMHJU3xpx3sovKyK_AzqzYM7wS8QhTXd5m8EsAtGUC"
+    },
+    {
+      "name": "share/locale/ja/LC_MESSAGES/wireplumber.mo",
+      "size": 623,
+      "hash": "SS-nejvpk4gcds_ROdrLG6ej_BjMpKW9h8IWXrRQjPEC"
+    },
+    {
+      "name": "share/locale/ka/LC_MESSAGES/wireplumber.mo",
+      "size": 863,
+      "hash": "4t1jjDFeGgC5EeEPyAQFBLdfe1iBk43PJ0YIMFW4uVUC"
+    },
+    {
+      "name": "share/locale/kk/LC_MESSAGES/wireplumber.mo",
+      "size": 604,
+      "hash": "fCGcY9ht5b8VMNnxJqS8RU93QX7xPXc1pZeYcXz0FisC"
+    },
+    {
+      "name": "share/locale/kn/LC_MESSAGES/wireplumber.mo",
+      "size": 653,
+      "hash": "gKsEcIr5vp36pzDo71Zb2v_CmHvEicMi3TK9bj6OCGUC"
+    },
+    {
+      "name": "share/locale/ko/LC_MESSAGES/wireplumber.mo",
+      "size": 582,
+      "hash": "7j7yngnpS8RrN8GG9n628EMMA71GWFr4ku1OQEAp5F8C"
+    },
+    {
+      "name": "share/locale/lt/LC_MESSAGES/wireplumber.mo",
+      "size": 604,
+      "hash": "Wp-g9eaVRpnJnKgbibhSjnKGgfLyKH8TEFCCA1WF_moC"
+    },
+    {
+      "name": "share/locale/ml/LC_MESSAGES/wireplumber.mo",
+      "size": 567,
+      "hash": "-CoK2oapukYCFInTR_5WP1-waSlIH5UU9zzC2KH4iGwC"
+    },
+    {
+      "name": "share/locale/mr/LC_MESSAGES/wireplumber.mo",
+      "size": 651,
+      "hash": "kHC7PBu8WWcfuSPvyQn9jP-XEWulomlRf9j9aTT23UYC"
+    },
+    {
+      "name": "share/locale/my/LC_MESSAGES/wireplumber.mo",
+      "size": 699,
+      "hash": "bQVJ34RNvxT74gMyuZI4qoSnc7hRfPdUvzL_VyIvWcEC"
+    },
+    {
+      "name": "share/locale/nl/LC_MESSAGES/wireplumber.mo",
+      "size": 658,
+      "hash": "v8CBIqU9Xs9Y7M2tE116IVedGRc4hYXct1TEPakazN0C"
+    },
+    {
+      "name": "share/locale/nn/LC_MESSAGES/wireplumber.mo",
+      "size": 653,
+      "hash": "qFZeCl-6pQhAboQQkJDhctk2fxrhD_LKJfESIZVqgi0C"
+    },
+    {
+      "name": "share/locale/oc/LC_MESSAGES/wireplumber.mo",
+      "size": 839,
+      "hash": "51GCoVoo2dE34vvTJptldV0FStFd7boQXh0egHxCYykC"
+    },
+    {
+      "name": "share/locale/or/LC_MESSAGES/wireplumber.mo",
+      "size": 677,
+      "hash": "Ddw8JxGiHNCGX3lqmpmf6U-Ps778ls9pcbns-m4zQ1EC"
+    },
+    {
+      "name": "share/locale/pa/LC_MESSAGES/wireplumber.mo",
+      "size": 651,
+      "hash": "sPAFOxZS7Fz93EL1MZ6XCdLuwdMynStHL5xqioF8568C"
+    },
+    {
+      "name": "share/locale/pl/LC_MESSAGES/wireplumber.mo",
+      "size": 879,
+      "hash": "i0Odw6s-TTRhNehU04G2vfGlZZQ7YykxcxmPNjcrVz0C"
+    },
+    {
+      "name": "share/locale/pt/LC_MESSAGES/wireplumber.mo",
+      "size": 626,
+      "hash": "5-QoxYoXE1vQidV-ZzUdge4rJmz3H29s_MyJPq8i8RkC"
+    },
+    {
+      "name": "share/locale/pt_BR/LC_MESSAGES/wireplumber.mo",
+      "size": 828,
+      "hash": "yqu4Ld-1ZJiJjnoWUBkpzRe8jIta-zCnFluHzW5s6pIC"
+    },
+    {
+      "name": "share/locale/ro/LC_MESSAGES/wireplumber.mo",
+      "size": 630,
+      "hash": "yO-sBy62ab8vdJCgK_4nWAnSC9wztpKhb6Wgpbkwj_cC"
+    },
+    {
+      "name": "share/locale/ru/LC_MESSAGES/wireplumber.mo",
+      "size": 917,
+      "hash": "oLSZNG7mlPz_BvaIw5B0-Tg2B0oZdR8P4iGH7ty85P4C"
+    },
+    {
+      "name": "share/locale/si/LC_MESSAGES/wireplumber.mo",
+      "size": 457,
+      "hash": "XkgpYYj0FWDuSYsZIT2c_FnG-4gH4HnBLUosjeM3Wy0C"
+    },
+    {
+      "name": "share/locale/sk/LC_MESSAGES/wireplumber.mo",
+      "size": 815,
+      "hash": "c5kAUGLVsVlWrVv6vyzBdmP52rXuuvo8SM-Ec8D8eMQC"
+    },
+    {
+      "name": "share/locale/sl/LC_MESSAGES/wireplumber.mo",
+      "size": 4953,
+      "hash": "oWfHs70o852eE29uQ5W6vK3K-YbACHLwdn9Q9cVRByIC"
+    },
+    {
+      "name": "share/locale/sr/LC_MESSAGES/wireplumber.mo",
+      "size": 682,
+      "hash": "B78DjPmLIYuu2XsChJDoAGbtnqht0ZDz0XQlME2_HTcC"
+    },
+    {
+      "name": "share/locale/sr@latin/LC_MESSAGES/wireplumber.mo",
+      "size": 666,
+      "hash": "vOzcIhS8Avz0aus0fHQXMs3WAipgszsu-neLBle5f6IC"
+    },
+    {
+      "name": "share/locale/sv/LC_MESSAGES/wireplumber.mo",
+      "size": 830,
+      "hash": "T3PvWcZE3fecAUy9q-EARiaSEVs9n4YpvvEaeXWg1_MC"
+    },
+    {
+      "name": "share/locale/ta/LC_MESSAGES/wireplumber.mo",
+      "size": 672,
+      "hash": "y7G0WtMhFcgphQKTCCzclevwer2Tb69OWdLN7ooVMqcC"
+    },
+    {
+      "name": "share/locale/te/LC_MESSAGES/wireplumber.mo",
+      "size": 651,
+      "hash": "XpZKI-P6cuMo5RIJjnK1QNB_um5tWgxPAwX2WoOJ3V8C"
+    },
+    {
+      "name": "share/locale/tr/LC_MESSAGES/wireplumber.mo",
+      "size": 588,
+      "hash": "QSwOVGgG_gL34lCk4TJO8y7dFIQuYwBWd1h5u70uzN0C"
+    },
+    {
+      "name": "share/locale/uk/LC_MESSAGES/wireplumber.mo",
+      "size": 937,
+      "hash": "cJ6yRpi7_u5im7BFy2bjEiv9uNnYRTkXLAv1ALGPAV8C"
+    },
+    {
+      "name": "share/locale/zh_CN/LC_MESSAGES/wireplumber.mo",
+      "size": 881,
+      "hash": "4GSMUwdl2mk3L5kTPMSs_yIXlVeROmQ43eFQSKBck9AC"
+    },
+    {
+      "name": "share/locale/zh_TW/LC_MESSAGES/wireplumber.mo",
+      "size": 623,
+      "hash": "lDOCPO54vX8EaPxz-z2c-WpWraVbifZ-IeWUcyILFmcC"
+    },
+    {
+      "name": "share/wireplumber/scripts/client/access-default.lua",
+      "size": 2362,
+      "hash": "LPUP4Q9P6mNpamMxjTewmudpskbZRx2LGSWRGti9NQsC"
+    },
+    {
+      "name": "share/wireplumber/scripts/client/access-portal.lua",
+      "size": 4170,
+      "hash": "vrcRZ3uQoUEdHNlchN2OfzJ7NBZDF819iG5f2PXIjRkC"
+    },
+    {
+      "name": "share/wireplumber/scripts/client/access-snap.lua",
+      "size": 2527,
+      "hash": "_WbqvaGW-untgCqojtJa8JY8SfHWDGbJg1SyhmRZS9gC"
+    },
+    {
+      "name": "share/wireplumber/scripts/default-nodes/apply-default-node.lua",
+      "size": 1196,
+      "hash": "bGa_5Yanx1AsCU8THbdGkzLnWhUGigHtsgxlyiMhkAMC"
+    },
+    {
+      "name": "share/wireplumber/scripts/default-nodes/find-best-default-node.lua",
+      "size": 1756,
+      "hash": "eqLqDcIkPAt03045e2OYP-YEo6NbBtdQrjmvW0tD9zgC"
+    },
+    {
+      "name": "share/wireplumber/scripts/default-nodes/find-selected-default-node.lua",
+      "size": 2074,
+      "hash": "N_JWxxS65CF60Q_w-6HSv7gZ1mpeEi_ZENv1jOBa7CcC"
+    },
+    {
+      "name": "share/wireplumber/scripts/default-nodes/rescan.lua",
+      "size": 4063,
+      "hash": "SQYFF2Kc--jkWiVRYG7W76-R6EQ_LAEy1jrh5vuAY3MC"
+    },
+    {
+      "name": "share/wireplumber/scripts/default-nodes/state-default-nodes.lua",
+      "size": 5824,
+      "hash": "LBQxkJXBYwD5qHanyleyJIs6krs5WTfWvdCVz2RcFjoC"
+    },
+    {
+      "name": "share/wireplumber/scripts/device/apply-profile.lua",
+      "size": 1793,
+      "hash": "zDrXEuelvwoupXdr9sjIWc2U7fvQd5MNg0i0HeF01TUC"
+    },
+    {
+      "name": "share/wireplumber/scripts/device/apply-routes.lua",
+      "size": 3487,
+      "hash": "6QHMBikWKhXrwUhFyI6qHO_3aupGprCo2EgKVUtN0SMC"
+    },
+    {
+      "name": "share/wireplumber/scripts/device/autoswitch-bluetooth-profile.lua",
+      "size": 15326,
+      "hash": "n9HOQeoDsDbciv6RiCOLc4AqVz4DJXPBcrL4BVmsR10C"
+    },
+    {
+      "name": "share/wireplumber/scripts/device/find-best-profile.lua",
+      "size": 2268,
+      "hash": "uOM6eTXRhJ9ADfgL1qFDvI2LlzaZP1e0E2JmyXw61C8C"
+    },
+    {
+      "name": "share/wireplumber/scripts/device/find-best-routes.lua",
+      "size": 2550,
+      "hash": "DFYQpl8TAy0JpRaOK0wPZkhc7XloYumAqi6On8VWZUYC"
+    },
+    {
+      "name": "share/wireplumber/scripts/device/find-preferred-profile.lua",
+      "size": 2140,
+      "hash": "oVUOSzw1wBbeOECGU9Yx7FC921aK9e1squxsgNP6QRMC"
+    },
+    {
+      "name": "share/wireplumber/scripts/device/find-voice-call-profile.lua",
+      "size": 2167,
+      "hash": "ORPIgSdgDBzyzQA6Gj1kWQSd2_pyIKN-0flcF2_pEw8C"
+    },
+    {
+      "name": "share/wireplumber/scripts/device/select-profile.lua",
+      "size": 720,
+      "hash": "mo4YwHzAYsWu7qs7DpKyj_R9Q37kmY2SgmW6Chd7EO4C"
+    },
+    {
+      "name": "share/wireplumber/scripts/device/select-routes.lua",
+      "size": 5021,
+      "hash": "9vAaAeLZ6vE-29zZ424QEEUJ6GS_impsaXCEyofdzmkC"
+    },
+    {
+      "name": "share/wireplumber/scripts/device/state-profile.lua",
+      "size": 4209,
+      "hash": "ZnNV_gkFIoMW-_KXw1tYh2Or2Z7A0GsN2ISlIF16D8QC"
+    },
+    {
+      "name": "share/wireplumber/scripts/device/state-routes.lua",
+      "size": 11674,
+      "hash": "mggEHJOyH2b_nl7LAWvlfvoeynkUiiTVvf5HMj4ftkAC"
+    },
+    {
+      "name": "share/wireplumber/scripts/fallback-sink.lua",
+      "size": 2371,
+      "hash": "aSHcttxM8dsWIIDYmnKM-ehdjnXpHUupO9wj616xJ74C"
+    },
+    {
+      "name": "share/wireplumber/scripts/lib/audio-group-utils.lua",
+      "size": 643,
+      "hash": "qFZa46fBlmjFgpzFhwrwAwz7IRvOK0eRs9E2h5rPROAC"
+    },
+    {
+      "name": "share/wireplumber/scripts/lib/common-utils.lua",
+      "size": 2389,
+      "hash": "3rMt4YneQ4pDAN_V3qjG1i3pHin1tbUbDt_ILsli1MwC"
+    },
+    {
+      "name": "share/wireplumber/scripts/lib/device-info-cache.lua",
+      "size": 1821,
+      "hash": "nc-sXz7Y6OEkkxw3g8jKgLYcUei0tIGGtiP4B9J0pp8C"
+    },
+    {
+      "name": "share/wireplumber/scripts/lib/filter-utils.lua",
+      "size": 12707,
+      "hash": "bZcgBW736n2W7SztphLQ7-GHTQIzaE3R7NPsX63wuYgC"
+    },
+    {
+      "name": "share/wireplumber/scripts/lib/linking-utils.lua",
+      "size": 13522,
+      "hash": "wGw4angUzODIjZSpLrpPU0CRsITkJb2mCl2wYf-wR9cC"
+    },
+    {
+      "name": "share/wireplumber/scripts/lib/monitor-utils.lua",
+      "size": 4513,
+      "hash": "VR1LyTWN0xqjgsKg3YKhl48sQ_Sd_yPN2yKvv1NtRVgC"
+    },
+    {
+      "name": "share/wireplumber/scripts/lib/node-utils.lua",
+      "size": 1237,
+      "hash": "b3OAZCkJDfHk-hS60CtAoLseSsC7VX8Odihm6K5noCkC"
+    },
+    {
+      "name": "share/wireplumber/scripts/linking/find-audio-group-target.lua",
+      "size": 2779,
+      "hash": "13f-vx6X5VXE0JgJc-O80zQOFG5DVMQRyjir2emgfpIC"
+    },
+    {
+      "name": "share/wireplumber/scripts/linking/find-best-target.lua",
+      "size": 4068,
+      "hash": "kXV4BPwevftidg93Ba_hLyeZFvRqozGi4YEwlQlbPYAC"
+    },
+    {
+      "name": "share/wireplumber/scripts/linking/find-default-target.lua",
+      "size": 1690,
+      "hash": "gtuvthpn41BspGzt3TY-hMcIPcr29szD-ske-Mr_KV8C"
+    },
+    {
+      "name": "share/wireplumber/scripts/linking/find-defined-target.lua",
+      "size": 4353,
+      "hash": "dYo9JeyagGSggMXKr4lWJP8heUK5E8XtGDm7MYo5jD8C"
+    },
+    {
+      "name": "share/wireplumber/scripts/linking/find-filter-target.lua",
+      "size": 2971,
+      "hash": "2ApyjSNnLW6XgQCYlqcBcvAxYQoCmxw7nsOmD2-2q_EC"
+    },
+    {
+      "name": "share/wireplumber/scripts/linking/find-media-role-target.lua",
+      "size": 1965,
+      "hash": "xSbOKaNNm8EeosOsIV2O_C5NzoV8UGRpNLeyK8k-r8YC"
+    },
+    {
+      "name": "share/wireplumber/scripts/linking/find-user-target.lua.example",
+      "size": 925,
+      "hash": "Q1DzdUdf_IZ39ovR88qD3aKKYl5mCZ1A6n7_JXYTfC8C"
+    },
+    {
+      "name": "share/wireplumber/scripts/linking/get-filter-from-target.lua",
+      "size": 3598,
+      "hash": "cPtAqWtGOAFewK2Bfz0rd2TZ7lvviQwMUeWGhDNzK5oC"
+    },
+    {
+      "name": "share/wireplumber/scripts/linking/link-target.lua",
+      "size": 5352,
+      "hash": "nook8uwP21K32zB7_DXQLAMTO0pvbJjiP88noXeevwUC"
+    },
+    {
+      "name": "share/wireplumber/scripts/linking/mpris-pause.lua",
+      "size": 10256,
+      "hash": "Vzax-v5l1KFtUZFHMHwcW7w2PLuvM7NM8ADZL4eTSw4C"
+    },
+    {
+      "name": "share/wireplumber/scripts/linking/prepare-link.lua",
+      "size": 3878,
+      "hash": "VaNZLB1dHuV_p2JWyPCGJM3_yYxJDcrdSgWwLRBoZ_8C"
+    },
+    {
+      "name": "share/wireplumber/scripts/linking/rescan-media-role-links.lua",
+      "size": 6617,
+      "hash": "riRgYRcJocB1Jug9iqWxFXUON1GxIgfKH2rT5K1Gt78C"
+    },
+    {
+      "name": "share/wireplumber/scripts/linking/rescan.lua",
+      "size": 8550,
+      "hash": "JUDxPxlAMgbfEnFY0m-rfrtHFMa-H1qXPBa-OB9MzIkC"
+    },
+    {
+      "name": "share/wireplumber/scripts/metadata.lua",
+      "size": 662,
+      "hash": "c5QQLMJO4y9o1of84mAzx3Djj18TCl3UlfbEJQY0KZYC"
+    },
+    {
+      "name": "share/wireplumber/scripts/monitors/alsa-midi.lua",
+      "size": 2014,
+      "hash": "mXe9SfHXqrY2x60yVaC79OeO6_RGMqHTDO3HMPrrer0C"
+    },
+    {
+      "name": "share/wireplumber/scripts/monitors/alsa.lua",
+      "size": 18793,
+      "hash": "YtFk6o8gwYGsmrIt-jkWWbzT436bcoijOfibN2BnsHYC"
+    },
+    {
+      "name": "share/wireplumber/scripts/monitors/bluez-midi.lua",
+      "size": 4823,
+      "hash": "HwhjUsY6U-CPbgiqrUS4m_ijvhQOPbA7OsHm0hjaRNsC"
+    },
+    {
+      "name": "share/wireplumber/scripts/monitors/bluez.lua",
+      "size": 18557,
+      "hash": "Xkb1s67egC-RML7OB2sHgcSm91Nuk7yuD7W1Wia2N-0C"
+    },
+    {
+      "name": "share/wireplumber/scripts/monitors/libcamera/create-device.lua",
+      "size": 1599,
+      "hash": "tvriKImW44RvTfff4BhmWdOZ2OP9QY56BnQrOtmSTlsC"
+    },
+    {
+      "name": "share/wireplumber/scripts/monitors/libcamera/create-node.lua",
+      "size": 1241,
+      "hash": "4KlogR8UadMcTEVGglJHnKRzXChPXmvPepDlg1k-K04C"
+    },
+    {
+      "name": "share/wireplumber/scripts/monitors/libcamera/enumerate-device.lua",
+      "size": 1007,
+      "hash": "yoUtHN2HZBlLSINnF7DaBWBUAULhlaTzBfJalIGcDywC"
+    },
+    {
+      "name": "share/wireplumber/scripts/monitors/libcamera/name-device.lua",
+      "size": 1378,
+      "hash": "QhJW2KfmAl7uqKqF6o0HY3Gz2eADPX76JkRU27mYdn4C"
+    },
+    {
+      "name": "share/wireplumber/scripts/monitors/libcamera/name-node.lua",
+      "size": 2852,
+      "hash": "Ll8r-xy1mi56QbuEn1VD8uz0Ko5D5Op3ZpmCZIzqwIMC"
+    },
+    {
+      "name": "share/wireplumber/scripts/monitors/v4l2/create-device.lua",
+      "size": 1574,
+      "hash": "RUkhvkvelsCL4PyL77ZxPZT07aF8E86QXHfpB_73fYIC"
+    },
+    {
+      "name": "share/wireplumber/scripts/monitors/v4l2/create-node.lua",
+      "size": 1262,
+      "hash": "ulWH8YB1m-sCGQMJhvmM1QzuidgHQt15PsvvoYlZc74C"
+    },
+    {
+      "name": "share/wireplumber/scripts/monitors/v4l2/enumerate-device.lua",
+      "size": 979,
+      "hash": "FgWtc65s3Adp-0b5q0g55dV2KarfXhnVxfzxMeoaL_sC"
+    },
+    {
+      "name": "share/wireplumber/scripts/monitors/v4l2/name-device.lua",
+      "size": 1358,
+      "hash": "vfCZ1g3-LEaRAEswrxJK9lzPSI9yR2PT0totVSnk96YC"
+    },
+    {
+      "name": "share/wireplumber/scripts/monitors/v4l2/name-node.lua",
+      "size": 2516,
+      "hash": "6waWD18T7Y0dEEX_6egtPHoQ4DwB1p6zsEBfP0umB8oC"
+    },
+    {
+      "name": "share/wireplumber/scripts/node/audio-group.lua",
+      "size": 6699,
+      "hash": "9JiUizhF9Caa0uUKMEKGa1ULfBRsyPSSQJoxnb1SAi0C"
+    },
+    {
+      "name": "share/wireplumber/scripts/node/create-item.lua",
+      "size": 4601,
+      "hash": "5Rb0c_qyyDNypMp8Su9SFDlvxf2baMSEied4ED4F3kMC"
+    },
+    {
+      "name": "share/wireplumber/scripts/node/filter-forward-format.lua",
+      "size": 3684,
+      "hash": "DQpMLDThI5PGOygQKwGdAQ6v3ODuFHJQL4S184UTjT8C"
+    },
+    {
+      "name": "share/wireplumber/scripts/node/software-dsp.lua",
+      "size": 2930,
+      "hash": "Tjp4yNIGNBZ1FpO3PBBBA2oM2S4hxKmj2ViHnpf6CZMC"
+    },
+    {
+      "name": "share/wireplumber/scripts/node/state-stream.lua",
+      "size": 14079,
+      "hash": "l3YdMJjQv1qoJeHNPQlqhZ1MHV--X6elb795QRbpXpcC"
+    },
+    {
+      "name": "share/wireplumber/scripts/node/suspend-node.lua",
+      "size": 1907,
+      "hash": "asL38s_nOdtGKxqfELWA_QgznW0VAl26uQYM4pC9CeYC"
+    },
+    {
+      "name": "share/wireplumber/scripts/session-services.lua",
+      "size": 1172,
+      "hash": "udRxFvY68us_pOcB0TwqWRGh2D0UjF07fw7YjDu9A3YC"
+    },
+    {
+      "name": "share/wireplumber/scripts/sm-objects.lua",
+      "size": 3416,
+      "hash": "IevB3XzlWTqne4ulZmMDukY04Rc4vcQnAZyJd03X054C"
+    },
+    {
+      "name": "share/wireplumber/wireplumber.conf",
+      "size": 26581,
+      "hash": "WVAtPAxrzb-97t4jCHe9Af7CVOVt2IwrKS5yMVHvvg4C"
+    },
+    {
+      "name": "share/wireplumber/wireplumber.conf.d/alsa-vm.conf",
+      "size": 451,
+      "hash": "i66ojeeaEljwL0RQBAxUO37nsOMy9gEX5NeCxeuyH3EC"
+    },
+    {
+      "name": "share/zsh/site-functions/_wpctl",
+      "size": 1610,
+      "hash": "6-daHjTJH5OPKU3KIahEf2m97xSp0hUwhvnAq64-6GoC"
+    }
+  ]
+}

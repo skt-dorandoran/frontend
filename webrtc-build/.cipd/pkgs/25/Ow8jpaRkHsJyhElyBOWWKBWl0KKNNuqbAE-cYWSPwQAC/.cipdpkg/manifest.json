@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_build_tools/lint",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "lint.jar",
+      "size": 134291426,
+      "hash": "57DiMaYelLKSoQ7VdMqwvqiI8peWOj4YE4L9jeOGuJsC"
+    }
+  ]
+}

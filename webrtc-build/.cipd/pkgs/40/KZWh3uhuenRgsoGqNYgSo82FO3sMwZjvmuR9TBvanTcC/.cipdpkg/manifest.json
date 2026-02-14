@@ -1,0 +1,603 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/kotlinc",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "bin/kapt",
+      "size": 405,
+      "executable": true,
+      "hash": "bQsRWhZPTMKiU-O-fJ7s9h1r6Ccy41Cyqwq_z8-OLjEC"
+    },
+    {
+      "name": "bin/kapt.bat",
+      "size": 375,
+      "hash": "wvNr1vI_5yLngtTLNT2ToU_ojskG9d8AF30Vo3YKun4C"
+    },
+    {
+      "name": "bin/kotlin",
+      "size": 310,
+      "executable": true,
+      "hash": "SdSo32SUXMerj4adYvLpaRfMa5FVz-xXvURxUt4SZZkC"
+    },
+    {
+      "name": "bin/kotlin.bat",
+      "size": 282,
+      "hash": "Cjk7IJndxNU9f6ObmMZyeRV6hPMfBe6Euc-HwiFgB1wC"
+    },
+    {
+      "name": "bin/kotlinc",
+      "size": 3120,
+      "executable": true,
+      "hash": "kHUMl3zAQ90rBcad1OBSwQN3VUkl3VoVXnTvcyvijH0C"
+    },
+    {
+      "name": "bin/kotlinc-js",
+      "size": 351,
+      "executable": true,
+      "hash": "h7YHmSCUzJdUXRKuzsPs1vKwdtyuBi_CiC5flZQGXqwC"
+    },
+    {
+      "name": "bin/kotlinc-js.bat",
+      "size": 323,
+      "hash": "h7w8SQC6hc0zDNz-g1c5_KsOMKgPQDl-Tx4BHVv_EQQC"
+    },
+    {
+      "name": "bin/kotlinc-jvm",
+      "size": 286,
+      "executable": true,
+      "hash": "mfKcz2OY2KspoYzi68Pr2BzT1fQSnqypL7OwomPr5MwC"
+    },
+    {
+      "name": "bin/kotlinc-jvm.bat",
+      "size": 248,
+      "hash": "H9iErgKWEugPlpskaiH9JPO4Mv9mYLuBguuK9kGOPTYC"
+    },
+    {
+      "name": "bin/kotlinc.bat",
+      "size": 3759,
+      "hash": "cXVVRlExPXiWjt1MPLNepGfQd50WIy9MIE5Cv_cC7B0C"
+    },
+    {
+      "name": "build.txt",
+      "size": 18,
+      "hash": "puWbqZKw7GwtE54W_56KxTvrgxWyN39Y-qBRzKA9mXgC"
+    },
+    {
+      "name": "lib/allopen-compiler-plugin.jar",
+      "size": 24729,
+      "hash": "Mbd0irYvX1h5rqhah7ekze1l9UWuvHuudPf24rJ0C7MC"
+    },
+    {
+      "name": "lib/annotations-13.0.jar",
+      "size": 17536,
+      "hash": "rOKhDcji1f00kl7KwD5JiLLA-FFlDJS4zvSbob0RFHgC"
+    },
+    {
+      "name": "lib/assignment-compiler-plugin.jar",
+      "size": 51472,
+      "hash": "ScR9R9BAqsWZ3Ucrk7XYrMKQc0777co4PFmCF5N9LcYC"
+    },
+    {
+      "name": "lib/compose-compiler-plugin.jar",
+      "size": 933024,
+      "hash": "3j7Waq8_u9dMZBZP11rJN3jln5AUbhtd5_k5gYlYnUYC"
+    },
+    {
+      "name": "lib/jvm-abi-gen.jar",
+      "size": 973625,
+      "hash": "_9TgisoUzQbSfJIIN2NR3AZQgLxjVK6KAj31hURpIr8C"
+    },
+    {
+      "name": "lib/kotlin-annotation-processing-cli.jar",
+      "size": 26791,
+      "hash": "xsrgBcqwY8KOLsKvhCHm0Nwsa-A_5ztDOmpRKQYdkH8C"
+    },
+    {
+      "name": "lib/kotlin-annotation-processing-runtime.jar",
+      "size": 1381,
+      "hash": "HdyobvlGKWG2VqAwQMr1-UC4UP0ZalLbKQZck1LcgHQC"
+    },
+    {
+      "name": "lib/kotlin-annotation-processing.jar",
+      "size": 474848,
+      "hash": "bzgqvYWSXPa5Ah5eWnoQ_0Qf9a41sG1_shGLYsl49mAC"
+    },
+    {
+      "name": "lib/kotlin-annotations-jvm-sources.jar",
+      "size": 4005,
+      "hash": "v1lNDjo1whsfBwl9nhC2q1JK5bsv_bkuqbH3nyjoqwkC"
+    },
+    {
+      "name": "lib/kotlin-annotations-jvm.jar",
+      "size": 3096,
+      "hash": "YFQjBZnIQMaa82V8KSt2jytYXCX7qR0mzVrYyZJ1ewMC"
+    },
+    {
+      "name": "lib/kotlin-compiler.jar",
+      "size": 59091556,
+      "hash": "IFq8hsawpAvBoxi7JKBix-uamauwI-4na_kl43MlEcgC"
+    },
+    {
+      "name": "lib/kotlin-daemon-client.jar",
+      "size": 242858,
+      "hash": "0hpvd9mAOmFebRUIVzd-EKnox80Grm4cHrmZIP2ji5MC"
+    },
+    {
+      "name": "lib/kotlin-daemon.jar",
+      "size": 348360,
+      "hash": "W59Z9V5AkPgGCymfy35dZ99smKD6_McnPYKGbhO-UQEC"
+    },
+    {
+      "name": "lib/kotlin-main-kts.jar",
+      "size": 6920704,
+      "hash": "aTudr-Zry1GNvNFhQvNcrGy5zLuHFkPZbSsCsRveL5YC"
+    },
+    {
+      "name": "lib/kotlin-metadata-jvm-sources.jar",
+      "size": 257487,
+      "hash": "tXtDDsYE7dYbTMhj4JtI77XGfKBrrPMIV-EFBF0vTd0C"
+    },
+    {
+      "name": "lib/kotlin-metadata-jvm.jar",
+      "size": 893785,
+      "hash": "wd9bxlMLTHRLE3iNv4VApGmJj9-83mq8qRGRhPXTcHwC"
+    },
+    {
+      "name": "lib/kotlin-preloader.jar",
+      "size": 52272,
+      "hash": "rxqFLk1pplejjFEWtEr53OoYqUvMvxwHksB4J88C-1YC"
+    },
+    {
+      "name": "lib/kotlin-reflect-sources.jar",
+      "size": 765088,
+      "hash": "-hZk49UeSifXovRAWB4_X_zgF5V5DBGxRamWX1EBy_oC"
+    },
+    {
+      "name": "lib/kotlin-reflect.jar",
+      "size": 3467844,
+      "hash": "ELShteOVfv6Q9HS9BKdHJJolmyYVpvBQRQfTI8K-NQsC"
+    },
+    {
+      "name": "lib/kotlin-runner.jar",
+      "size": 33060,
+      "hash": "hzBhfPgdbIOSup1w51IyvB5wnwYibqzVq6Br90ZqBWEC"
+    },
+    {
+      "name": "lib/kotlin-script-runtime-sources.jar",
+      "size": 9912,
+      "hash": "2da0Fr8SZ9XZov_7MJyNAvpwdggVTXsNfdMY0t19qpYC"
+    },
+    {
+      "name": "lib/kotlin-script-runtime.jar",
+      "size": 44941,
+      "hash": "0LOwjs-JAcZhCqDo77Kds3Mb-9lq_U-YfMgXAWseAD4C"
+    },
+    {
+      "name": "lib/kotlin-scripting-common.jar",
+      "size": 197600,
+      "hash": "fpFD0iyAs9AslpgkMbHJa6CR7_e_Q5CrS4lJ7O5D8oUC"
+    },
+    {
+      "name": "lib/kotlin-scripting-compiler-impl.jar",
+      "size": 229389,
+      "hash": "iVVAjmIHiKQ1Gag5SomuKo9MoZzFE39zP90rZ9bp1X4C"
+    },
+    {
+      "name": "lib/kotlin-scripting-compiler.jar",
+      "size": 585871,
+      "hash": "amOgKnjHNEcy1BHrIv3sa4ezd7ZRkNHs2OwowXTBKwgC"
+    },
+    {
+      "name": "lib/kotlin-scripting-jvm.jar",
+      "size": 149112,
+      "hash": "vyMqUZrwKVLhAQhvq9SIRDYldlbEXbCBeDysSxSWZLcC"
+    },
+    {
+      "name": "lib/kotlin-serialization-compiler-plugin.jar",
+      "size": 556155,
+      "hash": "mk1ROd-O9YAAW3N-KszvBw-8O1gdleX2TXSpOrtAaaYC"
+    },
+    {
+      "name": "lib/kotlin-stdlib-jdk7-sources.jar",
+      "size": 580,
+      "hash": "JTTIkIQy4G3nMXdQmQPUBbVfQj3UwvdH4WuSohYmEeYC"
+    },
+    {
+      "name": "lib/kotlin-stdlib-jdk7.jar",
+      "size": 947,
+      "hash": "nCCN4XttDXAWKcuXLrVo0JLyivhj4y72jyI3Tci4uPsC"
+    },
+    {
+      "name": "lib/kotlin-stdlib-jdk8-sources.jar",
+      "size": 556,
+      "hash": "PLaJUFSgmFu6WRwWVQP-TdY6IVr1MmO2egcczcJCv24C"
+    },
+    {
+      "name": "lib/kotlin-stdlib-jdk8.jar",
+      "size": 953,
+      "hash": "ZYHYwkN0IAV3uEFJ2L5_dE4H4c07xCUXmjudB78_Z0EC"
+    },
+    {
+      "name": "lib/kotlin-stdlib-js-sources.jar",
+      "size": 730215,
+      "hash": "0ch7P4flitVJTF7QZAU_edllheK9YnxyUOfF1D-qaNwC"
+    },
+    {
+      "name": "lib/kotlin-stdlib-js.klib",
+      "size": 4190127,
+      "hash": "A9BNYSPYUkXCbGEkI9mQa4IDcNle6myQqEFR954_upUC"
+    },
+    {
+      "name": "lib/kotlin-stdlib-sources.jar",
+      "size": 727777,
+      "hash": "IaOs7Gd6VIPKzW6Va-5J8fgWwOns47OdGItv03IP0wYC"
+    },
+    {
+      "name": "lib/kotlin-stdlib.jar",
+      "size": 1797000,
+      "hash": "9hZixtOi-O9b00NioC2Hd3LDnzk805T-slnfr39NhDcC"
+    },
+    {
+      "name": "lib/kotlin-test-js-sources.jar",
+      "size": 18722,
+      "hash": "mlJZJpa2OnXeo_GBv4u0_wUV8wqbZjBYJBiFhXUH9qwC"
+    },
+    {
+      "name": "lib/kotlin-test-js.klib",
+      "size": 78901,
+      "hash": "dcYs51--YPXboBDIhvVvafuME8T5lZp91SJazuP3ZhgC"
+    },
+    {
+      "name": "lib/kotlin-test-junit-sources.jar",
+      "size": 3238,
+      "hash": "P9Obvz-Cg897d1ngKr3XUt3emWQ1L2RUZ7d5JXvM7yAC"
+    },
+    {
+      "name": "lib/kotlin-test-junit.jar",
+      "size": 5114,
+      "hash": "WypDeq7Qr4ISr6wbVEyJgolsaHw4f-VhqBGAN9kuVbUC"
+    },
+    {
+      "name": "lib/kotlin-test-junit5-sources.jar",
+      "size": 3258,
+      "hash": "Xg1GiCd6P4Wb4Ia4dGAbRfVLMLWwRYABOLVOlBi9yVsC"
+    },
+    {
+      "name": "lib/kotlin-test-junit5.jar",
+      "size": 5103,
+      "hash": "z4yjKiCxgTCs3eP2uOKbAcx-p_eSMmoSLG_lQ0IUyIkC"
+    },
+    {
+      "name": "lib/kotlin-test-sources.jar",
+      "size": 12388,
+      "hash": "AxvZ0vfMnKrzaUSMYOqmH2h4i9l3euDBFB7Jt_5ag7QC"
+    },
+    {
+      "name": "lib/kotlin-test-testng-sources.jar",
+      "size": 3241,
+      "hash": "uIqPEpKEgNFOKcbIeZWMFWr8lGubjTM9HC9KQozbEEEC"
+    },
+    {
+      "name": "lib/kotlin-test-testng.jar",
+      "size": 5109,
+      "hash": "7T-9GTRSU031jTRdThWrB5oI5bLXnO0kiW0BsYeeMJkC"
+    },
+    {
+      "name": "lib/kotlin-test.jar",
+      "size": 103089,
+      "hash": "JecGJ04oFe4A4FHisnrcJQ3MZFDNjsT3n3Il9bWhPLgC"
+    },
+    {
+      "name": "lib/kotlinx-coroutines-core-jvm.jar",
+      "size": 1548360,
+      "hash": "mGCQahk3SQv187BtLw4Q70UeZblbJp8i2vaKPR9QZcUC"
+    },
+    {
+      "name": "lib/kotlinx-serialization-compiler-plugin.jar",
+      "size": 556155,
+      "hash": "mk1ROd-O9YAAW3N-KszvBw-8O1gdleX2TXSpOrtAaaYC"
+    },
+    {
+      "name": "lib/lombok-compiler-plugin.jar",
+      "size": 339618,
+      "hash": "hJ8KdAxP3Unlxys5oeMMLHC7wtv5FBYMIo3R6pco7OoC"
+    },
+    {
+      "name": "lib/mutability-annotations-compat.jar",
+      "size": 1472,
+      "hash": "jHZpP94fNLqur1KY4ZU_ykicjpDObAZflt0g2XjCADsC"
+    },
+    {
+      "name": "lib/noarg-compiler-plugin.jar",
+      "size": 62091,
+      "hash": "mOUJoeH5T7KeT82e8-zPOxbDNFe4p24HJRxBGzJ93GMC"
+    },
+    {
+      "name": "lib/parcelize-compiler.jar",
+      "size": 367838,
+      "hash": "mkQMWy58rmzwliP_0NSRNMNeFpGDoNAai4GbypVuFjAC"
+    },
+    {
+      "name": "lib/parcelize-runtime.jar",
+      "size": 14333,
+      "hash": "ie6JYI6fK1Q2R1jIFEizMkr7Eb6YY8bvQQuy41w04zIC"
+    },
+    {
+      "name": "lib/power-assert-compiler-plugin.jar",
+      "size": 100256,
+      "hash": "GajLGrfl40IlTPC3JOXi3rcl3qoRPFqERHPqOu54Y-QC"
+    },
+    {
+      "name": "lib/sam-with-receiver-compiler-plugin.jar",
+      "size": 18654,
+      "hash": "2yHVwT9uNmPwnPTkGKTPLwVjeudYxhXq-t7XeNU0iTEC"
+    },
+    {
+      "name": "lib/scripting-compiler.jar",
+      "size": 585871,
+      "hash": "amOgKnjHNEcy1BHrIv3sa4ezd7ZRkNHs2OwowXTBKwgC"
+    },
+    {
+      "name": "license/COPYRIGHT.txt",
+      "size": 647,
+      "hash": "jxoXAK21SQYExglPsTe_c_bCjT7lVLWPP_jvl1p5Zy0C"
+    },
+    {
+      "name": "license/COPYRIGHT_HEADER.txt",
+      "size": 208,
+      "hash": "4gR-1xd7caDgnUv72PgSotFWejbYxXeNjTHd2ppEDdoC"
+    },
+    {
+      "name": "license/LICENSE.txt",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "license/NOTICE.txt",
+      "size": 482,
+      "hash": "CwmoPT73eVx97GXoFYZll8BmxTiY8oUqdlmbj1VSlBoC"
+    },
+    {
+      "name": "license/README.md",
+      "size": 17942,
+      "hash": "i-0pgTNMYCxRKgn1DKeAbhRQ7hylYGX0otL0e1AD_H8C"
+    },
+    {
+      "name": "license/third_party/aalto_xml_licence.txt",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "license/third_party/aether_license.txt",
+      "size": 11248,
+      "hash": "7Y16JHaaydV9CHabX4vidRndiBHQawmV2-jKZxTpbQgC"
+    },
+    {
+      "name": "license/third_party/aosp_license.txt",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "license/third_party/args4j_LICENSE.txt",
+      "size": 1079,
+      "hash": "cpt87xJwFVPAJyu_0ucKR6uTBl875vhG2B6ToJHO80AC"
+    },
+    {
+      "name": "license/third_party/asm_license.txt",
+      "size": 1598,
+      "hash": "v35ddyyK3zjRYwbLox3mFR4YhlYNCIiL8l3vvorfcloC"
+    },
+    {
+      "name": "license/third_party/asmble_license.txt",
+      "size": 1065,
+      "hash": "mAjO_-RQ7xY64Eug1CFJw3QqVd3Y2lgMJHHyOn95pAUC"
+    },
+    {
+      "name": "license/third_party/assemblyscript_license.txt",
+      "size": 11356,
+      "hash": "xazLvYVG6Uw0rtJK_miaYXYn0Y7tWmxIJ35I21fCOFEC"
+    },
+    {
+      "name": "license/third_party/boost_LICENSE.txt",
+      "size": 1337,
+      "hash": "jYKRyvHO4m0jrPPrZ8n5otWPHGgbFqT76Mv7njwLWpsC"
+    },
+    {
+      "name": "license/third_party/caffeine_LICENSE.txt",
+      "size": 11357,
+      "hash": "WNHhf_5RCaeuKWyq_K39vmp9F28LxKsB4SpomwSZ2L0C"
+    },
+    {
+      "name": "license/third_party/closure-compiler_LICENSE.txt",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "license/third_party/compose_license.txt",
+      "size": 10175,
+      "hash": "gJ-h7SFFD1mCfR6a7HILvEtodDT6Iig8bLXdgqR6ucAC"
+    },
+    {
+      "name": "license/third_party/dart_LICENSE.txt",
+      "size": 2323,
+      "hash": "pXKHlVG4AR2xT-shKQbX1pCrvlingD-y1vJqviGXqwsC"
+    },
+    {
+      "name": "license/third_party/fastutil_licence",
+      "size": 11386,
+      "hash": "-0EeEwWf42SbJjDWuU96Ax0Imop45JJWAzxOPz2j8fQC"
+    },
+    {
+      "name": "license/third_party/gradle-node-plugin_LICENSE.txt",
+      "size": 11323,
+      "hash": "bcDgaNzzpbyOBUIFuFt3IOHUkmW7xkv1FdLPeRl99poC"
+    },
+    {
+      "name": "license/third_party/gradle_custom_user_plugin_license.txt",
+      "size": 11342,
+      "hash": "ax5o75fxZKDSVtnHz1PZ8L-yoViEhJXbG9uMue8KSFAC"
+    },
+    {
+      "name": "license/third_party/gradle_license.txt",
+      "size": 23605,
+      "hash": "9eZh3GNcgqLa1aa9kscbuJUAAghl4Lhv-tS992T3jkQC"
+    },
+    {
+      "name": "license/third_party/guava_license.txt",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "license/third_party/gwt_license.txt",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "license/third_party/jgit_license.txt",
+      "size": 1592,
+      "hash": "XCD7UpXCYq7GqMM-1vzWFkZiSlePNt-ta3N-uW1cUegC"
+    },
+    {
+      "name": "license/third_party/jquery_license.txt",
+      "size": 1376,
+      "hash": "31fWn7px0uvKBIpc434W-Ou94zS3m8sqFdK1ignWQkEC"
+    },
+    {
+      "name": "license/third_party/jshashtable_license.txt",
+      "size": 594,
+      "hash": "gLglsNbeZ6kjCR3ZsO5nsSs-F8ATVsdTrtSUHAJuUfgC"
+    },
+    {
+      "name": "license/third_party/karma-teamcity-reporter_LICENSE.txt",
+      "size": 1094,
+      "hash": "ruxVkZyqWzvJXNTIpV8vlMAA2yy0Pxaiq2LZJctkaVsC"
+    },
+    {
+      "name": "license/third_party/karma_LICENSE.txt",
+      "size": 1077,
+      "hash": "D_mBBeGjbovjUtA9ON9-x9duLyERjZkwjVj4hKGYVfsC"
+    },
+    {
+      "name": "license/third_party/lodash_LICENSE.txt",
+      "size": 1966,
+      "hash": "2geZkwkTgeS1ghZHWAMlMpvzzNxP3ozeF5fxRIPBO8wC"
+    },
+    {
+      "name": "license/third_party/lombok_LICENSE.txt",
+      "size": 1076,
+      "hash": "YQ-MC-E-3i7RBJUpI7pjUG73BUPXKUGiX61eF_kIFKIC"
+    },
+    {
+      "name": "license/third_party/maven_LICENSE.txt",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "license/third_party/mocha-teamcity-reporter_LICENSE.txt",
+      "size": 1080,
+      "hash": "rY8n42AWvV1I37E5g9H3Ql6Pjf1Wf6Y_0YxE1KkjXZAC"
+    },
+    {
+      "name": "license/third_party/okhttp_license.txt",
+      "size": 587,
+      "hash": "5mbqTNqOcSIyG-yOofGHBfRpqoWbr5Ia63c_VJcJ_MkC"
+    },
+    {
+      "name": "license/third_party/opentelemetry_license.txt",
+      "size": 11357,
+      "hash": "xx0jnfkXJvxRnG63LTGOxlggYnIysveWIZ6H3PNdCrQC"
+    },
+    {
+      "name": "license/third_party/power_assert_license.txt",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "license/third_party/protobuf_license.txt",
+      "size": 1732,
+      "hash": "McdQXDGh6oVXpTYs1plG3J9e6A-sj6HRsVMcCFMEl7AC"
+    },
+    {
+      "name": "license/third_party/prototype_license.txt",
+      "size": 934,
+      "hash": "G7wDYr8ngJsNWs_QMLlVBW_rA8eB88W4dpqvBug4qawC"
+    },
+    {
+      "name": "license/third_party/rhino_LICENSE.txt",
+      "size": 49052,
+      "hash": "j_TQGr5LDNFEt4lhlZJOQhvEGgH_x5CAx7Xyx9dcFjIC"
+    },
+    {
+      "name": "license/third_party/scala_license.txt",
+      "size": 1733,
+      "hash": "iykQeFbcWEz5Do6nzFtIRzOexpB9Yer7xbGoQ6gy-TUC"
+    },
+    {
+      "name": "license/third_party/sl4f_license.txt",
+      "size": 1186,
+      "hash": "sDrvp8eF1M7rWn66nt8AaZeKX3IK9TiyKG1Ixo0ClJAC"
+    },
+    {
+      "name": "license/third_party/stax2-api.txt",
+      "size": 388,
+      "hash": "fzMiHcbHbz6OpBEQiOyQXKS6Wc36vWfifhlTqU0HrjQC"
+    },
+    {
+      "name": "license/third_party/sun_license.txt",
+      "size": 245,
+      "hash": "EQCruMnUHrShf_ViM-aLSfrx7cYxT5taMt3prNZiL2QC"
+    },
+    {
+      "name": "license/third_party/teamcity-service-messages_LICENSE.txt",
+      "size": 1058,
+      "hash": "P6BRgeAp3-hm4z-CXWh58r29dIk2jbNn47GphqgQ5ywC"
+    },
+    {
+      "name": "license/third_party/testdata/dagger_license.txt",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "license/third_party/testdata/eclipse_distribution_license.txt",
+      "size": 1562,
+      "hash": "1wVvfXsHVKukRzS0iyxum3NMNQhRdlwH1yS7X7NOybMC"
+    },
+    {
+      "name": "license/third_party/testdata/eclipse_license.txt",
+      "size": 11624,
+      "hash": "Dbqc1byDPWpA9fWjTbcON7bOHNM328LwbM8dvFIdIHkC"
+    },
+    {
+      "name": "license/third_party/testdata/findbugs_license.txt",
+      "size": 26530,
+      "hash": "3GJlINzVOiL3J68-5Cx3DlbJemT-OtsGN5nYqwMv5VEC"
+    },
+    {
+      "name": "license/third_party/testdata/jspecify_license.txt",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "license/third_party/testdata/lombok_license.txt",
+      "size": 1075,
+      "hash": "XQFV6yIfzVolvLDMR2EFepdRsjdWFeBDW3Yw_8LwuBAC"
+    },
+    {
+      "name": "license/third_party/testdata/rxjava_license.txt",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "license/third_party/testdata/spring_license.txt",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "license/third_party/threetenbp_license.txt",
+      "size": 1520,
+      "hash": "0bxTtJOjqzh7QnF-1cSxl2pQSJlvgRVCeBAL_4bTkzEC"
+    }
+  ]
+}
