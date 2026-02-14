@@ -15,6 +15,19 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        // NDK 설정
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+        }
+    }
+    
+    // CMake 설정
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     buildTypes {
@@ -27,8 +40,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures {
         compose = true
@@ -56,7 +69,7 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-    implementation(libs.webrtc.android)
+        // implementation(libs.webrtc.android) // webrtc-custom.aar만 사용
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.android)
     implementation(platform("androidx.compose:compose-bom:2023.10.01"))
@@ -66,4 +79,5 @@ dependencies {
     
     // sherpa-onnx TTS (Espeak)
     implementation(files("libs/sherpa-onnx-1.12.24.aar"))
+    implementation(mapOf("name" to "webrtc-custom", "ext" to "aar"))
 }

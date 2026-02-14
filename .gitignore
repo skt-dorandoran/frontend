@@ -164,4 +164,6 @@ fabric.properties
 
 !/gradle/wrapper/gradle-wrapper.jar
 
-# End of https://www.toptal.com/developers/gitignore/api/android,androidstudio
+# End of https://www.toptal.com/developers/gitignore/api/android,androidstudiowebrtc-build/android-sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/linux-x86_64/lib64/libclang-cpp.so.14git
+webrtc-build/android-sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/linux-x86_64/lib64/libclang.so.13
+webrtc-build/android-sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/linux-x86_64/lib64/liblldb.so.14.0.7git
