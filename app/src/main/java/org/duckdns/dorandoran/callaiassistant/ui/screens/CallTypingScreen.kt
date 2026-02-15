@@ -77,6 +77,8 @@ fun CallTypingScreen(
             CustomAudioDeviceModule.clearTtsQueue()
             messageTts = null
             isTtsReady = false
+            // 통화 종료 시 history 초기화
+            viewModel.clearHistory()
         }
     }
     

@@ -60,7 +60,6 @@ fun CallNavHost(
         composable(CallRoutes.INTRO) {
             // 통화 중일 때 뒤로가기 버튼 무시
             BackHandler { }
-            
             WebRtcInCallScreen(
                 phoneNumber = phoneNumber,
                 connectionState = connectionState,
@@ -77,7 +76,7 @@ fun CallNavHost(
                 navController = navController
             )
         }
-        
+
         composable(CallRoutes.TYPING) {
             CallTypingScreen(
                 navController = navController,

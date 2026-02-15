@@ -27,6 +27,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
+import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneApi
+import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore
+import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneNotification
+import org.duckdns.dorandoran.callaiassistant.VoiceTrainingActivity
+import android.widget.Toast
+import androidx.compose.material3.CircularProgressIndicator
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+import androidx.compose.runtime.rememberCoroutineScope
 
 class VoiceCloneSettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,7 +55,10 @@ private fun VoiceCloneSettingsContent(onBack: () -> Unit) {
     val context = LocalContext.current
     val activity = context as? Activity
     var isVoiceCloneEnabled by remember { mutableStateOf(SettingsStore.isVoiceCloneEnabled(context)) }
-    var isVoiceTrained by remember { mutableStateOf(false) } // 실제 앱 로직에 따라 초기값 연동 필요
+    var isVoiceTrained by remember { mutableStateOf(VoiceCloneStore.getVoiceId(context) != null) }
+    var isModelCreating by remember { mutableStateOf(false) }
+    var modelCreateError by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
     val currentEnabled by rememberUpdatedState(isVoiceCloneEnabled)
     val currentTrained by rememberUpdatedState(isVoiceTrained)
 
@@ -171,7 +185,16 @@ private fun VoiceCloneSettingsContent(onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (!isVoiceTrained) {
+                        if (isModelCreating) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator()
+                                Text("음성 클론 모델 생성중입니다", color = Color.Gray)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                if (modelCreateError != null) {
+                                    Text(modelCreateError!!, color = Color.Red)
+                                }
+                            }
+                        } else if (!isVoiceTrained) {
                             Button(
                                 onClick = {
                                     val intent = Intent(context, VoiceTrainingActivity::class.java)
@@ -181,7 +204,6 @@ private fun VoiceCloneSettingsContent(onBack: () -> Unit) {
                                     containerColor = primaryBlue,
                                     contentColor = Color.White
                                 ),
-                                // 둥근 알약 모양 (Pill Shape)
                                 shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
                                 contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                             ) {
@@ -199,10 +221,27 @@ private fun VoiceCloneSettingsContent(onBack: () -> Unit) {
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
+                            // 모델 생성 버튼 및 관련 로직 완전 삭제
                         } else {
-                            // 이미 학습된 경우 (디자인 시안에는 없지만 기능 유지를 위해 스타일만 통일)
+                            // 이미 학습된 경우: 삭제 버튼 제공
                             Button(
-                                onClick = { },
+                                onClick = {
+                                    val voiceId = VoiceCloneStore.getVoiceId(context)
+                                    if (voiceId != null) {
+                                        coroutineScope.launch {
+                                            val result = withContext(Dispatchers.IO) {
+                                                VoiceCloneApi.deleteVoiceClone(voiceId)
+                                            }
+                                            if (result) {
+                                                VoiceCloneStore.clearVoiceId(context)
+                                                isVoiceTrained = false
+                                                Toast.makeText(context, "음성 클론 모델이 삭제되었습니다.", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "모델 삭제 실패", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                },
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = Color(0xFFF0F0F0),
                                     contentColor = Color.Black
@@ -211,7 +250,7 @@ private fun VoiceCloneSettingsContent(onBack: () -> Unit) {
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    text = "내 목소리 변경하기",
+                                    text = "음성 클론 모델 삭제",
                                     style = MaterialTheme.typography.labelLarge.copy(
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Medium

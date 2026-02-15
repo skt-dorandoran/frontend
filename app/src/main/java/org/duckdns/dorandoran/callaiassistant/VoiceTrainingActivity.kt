@@ -1,5 +1,13 @@
 package org.duckdns.dorandoran.callaiassistant
 
+import android.media.MediaPlayer
+import org.duckdns.dorandoran.callaiassistant.voiceclone.WavUtil
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.MediaMuxer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -30,6 +38,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.FiberManualRecord
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -46,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.graphicsLayer
+
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -53,6 +66,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import kotlinx.coroutines.delay
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
+import androidx.compose.ui.platform.LocalContext
+import java.io.File
+import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceRecorder
+import org.duckdns.dorandoran.callaiassistant.voiceclone.AudioMergeUtil
 
 class VoiceTrainingActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -70,8 +87,20 @@ class VoiceTrainingActivity : ComponentActivity() {
 
 @Composable
 private fun VoiceTrainingScreen(onClose: () -> Unit) {
+    val context = LocalContext.current
+    // 학습 상태 관리 변수 추가
     var isTrainingStarted by remember { mutableStateOf(false) }
     var trainingStep by remember { mutableStateOf(0) }
+        // 4단계: ffmpeg 합치기/재생 관련 상태
+        var isMerged by remember { mutableStateOf(false) }
+        var isPlaying by remember { mutableStateOf(false) }
+        val mergedFile = File(context.cacheDir, "voice_merged.m4a")
+        val audioFiles = listOf(
+            File(context.cacheDir, "voice_step1.m4a"),
+            File(context.cacheDir, "voice_step2.m4a"),
+            File(context.cacheDir, "voice_step3.m4a")
+        )
+        var audioPlayer: MediaPlayer? by remember { mutableStateOf(null) }
     val pulseTransition = rememberInfiniteTransition(label = "voiceTrainingPulse")
     val pulseScale by pulseTransition.animateFloat(
         initialValue = 1f,
@@ -92,31 +121,33 @@ private fun VoiceTrainingScreen(onClose: () -> Unit) {
         label = "voiceTrainingPulseAlpha"
     )
 
-    LaunchedEffect(isTrainingStarted, trainingStep) {
-        if (!isTrainingStarted) return@LaunchedEffect
-        if (trainingStep >= 4) return@LaunchedEffect
-        delay(3000)
-        trainingStep += 1
+    // 녹음 상태 관리
+    var isRecording by remember { mutableStateOf(false) }
+    var recordedFilePath by remember { mutableStateOf<String?>(null) }
+    val recorder = remember { mutableStateOf<org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceRecorder?>(null) }
+
+    val boxModifier = if (isTrainingStarted && trainingStep < 4) {
+        Modifier
+            .fillMaxSize()
+            .background(
+                Brush.linearGradient(
+                    colorStops = arrayOf(
+                        0.0f to ComposeColor(0xCCA371FE),
+                        0.58f to ComposeColor(0xFF74A5FA),
+                        1.0f to ComposeColor(0xFF74A5FA)
+                    )
+                )
+            )
+    } else {
+        Modifier
+            .fillMaxSize()
+            .background(
+                ComposeColor.White
+            )
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                if (isTrainingStarted && trainingStep < 4) {
-                    Brush.linearGradient(
-                        colorStops = arrayOf(
-                            0.0f to ComposeColor(0xCCA371FE),
-                            0.58f to ComposeColor(0xFF74A5FA),
-                            1.0f to ComposeColor(0xFF74A5FA)
-                        )
-                    )
-                } else {
-                    Brush.linearGradient(
-                        colors = listOf(ComposeColor.White, ComposeColor.White)
-                    )
-                }
-            )
+        modifier = boxModifier
     ) {
         Column(
             modifier = Modifier
@@ -238,7 +269,126 @@ private fun VoiceTrainingScreen(onClose: () -> Unit) {
                 Spacer(modifier = Modifier.height(32.dp))
             } else {
                 // ── 학습 시작 화면 (피그마 디자인) ──
-                if (trainingStep == 4) {
+                if (trainingStep == 0) {
+                    // 안내 문장 페이지에서 '다음' 버튼 노출
+                    Box(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 100.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            // 흰색 원형 아이콘 (반투명 배경 + 테두리)
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .graphicsLayer {
+                                        val scale = if (isTrainingStarted) pulseScale else 1f
+                                        scaleX = scale
+                                        scaleY = scale
+                                    }
+                                    .background(
+                                        color = ComposeColor.White.copy(alpha = pulseAlpha),
+                                        shape = CircleShape
+                                    )
+                                    .border(
+                                        width = 1.5.dp,
+                                        color = ComposeColor.White.copy(alpha = pulseAlpha + 0.18f),
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(
+                                            color = ComposeColor.White,
+                                            shape = CircleShape
+                                        )
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(32.dp))
+
+                            Column(
+                                modifier = Modifier.height(136.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                // 메인 타이틀
+                                Text(
+                                    text = "안내 문장을\n편하게 읽어주세요",
+                                    fontSize = 25.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = ComposeColor.White,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 32.sp
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // 부제
+                                Text(
+                                    text = "내 목소리를 학습하고 있어요\n평소 말하듯 편하게 읽어주세요",
+                                    fontSize = 15.sp,
+                                    color = ComposeColor.White.copy(alpha = 0.7f),
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 20.sp,
+                                    minLines = 2
+                                )
+                            }
+                        }
+                        // 안내문장 하단에 '다음' 버튼 노출
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 62.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Button(
+                                onClick = { trainingStep = 1 },
+                                shape = RoundedCornerShape(40.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = ComposeColor(0xFF4A7BF7)
+                                ),
+                                modifier = Modifier.height(48.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "다음 →",
+                                        color = ComposeColor.White,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 17.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else if (trainingStep == 4) {
+                    // 4단계 진입 시 MediaExtractor+MediaMuxer로 m4a 파일 합치고 자동 재생
+                    LaunchedEffect(trainingStep) {
+                        if (!isMerged && audioFiles.all { it.exists() }) {
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    AudioMergeUtil.mergeM4aFiles(audioFiles, mergedFile)
+                                    withContext(Dispatchers.Main) {
+                                        audioPlayer?.release()
+                                        audioPlayer = MediaPlayer().apply {
+                                            setDataSource(mergedFile.absolutePath)
+                                            prepare()
+                                            start()
+                                            setOnCompletionListener { isPlaying = false }
+                                        }
+                                        isPlaying = true
+                                        isMerged = true
+                                    }
+                                } catch (e: Exception) {
+                                    // 실패 처리(필요시)
+                                }
+                            }
+                        }
+                    }
                     Box(modifier = Modifier.fillMaxSize()) {
                         Box(
                             modifier = Modifier
@@ -363,36 +513,135 @@ private fun VoiceTrainingScreen(onClose: () -> Unit) {
                                 )
                             }
                         }
-
-                        if (trainingStep > 0) {
+                        // 1~3페이지: 녹음 상태에 따라 버튼 UI/동작 분기
+                        if (trainingStep in 1..3) {
                             Column(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
                                     .padding(bottom = 62.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text(
-                                    text = "다시 말하기",
-                                    fontSize = 16.sp,
-                                    color = ComposeColor.White.copy(alpha = 0.7f),
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .size(52.dp)
-                                        .background(
-                                            color = ComposeColor.White.copy(alpha = 0.85f),
-                                            shape = CircleShape
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Replay,
-                                        contentDescription = "다시 말하기",
-                                        tint = ComposeColor(0xFF4E4E4E),
-                                        modifier = Modifier.size(26.dp)
+                                if (!isRecording && recordedFilePath == null) {
+                                    // 녹음 전: '음성 녹음' 원형+마이크 아이콘(파란 배경)
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Text(
+                                        text = "음성 녹음",
+                                        fontSize = 16.sp,
+                                        color = ComposeColor.White.copy(alpha = 0.7f),
+                                        textAlign = TextAlign.Center
                                     )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    IconButton(
+                                        onClick = {
+                                            // 녹음 시작
+                                            val file = File(context.cacheDir, "voice_step${trainingStep}.m4a")
+                                            val rec = org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceRecorder(file)
+                                            rec.start()
+                                            recorder.value = rec
+                                            isRecording = true
+                                            recordedFilePath = null
+                                        },
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .background(
+                                                color = ComposeColor(0xFF2979FF), // 파란색
+                                                shape = CircleShape
+                                            )
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Icon(
+                                                imageVector = Icons.Default.Mic,
+                                                contentDescription = "음성 녹음",
+                                                tint = ComposeColor.White,
+                                                modifier = Modifier.size(26.dp)
+                                            )
+                                        }
+                                    }
+                                } else if (isRecording) {
+                                    // 녹음 중: '녹음 완료' 원형+중지 아이콘(빨간 배경)
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Text(
+                                        text = "녹음 완료",
+                                        fontSize = 16.sp,
+                                        color = ComposeColor.White.copy(alpha = 0.7f),
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    IconButton(
+                                        onClick = {
+                                            // 녹음 완료
+                                            recorder.value?.stop()
+                                            recordedFilePath = File(context.cacheDir, "voice_step${trainingStep}.m4a").path
+                                            isRecording = false
+                                        },
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .background(
+                                                color = ComposeColor(0xFFD32F2F), // 빨간색
+                                                shape = CircleShape
+                                            )
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Icon(
+                                                imageVector = Icons.Default.Stop,
+                                                contentDescription = "녹음 완료",
+                                                tint = ComposeColor.White,
+                                                modifier = Modifier.size(26.dp)
+                                            )
+                                        }
+                                    }
+                                } else if (!isRecording && recordedFilePath != null) {
+                                    // 녹음 완료 후: '다음', '다시 말하기' 버튼 표시
+                                    Button(
+                                        onClick = { trainingStep += 1; recordedFilePath = null },
+                                        shape = RoundedCornerShape(40.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = ComposeColor(0xFF4A7BF7)
+                                        ),
+                                        modifier = Modifier.height(48.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "다음 →",
+                                                color = ComposeColor.White,
+                                                fontWeight = FontWeight.Medium,
+                                                fontSize = 17.sp
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Text(
+                                        text = "다시 말하기",
+                                        fontSize = 16.sp,
+                                        color = ComposeColor.White.copy(alpha = 0.7f),
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    IconButton(
+                                        onClick = {
+                                            // 기존 파일 삭제 및 녹음 재시작
+                                            recordedFilePath?.let { File(it).delete() }
+                                            val file = File(context.cacheDir, "voice_step${trainingStep}.m4a")
+                                            val rec = org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceRecorder(file)
+                                            rec.start()
+                                            recorder.value = rec
+                                            isRecording = true
+                                            recordedFilePath = null
+                                        },
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .background(
+                                                color = ComposeColor.White.copy(alpha = 0.85f),
+                                                shape = CircleShape
+                                            )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Replay,
+                                            contentDescription = "다시 말하기",
+                                            tint = ComposeColor(0xFF4E4E4E),
+                                            modifier = Modifier.size(26.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
