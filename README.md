@@ -41,6 +41,7 @@
 - JNI, C++
 - Gradle, CMake
 
-## 문서
+## 참고 및 문서
 - [TTS WebRTC 네이티브 믹싱 문제 해결 기록](TTS_WebRTC_Mixing_Solution.md)
 - [왜 커스텀 WebRTC에서만 TTS 믹싱이 동작하는가?](TTS_WebRTC_Mixing_Why_Custom_Works.md)
+- [음성 병합(Voice Merge) 작업 히스토리](voice_merge_history.md)

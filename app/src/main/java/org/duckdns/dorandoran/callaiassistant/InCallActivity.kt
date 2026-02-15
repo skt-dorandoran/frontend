@@ -26,6 +26,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.delay
 import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
+import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore
 import org.duckdns.dorandoran.callaiassistant.CallAudioHelper
 import org.duckdns.dorandoran.callaiassistant.InCallManager
 import org.duckdns.dorandoran.callaiassistant.ui.screens.CallState
@@ -319,12 +320,13 @@ private fun formatDisplayNumber(number: String): String {
 
 @Composable
 private fun InCallContent(onFinish: () -> Unit) {
+    val context = LocalContext.current
+    val voiceId = VoiceCloneStore.getVoiceId(context)
     val call = remember { InCallManager.getPrimaryCall() }
     var contactName by remember { mutableStateOf<String?>(null) }
     var callDuration by remember { mutableLongStateOf(0L) }
     var callState by remember { mutableStateOf(CallState.DIALING) }
     var callStartTime by remember { mutableStateOf<Long?>(null) }
-    val context = LocalContext.current
     val repository = remember { CallLogRepository(context) }
     val audioManager = remember { context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager }
     var tts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
@@ -376,16 +378,22 @@ private fun InCallContent(onFinish: () -> Unit) {
     LaunchedEffect(callState) {
         if (callState == CallState.ACTIVE) {
             CallAudioHelper.setCallAudioMode(audioManager)
-        }
-        if (callState == CallState.ACTIVE) {
-            if (tts == null) {
-                tts = TtsManager.initializeForCall(
-                context,
-                onReady = { t ->
-                    tts = t
-                    ttsReady = true
-                    }
+            if (voiceId != null) {
+                // 음성 클론 모델이 있으면 내장 TTS 미사용, SherpaOnnxTtsManager만 사용
+                TtsManager.initializeForCall(
+                    context = context,
+                    onReady = { ttsReady = true }
                 )
+            } else {
+                if (tts == null) {
+                    tts = TtsManager.initializeForCall(
+                        context = context,
+                        onReady = { t ->
+                            tts = t
+                            ttsReady = true
+                        }
+                    )
+                }
             }
         }
     }
@@ -412,8 +420,12 @@ private fun InCallContent(onFinish: () -> Unit) {
         callState = callState,
         callDurationSeconds = callDuration,
         onAnswerCall = { InCallManager.answer(call) },
-        onSpeakText = if (ttsReady && tts != null) {
-            { text -> tts?.let { TtsManager.speak(it, text, audioManager) } }
+        onSpeakText = if (ttsReady) {
+            if (voiceId != null) {
+                { text -> TtsManager.speak(null, text, audioManager) }
+            } else {
+                { text -> tts?.let { TtsManager.speak(it, text, audioManager) } }
+            }
         } else null,
         isSpeakerOn = isSpeakerOn,
         onToggleSpeaker = { InCallManager.setSpeakerphone(!isSpeakerOn) },
