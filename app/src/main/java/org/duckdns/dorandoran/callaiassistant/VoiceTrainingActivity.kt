@@ -7,6 +7,8 @@ import android.media.MediaFormat
 import android.media.MediaMuxer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 import android.graphics.Color
 import android.os.Bundle
@@ -53,6 +55,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -71,7 +74,9 @@ import java.io.File
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceRecorder
 import org.duckdns.dorandoran.callaiassistant.voiceclone.AudioMergeUtil
 
+
 class VoiceTrainingActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -87,10 +92,13 @@ class VoiceTrainingActivity : ComponentActivity() {
 
 @Composable
 private fun VoiceTrainingScreen(onClose: () -> Unit) {
+    val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     // 학습 상태 관리 변수 추가
     var isTrainingStarted by remember { mutableStateOf(false) }
     var trainingStep by remember { mutableStateOf(0) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var voiceIdState by remember { mutableStateOf(org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore.getVoiceId(context)) }
         // 4단계: ffmpeg 합치기/재생 관련 상태
         var isMerged by remember { mutableStateOf(false) }
         var isPlaying by remember { mutableStateOf(false) }
@@ -251,7 +259,7 @@ private fun VoiceTrainingScreen(onClose: () -> Unit) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "내 목소리 학습 시작",
+                            text = if (voiceIdState != null) "내 목소리 다시 학습" else "내 목소리 학습 시작",
                             color = ComposeColor.White,
                             fontWeight = FontWeight.Medium,
                             fontSize = 17.sp
@@ -266,7 +274,54 @@ private fun VoiceTrainingScreen(onClose: () -> Unit) {
                     }
                 }
 
+                if (voiceIdState != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = { showDeleteDialog = true },
+                        shape = RoundedCornerShape(40.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ComposeColor(0xFFD32F2F)
+                        ),
+                        modifier = Modifier.height(44.dp)
+                    ) {
+                        Text(
+                            text = "내 목소리 삭제",
+                            color = ComposeColor.White,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(32.dp))
+
+                // 삭제 확인 다이얼로그
+                if (showDeleteDialog) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { showDeleteDialog = false },
+                        title = { Text("내 목소리 삭제") },
+                        text = { Text("정말로 내 목소리 클론을 삭제하시겠습니까?") },
+                        confirmButton = {
+                            Button(onClick = {
+                                showDeleteDialog = false
+                                voiceIdState?.let { vid ->
+                                    coroutineScope.launch {
+                                        val result = withContext(Dispatchers.IO) {
+                                            org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneApi.deleteVoiceClone(vid)
+                                        }
+                                        if (result) {
+                                            org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore.clearVoiceId(context)
+                                            voiceIdState = null
+                                        }
+                                    }
+                                }
+                            }) { Text("확인") }
+                        },
+                        dismissButton = {
+                            Button(onClick = { showDeleteDialog = false }) { Text("취소") }
+                        }
+                    )
+                }
             } else {
                 // ── 학습 시작 화면 (피그마 디자인) ──
                 if (trainingStep == 0) {
@@ -366,7 +421,7 @@ private fun VoiceTrainingScreen(onClose: () -> Unit) {
                         }
                     }
                 } else if (trainingStep == 4) {
-                    // 4단계 진입 시 MediaExtractor+MediaMuxer로 m4a 파일 합치고 자동 재생
+                    // 4단계 진입 시 MediaExtractor+MediaMuxer로 m4a 파일 합치고 자동 재생 및 모델 학습
                     LaunchedEffect(trainingStep) {
                         if (!isMerged && audioFiles.all { it.exists() }) {
                             withContext(Dispatchers.IO) {
@@ -385,6 +440,27 @@ private fun VoiceTrainingScreen(onClose: () -> Unit) {
                                     }
                                 } catch (e: Exception) {
                                     // 실패 처리(필요시)
+                                }
+                            }
+                        }
+                        // 병합 완료 후 모델 학습 백그라운드 처리
+                        if (isMerged && mergedFile.exists()) {
+                            // 이미 voiceId가 있으면 재학습으로 간주
+                            val prefsVoiceId = org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore.getVoiceId(context)
+                            if (prefsVoiceId == null) {
+                                coroutineScope.launch {
+                                    val duration = try { // m4a duration(ms) 구하기
+                                        android.media.MediaMetadataRetriever().apply { setDataSource(mergedFile.absolutePath) }.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLong() ?: 20000L
+                                    } catch (_: Exception) { 20000L }
+                                    val uuid = java.util.UUID.randomUUID().toString()
+                                    val trainResp = withContext(Dispatchers.IO) {
+                                        org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneApi.trainVoiceClone(uuid, mergedFile)
+                                    }
+                                    val voiceId = trainResp?.optString("voiceId")
+                                    if (voiceId != null) {
+                                        org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore.setVoiceId(context, voiceId)
+                                        org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneNotification.showModelComplete(context)
+                                    }
                                 }
                             }
                         }
