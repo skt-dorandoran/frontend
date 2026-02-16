@@ -70,6 +70,8 @@ import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState
 import org.duckdns.dorandoran.callaiassistant.stt.SttManager
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
+import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
+import java.io.File
 
 @Composable
 fun WebRtcInCallScreen(
@@ -149,17 +151,56 @@ fun WebRtcInCallScreen(
             hasPlayedIntroPrompt = false
         } else if (connectionState == WebRtcConnectionState.IN_CALL && !hasPlayedIntroPrompt && introPromptEnabled) {
             hasPlayedIntroPrompt = true
-            messageTts = TtsManager.initializeForCall(
-                context = context,
-                onReady = { tts ->
-                    messageTts = tts
-                    TtsManager.speak(
-                        tts = tts,
+            // 안내멘트 TTS 분기 로그
+            android.util.Log.e("VoiceCloneTTS", "[WebRtcInCallScreen] 안내멘트 tts 분기: isVoiceCloneEnabled=$isVoiceCloneEnabled, voiceId=$voiceId, text=$introPromptText")
+            if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
+                // 음성 클론 TTS 분기
+                android.util.Log.d("VoiceCloneTTS", "[WebRtcInCallScreen] ==> 안내멘트 voiceCloneTTS 분기 진입, text: $introPromptText")
+                val callIdStr = "call_${System.currentTimeMillis()}"
+                val contextSafe = context.applicationContext
+                val audioManagerSafe = audioManager
+                coroutineScope.launch {
+                    val wavFile = VoiceCloneTtsApi.synthesizeVoiceClone(
+                        callId = callIdStr,
                         text = introPromptText,
-                        audioManager = audioManager
+                        voiceId = voiceId,
+                        // sourceType = "intro_prompt",
+                        sourceType = "ai_response",
+                        context = contextSafe
                     )
+                    if (wavFile != null && wavFile.exists()) {
+                        android.util.Log.d("VoiceCloneTTS", "[WebRtcInCallScreen] 안내멘트 음성 클론 TTS 합성 및 재생 성공: ${wavFile.absolutePath}")
+                        SherpaOnnxTtsManager.playWavFile(wavFile, audioManagerSafe)
+                    } else {
+                        android.util.Log.w("VoiceCloneTTS", "[WebRtcInCallScreen] 안내멘트 음성 클론 TTS 합성 실패, 내장 TTS로 대체: $introPromptText")
+                        messageTts = TtsManager.initializeForCall(
+                            context = contextSafe,
+                            onReady = { tts ->
+                                messageTts = tts
+                                TtsManager.speak(
+                                    tts = tts,
+                                    text = introPromptText,
+                                    audioManager = audioManagerSafe,
+                                )
+                            }
+                        )
+                    }
                 }
-            )
+            } else {
+                // 내장 TTS 분기
+                android.util.Log.d("VoiceCloneTTS", "[WebRtcInCallScreen] ==> 안내멘트 SherpaOnnxTtsManager(내장 TTS) 분기 진입, text: $introPromptText")
+                messageTts = TtsManager.initializeForCall(
+                    context = context,
+                    onReady = { tts ->
+                        messageTts = tts
+                        TtsManager.speak(
+                            tts = tts,
+                            text = introPromptText,
+                            audioManager = audioManager
+                        )
+                    }
+                )
+            }
         }
     }
 

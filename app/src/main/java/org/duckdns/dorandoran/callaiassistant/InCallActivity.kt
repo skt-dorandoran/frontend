@@ -417,9 +417,6 @@ private fun InCallContent(onFinish: () -> Unit) {
         }
     }
 
-    // 분기 조건값 강제 로그
-    android.util.Log.e("VoiceCloneTTS", "[onSpeakText 분기 직전] ttsReady=$ttsReady, isVoiceCloneEnabled=$isVoiceCloneEnabled, voiceId=$voiceId")
-
     InCallScreen(
         phoneNumber = number,
         contactName = contactName,
