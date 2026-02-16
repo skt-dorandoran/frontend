@@ -1,6 +1,4 @@
 package org.duckdns.dorandoran.callaiassistant.ui.screens
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.rememberSaveable
 
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -89,8 +87,7 @@ fun WebRtcInCallScreen(
     modifier: Modifier = Modifier
 ) {
     // 안내 멘트 TTS 재생 여부 플래그
-    var hasPlayedIntroPrompt by rememberSaveable { mutableStateOf(false) }
-    var prevConnectionState by rememberSaveable { mutableStateOf<WebRtcConnectionState?>(null) }
+    var hasPlayedIntroPrompt by remember { mutableStateOf(false) }
     var isSpeakerphoneOn by remember { mutableStateOf<Boolean>(false) }
     var selectedMode by remember { mutableStateOf(CallMode.DIRECT) }
     var callScreenState by remember { mutableStateOf(CallScreenState.MODE_SELECT) }
@@ -109,6 +106,9 @@ fun WebRtcInCallScreen(
     val audioManager = remember {
         context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
     }
+    // 음성 클론 TTS 분기용 상태
+    val voiceId = remember { org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore.getVoiceId(context) }
+    val isVoiceCloneEnabled = remember { org.duckdns.dorandoran.callaiassistant.SettingsStore.isVoiceCloneEnabled(context) }
     // 안내 멘트 텍스트 결정
     val introPromptEnabled = SettingsStore.isCallIntroPromptEnabled(context)
     val introPromptStyle = SettingsStore.getCallIntroPromptStyle(context)
@@ -140,22 +140,14 @@ fun WebRtcInCallScreen(
 
     // 통화가 완전히 끝났을 때만 TTS 정리 및 안내 멘트 재생
     // 안내 멘트는 최초 통화 시작 시에만 재생, 직접 말하기 모드 복귀 시에는 재생하지 않음
-    LaunchedEffect(connectionState) {
-        if (prevConnectionState == WebRtcConnectionState.IN_CALL && connectionState == WebRtcConnectionState.DISCONNECTED) {
+    LaunchedEffect(hasPlayedIntroPrompt, connectionState) {
+        if (connectionState == WebRtcConnectionState.DISCONNECTED) {
             Log.d("WebRtcInCallScreen", "Connection state DISCONNECTED - shutting down TTS")
             TtsManager.shutdown(messageTts)
             messageTts = null
             SherpaOnnxTtsManager.shutdown()
             hasPlayedIntroPrompt = false
-        }
-        if (
-            prevConnectionState != WebRtcConnectionState.IN_CALL &&
-            connectionState == WebRtcConnectionState.IN_CALL &&
-            !hasPlayedIntroPrompt && introPromptEnabled
-        ) {
-            // 안내 멘트 재생 전 TTS 완전 shutdown
-            TtsManager.shutdown(messageTts)
-            messageTts = null
+        } else if (connectionState == WebRtcConnectionState.IN_CALL && !hasPlayedIntroPrompt && introPromptEnabled) {
             hasPlayedIntroPrompt = true
             messageTts = TtsManager.initializeForCall(
                 context = context,
@@ -169,7 +161,6 @@ fun WebRtcInCallScreen(
                 }
             )
         }
-        prevConnectionState = connectionState
     }
 
     BackHandler(enabled = callScreenState == CallScreenState.KEYPAD) {
@@ -396,24 +387,68 @@ fun WebRtcInCallScreen(
                                     val textToSend = userInputText
                                     isSendingMessage = true
                                     onDirectMessageSent(textToSend)
-                                    
-                                    // TTS 초기화 및 재생
-                                    messageTts = TtsManager.initializeForCall(
-                                        context = context,
-                                        onReady = { tts ->
-                                            messageTts = tts
-                                            TtsManager.speak(
-                                                tts = tts,
-                                                text = textToSend,
-                                                audioManager = audioManager,
-                                                onDone = {
-                                                    // TTS 재생 완료 시 버튼 재활성화
-                                                    userInputText = ""
-                                                    isSendingMessage = false
-                                                }
-                                            )
+
+                                    // 분기 조건 로그
+                                    android.util.Log.e("VoiceCloneTTS", "[WebRtcInCallScreen] tts 분기: isVoiceCloneEnabled=$isVoiceCloneEnabled, voiceId=$voiceId, text=$textToSend")
+
+                                    if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
+                                        // 음성 클론 TTS 분기
+                                        android.util.Log.d("VoiceCloneTTS", "[WebRtcInCallScreen] ==> voiceCloneTTS 분기 진입, text: $textToSend")
+                                        val callIdStr = "call_${System.currentTimeMillis()}"
+                                        val contextSafe = context.applicationContext
+                                        val audioManagerSafe = audioManager
+                                        val updateUi: () -> Unit = {
+                                            userInputText = ""
+                                            isSendingMessage = false
                                         }
-                                    )
+                                        // 코루틴으로 비동기 처리
+                                        coroutineScope.launch {
+                                            val wavFile = org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi.synthesizeVoiceClone(
+                                                callId = callIdStr,
+                                                text = textToSend,
+                                                voiceId = voiceId,
+                                                sourceType = "ai_response",
+                                                context = contextSafe
+                                            )
+                                            if (wavFile != null && wavFile.exists()) {
+                                                android.util.Log.d("VoiceCloneTTS", "[WebRtcInCallScreen] 음성 클론 TTS 합성 및 재생 성공: ${wavFile.absolutePath}")
+                                                org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager.playWavFile(wavFile, audioManagerSafe)
+                                            } else {
+                                                android.util.Log.w("VoiceCloneTTS", "[WebRtcInCallScreen] 음성 클론 TTS 합성 실패, 내장 TTS로 대체: $textToSend")
+                                                messageTts = TtsManager.initializeForCall(
+                                                    context = contextSafe,
+                                                    onReady = { tts ->
+                                                        messageTts = tts
+                                                        TtsManager.speak(
+                                                            tts = tts,
+                                                            text = textToSend,
+                                                            audioManager = audioManagerSafe,
+                                                            onDone = updateUi
+                                                        )
+                                                    }
+                                                )
+                                            }
+                                            updateUi()
+                                        }
+                                    } else {
+                                        // 내장 TTS 분기
+                                        android.util.Log.d("VoiceCloneTTS", "[WebRtcInCallScreen] ==> SherpaOnnxTtsManager(내장 TTS) 분기 진입, text: $textToSend")
+                                        messageTts = TtsManager.initializeForCall(
+                                            context = context,
+                                            onReady = { tts ->
+                                                messageTts = tts
+                                                TtsManager.speak(
+                                                    tts = tts,
+                                                    text = textToSend,
+                                                    audioManager = audioManager,
+                                                    onDone = {
+                                                        userInputText = ""
+                                                        isSendingMessage = false
+                                                    }
+                                                )
+                                            }
+                                        )
+                                    }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(14.dp),

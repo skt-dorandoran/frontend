@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import android.content.Intent
@@ -24,9 +25,12 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
+import org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore
+import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
 import org.duckdns.dorandoran.callaiassistant.CallAudioHelper
 import org.duckdns.dorandoran.callaiassistant.InCallManager
 import org.duckdns.dorandoran.callaiassistant.ui.screens.CallState
@@ -322,6 +326,8 @@ private fun formatDisplayNumber(number: String): String {
 private fun InCallContent(onFinish: () -> Unit) {
     val context = LocalContext.current
     val voiceId = VoiceCloneStore.getVoiceId(context)
+    val isVoiceCloneEnabled = SettingsStore.isVoiceCloneEnabled(context)
+    val coroutineScope = rememberCoroutineScope()
     val call = remember { InCallManager.getPrimaryCall() }
     var contactName by remember { mutableStateOf<String?>(null) }
     var callDuration by remember { mutableLongStateOf(0L) }
@@ -378,13 +384,7 @@ private fun InCallContent(onFinish: () -> Unit) {
     LaunchedEffect(callState) {
         if (callState == CallState.ACTIVE) {
             CallAudioHelper.setCallAudioMode(audioManager)
-            if (voiceId != null) {
-                // 음성 클론 모델이 있으면 내장 TTS 미사용, SherpaOnnxTtsManager만 사용
-                TtsManager.initializeForCall(
-                    context = context,
-                    onReady = { ttsReady = true }
-                )
-            } else {
+            if (voiceId.isNullOrBlank()) {
                 if (tts == null) {
                     tts = TtsManager.initializeForCall(
                         context = context,
@@ -394,6 +394,9 @@ private fun InCallContent(onFinish: () -> Unit) {
                         }
                     )
                 }
+            } else {
+                // 음성 클론 모델이 있으면 내장 TTS 미사용, SherpaOnnxTtsManager만 사용
+                ttsReady = true
             }
         }
     }
@@ -414,6 +417,9 @@ private fun InCallContent(onFinish: () -> Unit) {
         }
     }
 
+    // 분기 조건값 강제 로그
+    android.util.Log.e("VoiceCloneTTS", "[onSpeakText 분기 직전] ttsReady=$ttsReady, isVoiceCloneEnabled=$isVoiceCloneEnabled, voiceId=$voiceId")
+
     InCallScreen(
         phoneNumber = number,
         contactName = contactName,
@@ -421,10 +427,36 @@ private fun InCallContent(onFinish: () -> Unit) {
         callDurationSeconds = callDuration,
         onAnswerCall = { InCallManager.answer(call) },
         onSpeakText = if (ttsReady) {
-            if (voiceId != null) {
-                { text -> TtsManager.speak(null, text, audioManager) }
+            if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
+                { text: String ->
+                    android.util.Log.d("VoiceCloneTTS", "ttsReady: $ttsReady, isVoiceCloneEnabled: $isVoiceCloneEnabled, voiceId: $voiceId")
+                    android.util.Log.d("VoiceCloneTTS", "==> voiceCloneTTS 분기 진입, text: $text")
+                    val callIdStr = call.details?.let { it.javaClass.getMethod("getCallId").invoke(it)?.toString() } ?: "call_${System.currentTimeMillis()}"
+                    val contextSafe = context.applicationContext
+                    coroutineScope.launch {
+                        VoiceCloneTtsApi.synthesizeVoiceClone(
+                            callId = callIdStr,
+                            text = text,
+                            voiceId = voiceId,
+                            sourceType = "ai_response",
+                            context = contextSafe
+                        ).let { wavFile ->
+                            if (wavFile != null && wavFile.exists()) {
+                                android.util.Log.d("VoiceCloneTTS", "음성 클론 TTS 합성 및 재생 성공: ${wavFile.absolutePath}")
+                                SherpaOnnxTtsManager.playWavFile(wavFile, audioManager)
+                            } else {
+                                android.util.Log.w("VoiceCloneTTS", "음성 클론 TTS 합성 실패, 내장 TTS로 대체: $text")
+                                SherpaOnnxTtsManager.speak(text, audioManager)
+                            }
+                        }
+                    }
+                }
             } else {
-                { text -> tts?.let { TtsManager.speak(it, text, audioManager) } }
+                { text: String ->
+                    android.util.Log.d("VoiceCloneTTS", "ttsReady: $ttsReady, isVoiceCloneEnabled: $isVoiceCloneEnabled, voiceId: $voiceId")
+                    android.util.Log.d("VoiceCloneTTS", "==> SherpaOnnxTtsManager(내장 TTS) 분기 진입, text: $text")
+                    SherpaOnnxTtsManager.speak(text, audioManager)
+                }
             }
         } else null,
         isSpeakerOn = isSpeakerOn,

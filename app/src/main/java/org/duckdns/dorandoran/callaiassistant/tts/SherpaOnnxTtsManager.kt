@@ -295,6 +295,59 @@ object SherpaOnnxTtsManager {
     }
 
     /**
+     * WAV 파일을 AudioTrack으로 재생 (음성 클론 TTS용)
+     */
+    fun playWavFile(wavFile: File, audioManager: AudioManager, onDone: (() -> Unit)? = null) {
+        try {
+            val wavBytes = wavFile.readBytes()
+            // WAV 헤더(44바이트) 스킵, 16kHz, 16bit, mono로 가정
+            val pcmData = wavBytes.drop(44).toByteArray()
+            val sampleRate = 16000
+            val channelConfig = AudioFormat.CHANNEL_OUT_MONO
+            val audioFormat = AudioFormat.ENCODING_PCM_16BIT
+            val minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+            val audioTrack = AudioTrack(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build(),
+                AudioFormat.Builder()
+                    .setEncoding(audioFormat)
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(channelConfig)
+                    .build(),
+                minBufferSize,
+                AudioTrack.MODE_STREAM,
+                audioManager.generateAudioSessionId()
+            )
+            synchronized(this) {
+                currentAudioTrack?.stop()
+                currentAudioTrack?.release()
+                currentAudioTrack = audioTrack
+            }
+            audioTrack.play()
+            audioTrack.write(pcmData, 0, pcmData.size)
+            audioTrack.setNotificationMarkerPosition(pcmData.size / 2)
+            audioTrack.setPlaybackPositionUpdateListener(object : AudioTrack.OnPlaybackPositionUpdateListener {
+                override fun onMarkerReached(track: AudioTrack?) {
+                    onDone?.invoke()
+                    audioTrack.stop()
+                    audioTrack.release()
+                    synchronized(this@SherpaOnnxTtsManager) {
+                        if (currentAudioTrack == audioTrack) currentAudioTrack = null
+                    }
+                    try { wavFile.delete() } catch (_: Exception) {}
+                }
+                override fun onPeriodicNotification(track: AudioTrack?) {}
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "WAV 파일 재생 오류", e)
+            onDone?.invoke()
+            try { wavFile.delete() } catch (_: Exception) {}
+        }
+    }
+
+    /**
      * assets 폴더를 내부 스토리지로 재귀 복사
      */
     private fun copyAssets(context: Context, assetPath: String, destDir: File) {
