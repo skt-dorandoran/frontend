@@ -65,7 +65,7 @@ fun CallNavHost(
                 connectionState = connectionState,
                 callDurationSeconds = callDurationSeconds,
                 logMessages = logMessages,
-                sttText = sttText,
+//                sttText = sttText,
                 aiSuggestions = aiSuggestions,
                 onSendAiSuggestion = onSendAiSuggestion,
                 onDirectMessageSent = { message ->

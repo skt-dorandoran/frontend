@@ -308,61 +308,6 @@ fun CallTypingScreen(
     }
 }
 
-@Composable
-private fun RemoteMessageBubble(message: ChatMessage, textScale: Float) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth(0.8f),
-        shape = RoundedCornerShape(
-            topStart = 4.dp,
-            topEnd = 16.dp,
-            bottomStart = 16.dp,
-            bottomEnd = 16.dp
-        ),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shadowElevation = 2.dp
-    ) {
-        Text(
-            text = message.text,
-            modifier = Modifier.padding(12.dp),
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale,
-                lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * textScale
-            ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun MyMessageBubble(message: ChatMessage, textScale: Float) {
-    Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = Alignment.CenterEnd
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(0.8f),
-            shape = RoundedCornerShape(
-                topStart = 16.dp,
-                topEnd = 4.dp,
-                bottomStart = 16.dp,
-                bottomEnd = 16.dp
-            ),
-            color = Color(0xFF2F5BFF),
-            shadowElevation = 2.dp
-        ) {
-            Text(
-                text = message.text,
-                modifier = Modifier.padding(12.dp),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale,
-                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * textScale
-                ),
-                color = Color.White
-            )
-        }
-    }
-}
 
 @Composable
 private fun SuggestionButton(

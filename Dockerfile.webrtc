@@ -14,13 +14,17 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     sudo \
     tzdata \
-    openjdk-11-jdk \
+    openjdk-17-jdk \
     unzip \
     zip \
     ninja-build \
     build-essential \
     cmake \
     && rm -rf /var/lib/apt/lists/*
+
+# JDK 17 환경변수 설정
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH=$JAVA_HOME/bin:$PATH
 
 # 작업 디렉토리
 WORKDIR /workspace

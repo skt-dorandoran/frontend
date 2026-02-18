@@ -19,7 +19,9 @@ class CustomAudioDeviceModule private constructor(
 
     companion object {
         private const val TAG = "CustomAudioDeviceModule"
-        private const val WEBRTC_SAMPLE_RATE = 8000 // WebRTC 사용 샘플레이트
+        private const val WEBRTC_SAMPLE_RATE = 8000
+        private const val TTS_CHUNK_MS = 20
+        private const val MAX_TTS_QUEUE_SAMPLES = WEBRTC_SAMPLE_RATE * 2
         
         init {
             Log.i(TAG, "TtsAudioInjector ready")
@@ -29,6 +31,8 @@ class CustomAudioDeviceModule private constructor(
          * TTS PCM 데이터 주입 (Float를 Short로 변환 후 Native로 전달)
          */
         fun injectTtsPcm(samples: FloatArray, sampleRate: Int) {
+            if (samples.isEmpty()) return
+
             // Float → Short 변환
             val shortSamples = ShortArray(samples.size) { i ->
                 (samples[i] * Short.MAX_VALUE).coerceIn(
@@ -36,16 +40,36 @@ class CustomAudioDeviceModule private constructor(
                     Short.MAX_VALUE.toFloat()
                 ).toInt().toShort()
             }
-            
-            // 리샘플링 (22050Hz → 8000Hz)
+
+            // 리샘플링 (입력 샘플레이트 -> WebRTC 주입 샘플레이트)
             val resampled = if (sampleRate != WEBRTC_SAMPLE_RATE) {
                 resample(shortSamples, sampleRate, WEBRTC_SAMPLE_RATE)
             } else {
                 shortSamples
             }
-            
-            TtsAudioInjector.nativePushPcm(resampled)
-            Log.d(TAG, "✅ TTS PCM injected: ${resampled.size} samples (native queue: ${TtsAudioInjector.nativeGetAvailable()})")
+
+            try {
+                val chunkSize = WEBRTC_SAMPLE_RATE * TTS_CHUNK_MS / 1000
+                var offset = 0
+                while (offset < resampled.size) {
+                    val end = minOf(offset + chunkSize, resampled.size)
+                    val chunk = resampled.copyOfRange(offset, end)
+
+                    var waitCount = 0
+                    while (TtsAudioInjector.nativeGetAvailable() > (MAX_TTS_QUEUE_SAMPLES - chunk.size) && waitCount < 200) {
+                        Thread.sleep(5)
+                        waitCount++
+                    }
+
+                    TtsAudioInjector.nativePushPcm(chunk)
+                    offset = end
+                }
+                Log.d(TAG, "✅ TTS PCM injected: ${resampled.size} samples, queue=${TtsAudioInjector.nativeGetAvailable()}")
+            } catch (e: UnsatisfiedLinkError) {
+                Log.e(TAG, "[TTS][injectTtsPcm] native symbol missing", e)
+            } catch (e: Throwable) {
+                Log.e(TAG, "[TTS][injectTtsPcm] injection failed", e)
+            }
         }
         
         /**
@@ -74,8 +98,14 @@ class CustomAudioDeviceModule private constructor(
          * TTS 큐 초기화
          */
         fun clearTtsQueue() {
-            TtsAudioInjector.nativeClear()
-            Log.d(TAG, "TTS queue cleared")
+            try {
+                TtsAudioInjector.nativeClear()
+                Log.d(TAG, "TTS queue cleared")
+            } catch (e: UnsatisfiedLinkError) {
+                Log.w(TAG, "TTS nativeClear() missing - ignoring", e)
+            } catch (e: Throwable) {
+                Log.w(TAG, "TTS queue clear failed - ignoring", e)
+            }
         }
         
         /**
