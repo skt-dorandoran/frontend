@@ -37,6 +37,8 @@ private var remoteSttManager: org.duckdns.dorandoran.callaiassistant.stt.SherpaO
 private var remoteSttStream: com.k2fsa.sherpa.onnx.OnlineStream? = null
 private var remoteAudioSink: AudioSink? = null
 private var remoteAudioSinkAttachedTrack: AudioTrack? = null
+private var remoteSttHpPrevIn: Float = 0f
+private var remoteSttHpPrevOut: Float = 0f
 
 /** 전역 고정 방 ID - 사용자 변경 불가 */
 const val WEBRTC_ROOM_ID = "dorandoran-room"
@@ -85,6 +87,8 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
      * 상대방 오디오 STT 연동 시작 (ViewModel 주입 필요)
      */
     fun startRemoteStt(context: Context, viewModel: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel) {
+        remoteSttHpPrevIn = 0f
+        remoteSttHpPrevOut = 0f
         remoteSttManager = org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager(
             context = context,
             onResult = { text ->
@@ -104,6 +108,8 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         remoteAudioSink = null
         remoteSttStream = null
         remoteSttManager = null
+        remoteSttHpPrevIn = 0f
+        remoteSttHpPrevOut = 0f
     }
 
     private fun createRemoteAudioSink(): AudioSink {
@@ -146,9 +152,45 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
             } else {
                 pcm
             }
-            stream.acceptWaveform(sttPcm, sttSampleRate)
+            val preprocessed = preprocessRemoteAudioForStt(sttPcm)
+            if (preprocessed.isEmpty()) return@AudioSink
+            stream.acceptWaveform(preprocessed, sttSampleRate)
             remoteSttManager?.processStream(stream)
         }
+    }
+
+    private fun preprocessRemoteAudioForStt(input: FloatArray): FloatArray {
+        if (input.isEmpty()) return input
+
+        // Remove low-frequency rumble/DC (helps call-start "booming" artifacts).
+        val hpAlpha = 0.973f
+        val filtered = FloatArray(input.size)
+        var prevIn = remoteSttHpPrevIn
+        var prevOut = remoteSttHpPrevOut
+        for (i in input.indices) {
+            val x = input[i]
+            val y = hpAlpha * (prevOut + x - prevIn)
+            filtered[i] = y
+            prevIn = x
+            prevOut = y
+        }
+        remoteSttHpPrevIn = prevIn
+        remoteSttHpPrevOut = prevOut
+
+        // Keep TTS audibility high for STT by normalizing RMS to a stable target.
+        var energy = 0f
+        for (v in filtered) {
+            energy += v * v
+        }
+        val rms = kotlin.math.sqrt((energy / filtered.size).coerceAtLeast(1e-9f))
+        val targetRms = 0.12f
+        val gain = (targetRms / rms).coerceIn(1f, 6f)
+
+        for (i in filtered.indices) {
+            val boosted = filtered[i] * gain
+            filtered[i] = boosted.coerceIn(-1f, 1f)
+        }
+        return filtered
     }
 
     private fun resampleFloatPcm(input: FloatArray, inputRate: Int, outputRate: Int): FloatArray {
@@ -479,6 +521,8 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                         hasEverConnected = true
                         iceFailureJob?.cancel()
                         iceFailureJob = null
+                        CustomAudioDeviceModule.clearTtsQueue()
+                        log("TTS queue cleared at call start")
                         _connectionState.value = WebRtcConnectionState.IN_CALL
                     }
                     else -> {}
@@ -759,6 +803,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         peerConnection?.close()
         peerConnection = null
         detachRemoteAudioSink()
+        CustomAudioDeviceModule.clearTtsQueue()
         localAudioTrack?.dispose()
         localAudioTrack = null
         audioSource?.dispose()
