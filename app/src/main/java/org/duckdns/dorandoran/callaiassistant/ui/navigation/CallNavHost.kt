@@ -4,11 +4,18 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager
 import org.duckdns.dorandoran.callaiassistant.ui.screens.CallTypingScreen
 import org.duckdns.dorandoran.callaiassistant.ui.screens.WebRtcInCallScreen
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
@@ -33,6 +40,46 @@ fun CallNavHost(
     navController: NavHostController = rememberNavController()
 ) {
     val callViewModel: CallViewModel = viewModel()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    var sttRunning by remember { mutableStateOf(false) }
+    var currentRouteState by remember { mutableStateOf(CallRoutes.INTRO) }
+    LaunchedEffect(currentRoute) {
+        currentRouteState = currentRoute ?: CallRoutes.INTRO
+    }
+    val sttManager = remember {
+        SherpaOnnxSttManager(
+            context = navController.context,
+            onResult = { recognizedText ->
+                if (currentRouteState == CallRoutes.TYPING) {
+                    callViewModel.sendMessage(recognizedText)
+                }
+            },
+            onError = { err ->
+                android.util.Log.e("CallNavHost-STT", err)
+            }
+        )
+    }
+
+    LaunchedEffect(connectionState) {
+        val shouldRun = connectionState != WebRtcConnectionState.DISCONNECTED
+        if (shouldRun && !sttRunning) {
+            sttManager.startStreaming()
+            sttRunning = true
+        } else if (!shouldRun && sttRunning) {
+            sttManager.stopStreaming()
+            sttRunning = false
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            if (sttRunning) {
+                sttManager.stopStreaming()
+                sttRunning = false
+            }
+        }
+    }
     
     // connectionState에 따라 callTime 설정
     val callTimeString = when (connectionState) {

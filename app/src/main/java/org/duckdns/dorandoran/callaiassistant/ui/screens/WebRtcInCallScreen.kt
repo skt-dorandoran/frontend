@@ -69,7 +69,6 @@ import org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager
 import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState
-import org.duckdns.dorandoran.callaiassistant.stt.SttManager
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
@@ -147,25 +146,6 @@ fun WebRtcInCallScreen(
     // 음성 클론 TTS 분기용 상태
     val voiceId = remember { org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore.getVoiceId(context) }
     val isVoiceCloneEnabled = remember { org.duckdns.dorandoran.callaiassistant.SettingsStore.isVoiceCloneEnabled(context) }
-    // STT 매니저 예시 (실제 프로젝트에서는 DI/remember 등으로 관리 권장)
-    val sttManager = remember {
-        org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager(
-            context = context,
-            onResult = { recognizedText ->
-                // 내 마이크 입력은 내 메시지로 추가
-                viewModel.sendMessage(recognizedText)
-            },
-            onError = { err -> Log.e("STT", err) }
-        )
-    }
-    // 통화 연결 시 STT 시작/종료
-    LaunchedEffect(connectionState) {
-        if (connectionState == WebRtcConnectionState.IN_CALL) {
-            sttManager.startStreaming()
-        } else {
-            sttManager.stopStreaming()
-        }
-    }
     val introPromptEnabled = SettingsStore.isCallIntroPromptEnabled(context)
     val introPromptStyle = SettingsStore.getCallIntroPromptStyle(context)
     val introPromptCustom = SettingsStore.getCallIntroPromptCustom(context)
@@ -329,10 +309,15 @@ fun WebRtcInCallScreen(
                             ) {
                                 items(messages.size) { idx ->
                                     val msg = messages[messages.size - 1 - idx]
-                                    if (msg.isFromMe) {
-                                        MyMessageBubble(message = msg, textScale = textScale)
-                                    } else {
-                                        RemoteMessageBubble(message = msg, textScale = textScale)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = if (msg.isFromMe) Arrangement.End else Arrangement.Start
+                                    ) {
+                                        if (msg.isFromMe) {
+                                            MyMessageBubble(message = msg, textScale = textScale)
+                                        } else {
+                                            RemoteMessageBubble(message = msg, textScale = textScale)
+                                        }
                                     }
                                 }
                             }

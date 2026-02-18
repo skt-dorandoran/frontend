@@ -185,10 +185,15 @@ fun CallTypingScreen(
             // 메시지를 역순으로 표시 (최신 메시지가 맨 아래)
             items(messages.size) { index ->
                 val message = messages[messages.size - 1 - index]
-                if (!message.isFromMe) {
-                    RemoteMessageBubble(message = message, textScale = textScale)
-                } else {
-                    MyMessageBubble(message = message, textScale = textScale)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (message.isFromMe) Arrangement.End else Arrangement.Start
+                ) {
+                    if (!message.isFromMe) {
+                        RemoteMessageBubble(message = message, textScale = textScale)
+                    } else {
+                        MyMessageBubble(message = message, textScale = textScale)
+                    }
                 }
             }
         }
