@@ -29,12 +29,12 @@ class SherpaOnnxSttManager(
         return recognizer?.createStream()
     }
 
-    fun processStream(stream: OnlineStream, viewModel: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel?) {
+    fun processStream(stream: OnlineStream) {
         if (recognizer != null && recognizer!!.isReady(stream)) {
             recognizer!!.decode(stream)
             val result = recognizer!!.getResult(stream)
             if (result.text.isNotBlank()) {
-                viewModel?.addRemoteMessage(result.text)
+                onResult(result.text)
             }
         }
     }

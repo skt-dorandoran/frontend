@@ -37,7 +37,6 @@ private var remoteSttManager: org.duckdns.dorandoran.callaiassistant.stt.SherpaO
 private var remoteSttStream: com.k2fsa.sherpa.onnx.OnlineStream? = null
 private var remoteAudioSink: Any? = null
 private var remoteAudioSinkAttachedTrack: AudioTrack? = null
-private var remoteSttViewModel: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel? = null
 
 /** 전역 고정 방 ID - 사용자 변경 불가 */
 const val WEBRTC_ROOM_ID = "dorandoran-room"
@@ -86,11 +85,10 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
      * 상대방 오디오 STT 연동 시작 (ViewModel 주입 필요)
      */
     fun startRemoteStt(context: Context, viewModel: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel) {
-        remoteSttViewModel = viewModel
         remoteSttManager = org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager(
             context = context,
             onResult = { text ->
-                viewModel.addRemoteMessage(text)
+                viewModel.updateRemoteSttMessage(text)
             },
             onError = { err -> Log.e(TAG, "Remote STT error: $err") }
         )
@@ -106,7 +104,6 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         remoteAudioSink = null
         remoteSttStream = null
         remoteSttManager = null
-        remoteSttViewModel = null
     }
 
     private fun createRemoteAudioSinkProxy(): Any? {
@@ -130,7 +127,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                         shortBuf.get(shortArr)
                         val pcm = shortArr.map { it.toFloat() / Short.MAX_VALUE }.toFloatArray()
                         remoteSttStream?.acceptWaveform(pcm, sampleRate)
-                        remoteSttManager?.processStream(remoteSttStream!!, remoteSttViewModel)
+                        remoteSttManager?.processStream(remoteSttStream!!)
                     }
                 }
                 null

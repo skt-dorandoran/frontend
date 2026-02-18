@@ -52,7 +52,7 @@ fun CallNavHost(
             context = navController.context,
             onResult = { recognizedText ->
                 if (currentRouteState == CallRoutes.TYPING) {
-                    callViewModel.sendMessage(recognizedText)
+                    callViewModel.updateMySttMessage(recognizedText)
                 }
             },
             onError = { err ->
