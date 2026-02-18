@@ -40,7 +40,6 @@ private var remoteAudioSinkAttachedTrack: AudioTrack? = null
 private var remoteSttHpPrevIn: Float = 0f
 private var remoteSttHpPrevOut: Float = 0f
 private var remoteSttAgcGain: Float = 1f
-private var remoteSttPrevForEmphasis: Float = 0f
 
 /** 전역 고정 방 ID - 사용자 변경 불가 */
 const val WEBRTC_ROOM_ID = "dorandoran-room"
@@ -92,7 +91,6 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         remoteSttHpPrevIn = 0f
         remoteSttHpPrevOut = 0f
         remoteSttAgcGain = 1f
-        remoteSttPrevForEmphasis = 0f
         remoteSttManager = org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager(
             context = context,
             onResult = { text ->
@@ -115,7 +113,6 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         remoteSttHpPrevIn = 0f
         remoteSttHpPrevOut = 0f
         remoteSttAgcGain = 1f
-        remoteSttPrevForEmphasis = 0f
     }
 
     private fun createRemoteAudioSink(): AudioSink {
@@ -173,45 +170,39 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         val filtered = FloatArray(input.size)
         var prevIn = remoteSttHpPrevIn
         var prevOut = remoteSttHpPrevOut
-        var prevEmphasis = remoteSttPrevForEmphasis
         var energy = 0f
         var peak = 0f
         for (i in input.indices) {
             val x = input[i]
             val y = hpAlpha * (prevOut + x - prevIn)
-            // Mild pre-emphasis to improve consonant clarity for TTS STT.
-            val e = y - 0.90f * prevEmphasis
-            filtered[i] = e
+            filtered[i] = y
             prevIn = x
             prevOut = y
-            prevEmphasis = y
-            energy += e * e
-            val absE = kotlin.math.abs(e)
-            if (absE > peak) peak = absE
+            energy += y * y
+            val absY = kotlin.math.abs(y)
+            if (absY > peak) peak = absY
         }
         remoteSttHpPrevIn = prevIn
         remoteSttHpPrevOut = prevOut
-        remoteSttPrevForEmphasis = prevEmphasis
 
         val rms = kotlin.math.sqrt((energy / filtered.size).coerceAtLeast(1e-9f))
-        val veryLowLevel = peak < 0.010f && rms < 0.005f
         val targetRms = when {
-            rms < 0.015f -> 0.20f
-            rms < 0.03f -> 0.16f
-            rms < 0.06f -> 0.12f
+            rms < 0.012f -> 0.16f
+            rms < 0.025f -> 0.13f
+            rms < 0.05f -> 0.11f
             else -> 0.10f
         }
-        var desiredGain = (targetRms / rms).coerceIn(1f, 24f)
+        var desiredGain = (targetRms / rms).coerceIn(1f, 16f)
         if (peak > 1e-6f) {
-            desiredGain = minOf(desiredGain, 0.92f / peak)
+            desiredGain = minOf(desiredGain, 0.97f / peak)
         }
-        // Faster attack, slower release.
-        val smooth = if (desiredGain > remoteSttAgcGain) 0.45f else 0.10f
+        // Moderate AGC to avoid over-amplified artifacts on remote/TTS audio.
+        val smooth = if (desiredGain > remoteSttAgcGain) 0.25f else 0.08f
         remoteSttAgcGain = remoteSttAgcGain + (desiredGain - remoteSttAgcGain) * smooth
-        if (veryLowLevel) {
-            // Keep quiet TTS frames alive for recognizer instead of zeroing out.
-            remoteSttAgcGain = maxOf(remoteSttAgcGain, 3.5f)
+        if (peak < 0.010f && rms < 0.005f) {
+            remoteSttAgcGain = maxOf(remoteSttAgcGain, 1.5f)
         }
+        remoteSttAgcGain = remoteSttAgcGain.coerceIn(1f, 16f)
 
         for (i in filtered.indices) {
             val boosted = filtered[i] * remoteSttAgcGain

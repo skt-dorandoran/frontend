@@ -19,7 +19,7 @@ class CustomAudioDeviceModule private constructor(
 
     companion object {
         private const val TAG = "CustomAudioDeviceModule"
-        private const val WEBRTC_SAMPLE_RATE = 48000 // WebRTC 권장 샘플레이트
+        private const val WEBRTC_SAMPLE_RATE = 8000
         
         init {
             Log.i(TAG, "TtsAudioInjector ready")
@@ -29,9 +29,10 @@ class CustomAudioDeviceModule private constructor(
          * TTS PCM 데이터 주입 (Float를 Short로 변환 후 Native로 전달)
          */
         fun injectTtsPcm(samples: FloatArray, sampleRate: Int) {
+            val ttsGain = 1.35f
             // Float → Short 변환
             val shortSamples = ShortArray(samples.size) { i ->
-                (samples[i] * Short.MAX_VALUE).coerceIn(
+                ((samples[i] * ttsGain) * Short.MAX_VALUE).coerceIn(
                     Short.MIN_VALUE.toFloat(),
                     Short.MAX_VALUE.toFloat()
                 ).toInt().toShort()
