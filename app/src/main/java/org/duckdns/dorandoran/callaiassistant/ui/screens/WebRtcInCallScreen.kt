@@ -185,6 +185,10 @@ fun WebRtcInCallScreen(
             viewModel.resetIntroPromptPlayed()
         } else if (connectionState == WebRtcConnectionState.IN_CALL && !hasPlayedIntroPrompt && introPromptEnabled) {
             viewModel.markIntroPromptPlayed()
+            // 통화 시작 안내 멘트도 내 발화 말풍선으로 기록
+            if (introPromptText.isNotBlank()) {
+                viewModel.sendMessage(introPromptText)
+            }
             // 안내멘트 TTS 분기 로그
             android.util.Log.e("VoiceCloneTTS", "[WebRtcInCallScreen] 안내멘트 tts 분기: isVoiceCloneEnabled=$isVoiceCloneEnabled, voiceId=$voiceId, text=$introPromptText")
             if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
