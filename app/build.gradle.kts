@@ -79,5 +79,5 @@ dependencies {
     
     // sherpa-onnx TTS (Espeak)
     implementation(files("libs/sherpa-onnx-1.12.24.aar"))
-    implementation(mapOf("name" to "webrtc-custom", "ext" to "aar"))
+    implementation(files("libs/webrtc-custom.aar"))
 }

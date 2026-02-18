@@ -34,7 +34,10 @@ import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage
+import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore
+import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
 import android.util.Log
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +59,9 @@ fun CallTypingScreen(
     }
     var messageTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
     var isTtsReady by remember { mutableStateOf(false) }
+    val voiceId = remember { VoiceCloneStore.getVoiceId(context) }
+    val isVoiceCloneEnabled = remember { SettingsStore.isVoiceCloneEnabled(context) }
+    val coroutineScope = rememberCoroutineScope()
     
     val listState = rememberLazyListState()
 
@@ -179,10 +185,15 @@ fun CallTypingScreen(
             // 메시지를 역순으로 표시 (최신 메시지가 맨 아래)
             items(messages.size) { index ->
                 val message = messages[messages.size - 1 - index]
-                if (!message.isFromMe) {
-                    RemoteMessageBubble(message = message, textScale = textScale)
-                } else {
-                    MyMessageBubble(message = message, textScale = textScale)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (message.isFromMe) Arrangement.End else Arrangement.Start
+                ) {
+                    if (!message.isFromMe) {
+                        RemoteMessageBubble(message = message, textScale = textScale)
+                    } else {
+                        MyMessageBubble(message = message, textScale = textScale)
+                    }
                 }
             }
         }
@@ -281,14 +292,46 @@ fun CallTypingScreen(
                             
                             // TTS로 메시지 재생
                             if (isTtsReady) {
-                                TtsManager.speak(
-                                    tts = messageTts,
-                                    text = textToSend,
-                                    audioManager = audioManager,
-                                    onDone = {
-                                        Log.d("CallTypingScreen", "TTS playback completed for: $textToSend")
+                                if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
+                                    val callIdStr = "call_typing_${System.currentTimeMillis()}"
+                                    val contextSafe = context.applicationContext
+                                    coroutineScope.launch {
+                                        val wavFile = VoiceCloneTtsApi.synthesizeVoiceClone(
+                                            callId = callIdStr,
+                                            text = textToSend,
+                                            voiceId = voiceId,
+                                            sourceType = "ai_response",
+                                            context = contextSafe
+                                        )
+                                        if (wavFile != null && wavFile.exists()) {
+                                            org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager.playWavFile(
+                                                wavFile = wavFile,
+                                                audioManager = audioManager,
+                                                onDone = {
+                                                    Log.d("CallTypingScreen", "VoiceClone TTS playback completed for: $textToSend")
+                                                }
+                                            )
+                                        } else {
+                                            TtsManager.speak(
+                                                tts = messageTts,
+                                                text = textToSend,
+                                                audioManager = audioManager,
+                                                onDone = {
+                                                    Log.d("CallTypingScreen", "Fallback TTS playback completed for: $textToSend")
+                                                }
+                                            )
+                                        }
                                     }
-                                )
+                                } else {
+                                    TtsManager.speak(
+                                        tts = messageTts,
+                                        text = textToSend,
+                                        audioManager = audioManager,
+                                        onDone = {
+                                            Log.d("CallTypingScreen", "TTS playback completed for: $textToSend")
+                                        }
+                                    )
+                                }
                             }
                         },
                         modifier = Modifier
@@ -308,61 +351,6 @@ fun CallTypingScreen(
     }
 }
 
-@Composable
-private fun RemoteMessageBubble(message: ChatMessage, textScale: Float) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth(0.8f),
-        shape = RoundedCornerShape(
-            topStart = 4.dp,
-            topEnd = 16.dp,
-            bottomStart = 16.dp,
-            bottomEnd = 16.dp
-        ),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shadowElevation = 2.dp
-    ) {
-        Text(
-            text = message.text,
-            modifier = Modifier.padding(12.dp),
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale,
-                lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * textScale
-            ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun MyMessageBubble(message: ChatMessage, textScale: Float) {
-    Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = Alignment.CenterEnd
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(0.8f),
-            shape = RoundedCornerShape(
-                topStart = 16.dp,
-                topEnd = 4.dp,
-                bottomStart = 16.dp,
-                bottomEnd = 16.dp
-            ),
-            color = Color(0xFF2F5BFF),
-            shadowElevation = 2.dp
-        ) {
-            Text(
-                text = message.text,
-                modifier = Modifier.padding(12.dp),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale,
-                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * textScale
-                ),
-                color = Color.White
-            )
-        }
-    }
-}
 
 @Composable
 private fun SuggestionButton(

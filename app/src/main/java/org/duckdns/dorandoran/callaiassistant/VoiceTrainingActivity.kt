@@ -7,6 +7,8 @@ import android.media.MediaFormat
 import android.media.MediaMuxer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 import android.graphics.Color
 import android.os.Bundle
@@ -53,6 +55,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -71,7 +77,9 @@ import java.io.File
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceRecorder
 import org.duckdns.dorandoran.callaiassistant.voiceclone.AudioMergeUtil
 
+
 class VoiceTrainingActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -87,10 +95,14 @@ class VoiceTrainingActivity : ComponentActivity() {
 
 @Composable
 private fun VoiceTrainingScreen(onClose: () -> Unit) {
+    val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     // 학습 상태 관리 변수 추가
     var isTrainingStarted by remember { mutableStateOf(false) }
     var trainingStep by remember { mutableStateOf(0) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    val voiceIdFlow = remember { MutableStateFlow(org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore.getVoiceId(context)) }
+    val voiceIdState by voiceIdFlow.collectAsState()
         // 4단계: ffmpeg 합치기/재생 관련 상태
         var isMerged by remember { mutableStateOf(false) }
         var isPlaying by remember { mutableStateOf(false) }
@@ -157,6 +169,7 @@ private fun VoiceTrainingScreen(onClose: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // 상단: 진행 점(중앙) + X 닫기 버튼(우측)
+            var isCloseVisible by remember { mutableStateOf(true) }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -185,10 +198,18 @@ private fun VoiceTrainingScreen(onClose: () -> Unit) {
                         }
                     }
                 }
-
+                // 4페이지에서는 학습 완료(voiceIdState != null)일 때만 닫기 버튼 visible
+                if (isTrainingStarted && trainingStep == 4) {
+                    isCloseVisible = voiceIdState != null
+                } else {
+                    isCloseVisible = true
+                }
                 IconButton(
                     onClick = onClose,
-                    modifier = Modifier.align(Alignment.CenterEnd)
+                    enabled = isCloseVisible,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .graphicsLayer { alpha = if (isCloseVisible) 1f else 0f }
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -251,7 +272,7 @@ private fun VoiceTrainingScreen(onClose: () -> Unit) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "내 목소리 학습 시작",
+                            text = if (voiceIdState != null) "내 목소리 다시 학습" else "내 목소리 학습 시작",
                             color = ComposeColor.White,
                             fontWeight = FontWeight.Medium,
                             fontSize = 17.sp
@@ -366,7 +387,7 @@ private fun VoiceTrainingScreen(onClose: () -> Unit) {
                         }
                     }
                 } else if (trainingStep == 4) {
-                    // 4단계 진입 시 MediaExtractor+MediaMuxer로 m4a 파일 합치고 자동 재생
+                    // 4단계 진입 시 MediaExtractor+MediaMuxer로 m4a 파일 합치고 자동 재생 및 모델 학습
                     LaunchedEffect(trainingStep) {
                         if (!isMerged && audioFiles.all { it.exists() }) {
                             withContext(Dispatchers.IO) {
@@ -385,6 +406,33 @@ private fun VoiceTrainingScreen(onClose: () -> Unit) {
                                     }
                                 } catch (e: Exception) {
                                     // 실패 처리(필요시)
+                                }
+                            }
+                        }
+                        // 병합 완료 후 모델 학습 백그라운드 처리
+                        if (isMerged && mergedFile.exists()) {
+                            coroutineScope.launch {
+                                val duration = try { // m4a duration(ms) 구하기
+                                    android.media.MediaMetadataRetriever().apply { setDataSource(mergedFile.absolutePath) }.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLong() ?: 20000L
+                                } catch (_: Exception) { 20000L }
+                                val uuid = java.util.UUID.randomUUID().toString()
+                                // 기존 voiceId가 있으면 삭제 API 호출
+                                val currentVoiceId = voiceIdState as? String
+                                if (currentVoiceId != null) {
+                                    withContext(Dispatchers.IO) {
+                                        org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneApi.deleteVoiceClone(currentVoiceId)
+                                    }
+                                    org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore.setVoiceId(context, "")
+                                    voiceIdFlow.value = ""
+                                }
+                                val trainResp = withContext(Dispatchers.IO) {
+                                    org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneApi.trainVoiceClone(uuid, mergedFile)
+                                }
+                                val voiceId = trainResp?.optString("voiceId")
+                                if (voiceId != null) {
+                                    org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore.setVoiceId(context, voiceId)
+                                    voiceIdFlow.value = voiceId
+                                    org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneNotification.showModelComplete(context)
                                 }
                             }
                         }

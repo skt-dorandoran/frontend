@@ -3,6 +3,8 @@ package org.duckdns.dorandoran.callaiassistant
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import kotlinx.coroutines.flow.MutableStateFlow
+import androidx.compose.runtime.collectAsState
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -55,7 +57,22 @@ private fun VoiceCloneSettingsContent(onBack: () -> Unit) {
     val context = LocalContext.current
     val activity = context as? Activity
     var isVoiceCloneEnabled by remember { mutableStateOf(SettingsStore.isVoiceCloneEnabled(context)) }
-    var isVoiceTrained by remember { mutableStateOf(VoiceCloneStore.getVoiceId(context) != null) }
+    val voiceIdFlow = remember { MutableStateFlow(VoiceCloneStore.getVoiceId(context)) }
+
+    // 액티비티 재진입 시 voiceId 강제 갱신
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                voiceIdFlow.value = VoiceCloneStore.getVoiceId(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val voiceId by voiceIdFlow.collectAsState()
+    val isVoiceTrained = voiceId != null
+    var isDeleteButtonVisible by remember { mutableStateOf(true) }
     var isModelCreating by remember { mutableStateOf(false) }
     var modelCreateError by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
@@ -194,7 +211,9 @@ private fun VoiceCloneSettingsContent(onBack: () -> Unit) {
                                     Text(modelCreateError!!, color = Color.Red)
                                 }
                             }
-                        } else if (!isVoiceTrained) {
+                        }
+                        // 버튼 표시 로직: voiceId 없으면 학습 시작만, 있으면 둘 다
+                        if (!isVoiceTrained) {
                             Button(
                                 onClick = {
                                     val intent = Intent(context, VoiceTrainingActivity::class.java)
@@ -221,41 +240,91 @@ private fun VoiceCloneSettingsContent(onBack: () -> Unit) {
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
-                            // 모델 생성 버튼 및 관련 로직 완전 삭제
                         } else {
-                            // 이미 학습된 경우: 삭제 버튼 제공
-                            Button(
-                                onClick = {
-                                    val voiceId = VoiceCloneStore.getVoiceId(context)
-                                    if (voiceId != null) {
-                                        coroutineScope.launch {
-                                            val result = withContext(Dispatchers.IO) {
-                                                VoiceCloneApi.deleteVoiceClone(voiceId)
-                                            }
-                                            if (result) {
-                                                VoiceCloneStore.clearVoiceId(context)
-                                                isVoiceTrained = false
-                                                Toast.makeText(context, "음성 클론 모델이 삭제되었습니다.", Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                Toast.makeText(context, "모델 삭제 실패", Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFFF0F0F0),
-                                    contentColor = Color.Black
-                                ),
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-                                modifier = Modifier.fillMaxWidth()
+                            // voiceId 있으면 두 버튼 모두
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text(
-                                    text = "음성 클론 모델 삭제",
-                                    style = MaterialTheme.typography.labelLarge.copy(
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Medium
+                                Button(
+                                    onClick = {
+                                        val intent = Intent(context, VoiceTrainingActivity::class.java)
+                                        context.startActivity(intent)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF537CEC), // 파란색
+                                        contentColor = Color.White
+                                    ),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "내 목소리 다시 학습",
+                                        style = MaterialTheme.typography.labelLarge.copy(
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
                                     )
-                                )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                var showDeleteDialog by remember { mutableStateOf(false) }
+                                if (isDeleteButtonVisible) {
+                                    Button(
+                                        onClick = { showDeleteDialog = true },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFFD32F2F),
+                                            contentColor = Color.White
+                                        ),
+                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = "음성 클론 모델 삭제",
+                                            style = MaterialTheme.typography.labelLarge.copy(
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        )
+                                    }
+                                }
+                                if (showDeleteDialog) {
+                                    AlertDialog(
+                                        onDismissRequest = { showDeleteDialog = false },
+                                        title = { Text("음성 클론 모델 삭제") },
+                                        text = { Text("정말로 음성 클론 모델을 삭제하시겠습니까?") },
+                                        confirmButton = {
+                                            Button(onClick = {
+                                                showDeleteDialog = false
+                                                isDeleteButtonVisible = false
+                                                val voiceIdLocal = VoiceCloneStore.getVoiceId(context)
+                                                if (voiceIdLocal != null) {
+                                                    coroutineScope.launch {
+                                                        val result = withContext(Dispatchers.IO) {
+                                                            VoiceCloneApi.deleteVoiceClone(voiceIdLocal)
+                                                        }
+                                                        if (result) {
+                                                            VoiceCloneStore.clearVoiceId(context)
+                                                            voiceIdFlow.value = null
+                                                            Toast.makeText(context, "음성 클론 모델이 삭제되었습니다.", Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            Toast.makeText(context, "모델 삭제 실패", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    }
+                                                }
+                                            }) { Text("확인") }
+                                        },
+                                        dismissButton = {
+                                            Button(onClick = { showDeleteDialog = false }) { Text("취소") }
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

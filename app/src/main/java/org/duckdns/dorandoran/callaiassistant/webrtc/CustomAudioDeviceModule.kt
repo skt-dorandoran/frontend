@@ -19,7 +19,7 @@ class CustomAudioDeviceModule private constructor(
 
     companion object {
         private const val TAG = "CustomAudioDeviceModule"
-        private const val WEBRTC_SAMPLE_RATE = 8000 // WebRTC 사용 샘플레이트
+        private const val WEBRTC_SAMPLE_RATE = 8000
         
         init {
             Log.i(TAG, "TtsAudioInjector ready")
@@ -29,23 +29,35 @@ class CustomAudioDeviceModule private constructor(
          * TTS PCM 데이터 주입 (Float를 Short로 변환 후 Native로 전달)
          */
         fun injectTtsPcm(samples: FloatArray, sampleRate: Int) {
+            val ttsGain = 1.35f
             // Float → Short 변환
             val shortSamples = ShortArray(samples.size) { i ->
-                (samples[i] * Short.MAX_VALUE).coerceIn(
+                ((samples[i] * ttsGain) * Short.MAX_VALUE).coerceIn(
                     Short.MIN_VALUE.toFloat(),
                     Short.MAX_VALUE.toFloat()
                 ).toInt().toShort()
             }
             
-            // 리샘플링 (22050Hz → 8000Hz)
+            // 리샘플링 (TTS source -> WebRTC capture rate)
             val resampled = if (sampleRate != WEBRTC_SAMPLE_RATE) {
                 resample(shortSamples, sampleRate, WEBRTC_SAMPLE_RATE)
             } else {
                 shortSamples
             }
-            
-            TtsAudioInjector.nativePushPcm(resampled)
-            Log.d(TAG, "✅ TTS PCM injected: ${resampled.size} samples (native queue: ${TtsAudioInjector.nativeGetAvailable()})")
+
+            // Push in 20ms chunks to reduce bursty queueing/latency artifacts.
+            val chunkSamples = (WEBRTC_SAMPLE_RATE / 50).coerceAtLeast(1) // 20ms
+            var offset = 0
+            while (offset < resampled.size) {
+                val len = minOf(chunkSamples, resampled.size - offset)
+                TtsAudioInjector.nativePushPcm(resampled.copyOfRange(offset, offset + len))
+                offset += len
+            }
+            Log.d(
+                TAG,
+                "✅ TTS PCM injected: ${resampled.size} samples @${WEBRTC_SAMPLE_RATE}Hz " +
+                    "(native queue: ${TtsAudioInjector.nativeGetAvailable()})"
+            )
         }
         
         /**

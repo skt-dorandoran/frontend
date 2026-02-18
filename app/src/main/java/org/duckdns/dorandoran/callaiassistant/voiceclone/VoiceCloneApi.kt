@@ -9,49 +9,71 @@ import org.json.JSONObject
 import java.io.File
 
 object VoiceCloneApi {
+    private const val TAG = "VoiceCloneApi"
+    private const val BASE_URL = "https://dorandoran.dev"
+
     /**
-     * 음성 클론 모델 생성 요청 (음성 샘플 업로드 후)
-     * @param file 합쳐진 음성 샘플 파일
-     * @return voiceId (null: 실패)
+     * AI 음성 클론 모델 학습 요청
+     * @return voiceId 등 (성공 시 JSONObject), 실패 시 null
      */
-    fun requestVoiceClone(file: File): String? {
+    fun trainVoiceClone(modelName: String, modelFile: File): JSONObject? {
         return try {
             val client = OkHttpClient()
-            val requestBody = MultipartBody.Builder().setType(MultipartBody.FORM)
-                .addFormDataPart("file", file.name, file.asRequestBody("audio/wav".toMediaTypeOrNull()))
+            val requestBody = MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("modelName", modelName)
+                .addFormDataPart(
+                    "modelFile",
+                    modelFile.name,
+                    modelFile.asRequestBody("audio/x-m4a".toMediaTypeOrNull())
+                )
                 .build()
             val request = Request.Builder()
-                .url("https://dorandoran.dev/api/ai/voice-clone") // 실제 엔드포인트로 교체 필요
+                .url("$BASE_URL/api/v1/voice/clone")
                 .post(requestBody)
                 .build()
             val response = client.newCall(request).execute()
+            val respBody = response.body?.string()
             if (response.isSuccessful) {
-                val body = response.body?.string()
-                val json = JSONObject(body)
-                json.optString("voiceId", null)
-            } else null
+                android.util.Log.d(TAG, "trainVoiceClone 성공: $respBody")
+                JSONObject(respBody)
+            } else {
+                android.util.Log.e(TAG, "trainVoiceClone 실패: status=${response.code}, body=$respBody, modelName=$modelName, modelFile=${modelFile.absolutePath}")
+                null
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e(TAG, "trainVoiceClone 예외: ${e.message}", e)
             null
         }
     }
 
     /**
-     * 음성 클론 모델 삭제 요청
-     * @param voiceId 삭제할 voiceId
-     * @return 성공 여부
+     * AI 음성 클론 모델 삭제
+     * @return 성공 시 true, 실패 시 false
      */
     fun deleteVoiceClone(voiceId: String): Boolean {
         return try {
             val client = OkHttpClient()
+            val json = JSONObject()
+            json.put("voiceId", voiceId)
+            val body = okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), json.toString())
             val request = Request.Builder()
-                .url("https://dorandoran.dev/api/ai/voice-clone/$voiceId") // 실제 엔드포인트로 교체 필요
-                .delete()
+                .url("$BASE_URL/api/v1/voice/$voiceId")
+                .delete(body)
                 .build()
             val response = client.newCall(request).execute()
-            response.isSuccessful
+            val respBody = response.body?.string()
+            if (response.isSuccessful) {
+                val respJson = JSONObject(respBody)
+                val result = respJson.optString("status") == "ok"
+                android.util.Log.d(TAG, "deleteVoiceClone 성공: $respBody")
+                result
+            } else {
+                android.util.Log.e(TAG, "deleteVoiceClone 실패: status=${response.code}, body=$respBody, voiceId=$voiceId")
+                false
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e(TAG, "deleteVoiceClone 예외: ${e.message}", e)
             false
         }
     }
