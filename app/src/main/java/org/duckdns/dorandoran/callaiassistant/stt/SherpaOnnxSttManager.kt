@@ -25,6 +25,11 @@ class SherpaOnnxSttManager(
     private val onResult: (String) -> Unit,
     private val onError: ((String) -> Unit)? = null
 ) {
+    private var lastEmittedText: String = ""
+    private var lastEmitAtMs: Long = 0L
+    private var hpPrevIn: Float = 0f
+    private var hpPrevOut: Float = 0f
+
     fun createStream(): OnlineStream? {
         return recognizer?.createStream()
     }
@@ -34,7 +39,7 @@ class SherpaOnnxSttManager(
             recognizer!!.decode(stream)
             val result = recognizer!!.getResult(stream)
             if (result.text.isNotBlank()) {
-                onResult(result.text)
+                emitStableResult(result.text)
             }
         }
     }
@@ -76,7 +81,9 @@ class SherpaOnnxSttManager(
                 featConfig = featConfig,
                 ctcFstDecoderConfig = ctcFstDecoderConfig,
                 endpointConfig = endpointConfig,
-                enableEndpoint = true,
+                // Local/remote streaming text is merged on UI side; disabling endpoint
+                // reduces aggressive sentence splits.
+                enableEndpoint = false,
                 decodingMethod = "greedy_search",
                 maxActivePaths = 4
             )
@@ -120,6 +127,10 @@ class SherpaOnnxSttManager(
             return
         }
         stream = recognizer!!.createStream()
+        lastEmittedText = ""
+        lastEmitAtMs = 0L
+        hpPrevIn = 0f
+        hpPrevOut = 0f
 
         // AudioRecord 설정 (16kHz, MONO, PCM 16bit)
         val sampleRate = 16000
@@ -127,7 +138,7 @@ class SherpaOnnxSttManager(
         val audioFormat = AudioFormat.ENCODING_PCM_16BIT
         val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
         audioRecord = AudioRecord(
-            MediaRecorder.AudioSource.MIC,
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
             sampleRate,
             channelConfig,
             audioFormat,
@@ -141,18 +152,17 @@ class SherpaOnnxSttManager(
                 while (isActive && audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
                     val read = audioRecord?.read(buffer, 0, buffer.size) ?: 0
                     if (read > 0) {
-                        // ShortArray → FloatArray 변환 후 PCM 전달
-                        val pcm = buffer.copyOf(read).map { it.toFloat() / Short.MAX_VALUE }.toFloatArray()
+                        val pcm = preprocessMicForStt(buffer, read)
                         stream?.acceptWaveform(pcm, sampleRate)
                     }
                     if (recognizer!!.isReady(stream!!)) {
                         recognizer!!.decode(stream!!)
                         val result = recognizer!!.getResult(stream!!)
                         if (result.text.isNotBlank()) {
-                            onResult(result.text)
+                            emitStableResult(result.text)
                         }
                     }
-                    kotlinx.coroutines.delay(40) // 40ms 단위로 polling
+                    kotlinx.coroutines.delay(10)
                 }
             } catch (e: Exception) {
                 onError?.invoke(e.message ?: "STT 오류")
@@ -169,11 +179,60 @@ class SherpaOnnxSttManager(
         audioRecord = null
         stream?.release()
         stream = null
+        lastEmittedText = ""
+        lastEmitAtMs = 0L
+        hpPrevIn = 0f
+        hpPrevOut = 0f
         Log.d("SherpaOnnxSttManager", "Streaming STT 종료")
     }
 
     fun release() {
         stopStreaming()
         recognizer = null
+    }
+
+    private fun preprocessMicForStt(input: ShortArray, read: Int): FloatArray {
+        val out = FloatArray(read)
+        val hpAlpha = 0.973f
+        var prevIn = hpPrevIn
+        var prevOut = hpPrevOut
+        var energy = 0f
+
+        for (i in 0 until read) {
+            val x = input[i].toFloat() / Short.MAX_VALUE
+            val y = hpAlpha * (prevOut + x - prevIn)
+            out[i] = y
+            prevIn = x
+            prevOut = y
+            energy += y * y
+        }
+        hpPrevIn = prevIn
+        hpPrevOut = prevOut
+
+        // Mild RMS normalization to improve recognizer stability.
+        val rms = kotlin.math.sqrt((energy / read).coerceAtLeast(1e-9f))
+        val targetRms = 0.10f
+        val gain = (targetRms / rms).coerceIn(1f, 4f)
+        for (i in out.indices) {
+            out[i] = (out[i] * gain).coerceIn(-1f, 1f)
+        }
+        return out
+    }
+
+    private fun emitStableResult(raw: String) {
+        val text = raw.trim()
+        if (text.isBlank()) return
+        val now = System.currentTimeMillis()
+
+        // Skip tiny fluctuations that cause choppy bubble updates.
+        val changedEnough = kotlin.math.abs(text.length - lastEmittedText.length) >= 2 ||
+            !text.startsWith(lastEmittedText)
+        val cooldownPassed = now - lastEmitAtMs >= 180
+        if (text == lastEmittedText) return
+        if (!changedEnough && !cooldownPassed) return
+
+        lastEmittedText = text
+        lastEmitAtMs = now
+        onResult(text)
     }
 }

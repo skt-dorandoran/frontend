@@ -19,6 +19,10 @@ data class ChatMessage(
 )
 
 class CallViewModel : ViewModel() {
+    companion object {
+        private const val STT_BUBBLE_MERGE_WINDOW_MS = 2500L
+    }
+
     private val _callInfo = MutableStateFlow(CallInfo())
     val callInfo: StateFlow<CallInfo> = _callInfo.asStateFlow()
     private val _introPromptPlayed = MutableStateFlow(false)
@@ -37,6 +41,8 @@ class CallViewModel : ViewModel() {
     private var remoteConsumedRawText: String = ""
     private var myLastRawText: String = ""
     private var remoteLastRawText: String = ""
+    private var lastMySttUpdateAtMs: Long = 0L
+    private var lastRemoteSttUpdateAtMs: Long = 0L
     
     fun updateCallInfo(phoneNumber: String, hospitalName: String, callTime: String) {
         _callInfo.value = CallInfo(phoneNumber, hospitalName, callTime)
@@ -70,6 +76,7 @@ class CallViewModel : ViewModel() {
     }
 
     private fun upsertSttMessage(rawText: String, isFromMe: Boolean) {
+        val now = System.currentTimeMillis()
         val normalizedRaw = rawText.trim()
         if (normalizedRaw.isBlank()) return
 
@@ -94,7 +101,23 @@ class CallViewModel : ViewModel() {
         if (displayText.isBlank()) return
 
         val updated = _messages.value.toMutableList()
-        val idx = activeSttMessageIndex
+        var idx = activeSttMessageIndex
+
+        // If active segment was reset but same-speaker STT resumed shortly,
+        // merge back into the last STT bubble to avoid sentence fragmentation.
+        if (idx == null && updated.isNotEmpty()) {
+            val last = updated.last()
+            val withinMergeWindow = if (isFromMe) {
+                now - lastMySttUpdateAtMs <= STT_BUBBLE_MERGE_WINDOW_MS
+            } else {
+                now - lastRemoteSttUpdateAtMs <= STT_BUBBLE_MERGE_WINDOW_MS
+            }
+            if (last.isStt && last.isFromMe == isFromMe && withinMergeWindow) {
+                idx = updated.lastIndex
+                activeSttMessageIndex = idx
+            }
+        }
+
         val canUpdateCurrentBubble = idx != null &&
             idx in updated.indices &&
             updated[idx].isStt &&
@@ -115,6 +138,12 @@ class CallViewModel : ViewModel() {
             activeSttMessageIndex = updated.lastIndex
             _messages.value = updated
         }
+
+        if (isFromMe) {
+            lastMySttUpdateAtMs = now
+        } else {
+            lastRemoteSttUpdateAtMs = now
+        }
     }
 
     private fun finalizeActiveSttSegment() {
@@ -134,6 +163,8 @@ class CallViewModel : ViewModel() {
         remoteConsumedRawText = ""
         myLastRawText = ""
         remoteLastRawText = ""
+        lastMySttUpdateAtMs = 0L
+        lastRemoteSttUpdateAtMs = 0L
     }
 
     private fun subtractConsumedPrefix(raw: String, consumed: String): String {
