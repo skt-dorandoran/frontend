@@ -20,6 +20,8 @@ data class ChatMessage(
 class CallViewModel : ViewModel() {
     private val _callInfo = MutableStateFlow(CallInfo())
     val callInfo: StateFlow<CallInfo> = _callInfo.asStateFlow()
+    private val _introPromptPlayed = MutableStateFlow(false)
+    val introPromptPlayed: StateFlow<Boolean> = _introPromptPlayed.asStateFlow()
     
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
         fun clearHistory() {
@@ -38,5 +40,13 @@ class CallViewModel : ViewModel() {
     
     fun addRemoteMessage(text: String) {
         _messages.value = _messages.value + ChatMessage(text = text, isFromMe = false)
+    }
+
+    fun markIntroPromptPlayed() {
+        _introPromptPlayed.value = true
+    }
+
+    fun resetIntroPromptPlayed() {
+        _introPromptPlayed.value = false
     }
 }

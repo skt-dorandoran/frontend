@@ -73,7 +73,8 @@ fun CallNavHost(
                 },
                 onEndCall = onEndCall,
                 onSpeakerphoneToggle = onSpeakerphoneToggle,
-                navController = navController
+                navController = navController,
+                viewModel = callViewModel
             )
         }
 

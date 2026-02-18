@@ -124,8 +124,7 @@ fun WebRtcInCallScreen(
     modifier: Modifier = Modifier,
     viewModel: CallViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
-    // 안내 멘트 TTS 재생 여부 플래그
-    var hasPlayedIntroPrompt by remember { mutableStateOf(false) }
+    val hasPlayedIntroPrompt by viewModel.introPromptPlayed.collectAsState()
     var isSpeakerphoneOn by remember { mutableStateOf<Boolean>(false) }
     var selectedMode by remember { mutableStateOf(CallMode.DIRECT) }
     var callScreenState by remember { mutableStateOf(CallScreenState.MODE_SELECT) }
@@ -203,9 +202,9 @@ fun WebRtcInCallScreen(
             TtsManager.shutdown(messageTts)
             messageTts = null
             SherpaOnnxTtsManager.shutdown()
-            hasPlayedIntroPrompt = false
+            viewModel.resetIntroPromptPlayed()
         } else if (connectionState == WebRtcConnectionState.IN_CALL && !hasPlayedIntroPrompt && introPromptEnabled) {
-            hasPlayedIntroPrompt = true
+            viewModel.markIntroPromptPlayed()
             // 안내멘트 TTS 분기 로그
             android.util.Log.e("VoiceCloneTTS", "[WebRtcInCallScreen] 안내멘트 tts 분기: isVoiceCloneEnabled=$isVoiceCloneEnabled, voiceId=$voiceId, text=$introPromptText")
             if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
