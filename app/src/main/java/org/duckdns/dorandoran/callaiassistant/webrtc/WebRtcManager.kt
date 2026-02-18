@@ -139,9 +139,36 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
             val pcm = FloatArray(mono.size) { i ->
                 mono[i].toFloat() / Short.MAX_VALUE
             }
-            stream.acceptWaveform(pcm, sampleRate)
+            // sherpa-onnx model is configured for 16 kHz input.
+            val sttSampleRate = 16000
+            val sttPcm = if (sampleRate != sttSampleRate) {
+                resampleFloatPcm(pcm, sampleRate, sttSampleRate)
+            } else {
+                pcm
+            }
+            stream.acceptWaveform(sttPcm, sttSampleRate)
             remoteSttManager?.processStream(stream)
         }
+    }
+
+    private fun resampleFloatPcm(input: FloatArray, inputRate: Int, outputRate: Int): FloatArray {
+        if (input.isEmpty() || inputRate <= 0 || outputRate <= 0 || inputRate == outputRate) {
+            return input
+        }
+        val ratio = inputRate.toDouble() / outputRate.toDouble()
+        val outSize = kotlin.math.max(1, (input.size / ratio).toInt())
+        val output = FloatArray(outSize)
+        for (i in output.indices) {
+            val srcPos = i * ratio
+            val srcIdx = srcPos.toInt()
+            if (srcIdx + 1 < input.size) {
+                val frac = (srcPos - srcIdx).toFloat()
+                output[i] = input[srcIdx] * (1f - frac) + input[srcIdx + 1] * frac
+            } else {
+                output[i] = input[input.lastIndex]
+            }
+        }
+        return output
     }
 
     private fun attachRemoteAudioSink(track: AudioTrack?) {
