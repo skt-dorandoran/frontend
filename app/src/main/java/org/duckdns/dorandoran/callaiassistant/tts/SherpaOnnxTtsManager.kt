@@ -18,6 +18,8 @@ import kotlinx.coroutines.withContext
 import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 /**
  * sherpa-onnx 기반 Espeak TTS 관리
@@ -42,6 +44,12 @@ object SherpaOnnxTtsManager {
     private var currentAudioTrack: AudioTrack? = null
     
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    private data class WavAudioData(
+        val pcmData: ByteArray,
+        val sampleRate: Int,
+        val channels: Int
+    )
 
     /**
      * Espeak TTS 초기화
@@ -299,13 +307,25 @@ object SherpaOnnxTtsManager {
      */
     fun playWavFile(wavFile: File, audioManager: AudioManager, onDone: (() -> Unit)? = null) {
         try {
-            val wavBytes = wavFile.readBytes()
-            // WAV 헤더(44바이트) 스킵, 16kHz, 16bit, mono로 가정
-            val pcmData = wavBytes.drop(44).toByteArray()
-            val sampleRate = 16000
-            val channelConfig = AudioFormat.CHANNEL_OUT_MONO
+            val wavAudio = parseWavAudioData(wavFile) ?: run {
+                Log.e(TAG, "WAV 파싱 실패: ${wavFile.absolutePath}")
+                onDone?.invoke()
+                try { wavFile.delete() } catch (_: Exception) {}
+                return
+            }
+            val pcmData = wavAudio.pcmData
+            val sampleRate = wavAudio.sampleRate
+            val channels = wavAudio.channels
+            val channelConfig = if (channels == 2) AudioFormat.CHANNEL_OUT_STEREO else AudioFormat.CHANNEL_OUT_MONO
             val audioFormat = AudioFormat.ENCODING_PCM_16BIT
             val minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+
+            // 상대방에게 전달되도록 WebRTC TTS 주입 큐에도 동일 PCM을 넣는다.
+            CustomAudioDeviceModule.injectTtsPcm(
+                samples = pcm16ToFloatMono(pcmData, channels),
+                sampleRate = sampleRate
+            )
+
             val audioTrack = AudioTrack(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
@@ -344,6 +364,70 @@ object SherpaOnnxTtsManager {
             Log.e(TAG, "WAV 파일 재생 오류", e)
             onDone?.invoke()
             try { wavFile.delete() } catch (_: Exception) {}
+        }
+    }
+
+    private fun parseWavAudioData(wavFile: File): WavAudioData? {
+        val wavBytes = wavFile.readBytes()
+        if (wavBytes.size < 44) return null
+        if (!(wavBytes[0] == 'R'.code.toByte() && wavBytes[1] == 'I'.code.toByte() &&
+                    wavBytes[2] == 'F'.code.toByte() && wavBytes[3] == 'F'.code.toByte())) return null
+        if (!(wavBytes[8] == 'W'.code.toByte() && wavBytes[9] == 'A'.code.toByte() &&
+                    wavBytes[10] == 'V'.code.toByte() && wavBytes[11] == 'E'.code.toByte())) return null
+
+        var offset = 12
+        var sampleRate = 16000
+        var channels = 1
+        var bitsPerSample = 16
+        var dataStart = -1
+        var dataSize = 0
+
+        while (offset + 8 <= wavBytes.size) {
+            val chunkId = String(wavBytes, offset, 4)
+            val chunkSize = ByteBuffer.wrap(wavBytes, offset + 4, 4).order(ByteOrder.LITTLE_ENDIAN).int
+            val chunkDataStart = offset + 8
+            if (chunkDataStart + chunkSize > wavBytes.size) break
+            when (chunkId) {
+                "fmt " -> {
+                    if (chunkSize >= 16) {
+                        val fmt = ByteBuffer.wrap(wavBytes, chunkDataStart, chunkSize).order(ByteOrder.LITTLE_ENDIAN)
+                        val audioFormat = fmt.short.toInt() and 0xFFFF
+                        channels = fmt.short.toInt() and 0xFFFF
+                        sampleRate = fmt.int
+                        fmt.int // byteRate
+                        fmt.short // blockAlign
+                        bitsPerSample = fmt.short.toInt() and 0xFFFF
+                        if (audioFormat != 1) return null // PCM만 지원
+                    }
+                }
+                "data" -> {
+                    dataStart = chunkDataStart
+                    dataSize = chunkSize
+                    break
+                }
+            }
+            offset = chunkDataStart + chunkSize + (chunkSize % 2)
+        }
+
+        if (dataStart < 0 || bitsPerSample != 16 || channels < 1) return null
+        val pcm = wavBytes.copyOfRange(dataStart, dataStart + dataSize)
+        return WavAudioData(pcmData = pcm, sampleRate = sampleRate, channels = channels)
+    }
+
+    private fun pcm16ToFloatMono(pcmData: ByteArray, channels: Int): FloatArray {
+        val shortBuffer = ByteBuffer.wrap(pcmData).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        val shortSamples = ShortArray(shortBuffer.remaining())
+        shortBuffer.get(shortSamples)
+        if (channels <= 1) {
+            return FloatArray(shortSamples.size) { i -> shortSamples[i] / Short.MAX_VALUE.toFloat() }
+        }
+        val frameCount = shortSamples.size / channels
+        return FloatArray(frameCount) { i ->
+            var sum = 0
+            for (ch in 0 until channels) {
+                sum += shortSamples[i * channels + ch].toInt()
+            }
+            (sum / channels) / Short.MAX_VALUE.toFloat()
         }
     }
 

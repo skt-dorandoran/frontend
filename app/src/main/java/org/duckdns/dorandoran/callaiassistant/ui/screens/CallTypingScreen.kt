@@ -34,7 +34,10 @@ import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage
+import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore
+import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
 import android.util.Log
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +59,9 @@ fun CallTypingScreen(
     }
     var messageTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
     var isTtsReady by remember { mutableStateOf(false) }
+    val voiceId = remember { VoiceCloneStore.getVoiceId(context) }
+    val isVoiceCloneEnabled = remember { SettingsStore.isVoiceCloneEnabled(context) }
+    val coroutineScope = rememberCoroutineScope()
     
     val listState = rememberLazyListState()
 
@@ -281,14 +287,46 @@ fun CallTypingScreen(
                             
                             // TTS로 메시지 재생
                             if (isTtsReady) {
-                                TtsManager.speak(
-                                    tts = messageTts,
-                                    text = textToSend,
-                                    audioManager = audioManager,
-                                    onDone = {
-                                        Log.d("CallTypingScreen", "TTS playback completed for: $textToSend")
+                                if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
+                                    val callIdStr = "call_typing_${System.currentTimeMillis()}"
+                                    val contextSafe = context.applicationContext
+                                    coroutineScope.launch {
+                                        val wavFile = VoiceCloneTtsApi.synthesizeVoiceClone(
+                                            callId = callIdStr,
+                                            text = textToSend,
+                                            voiceId = voiceId,
+                                            sourceType = "ai_response",
+                                            context = contextSafe
+                                        )
+                                        if (wavFile != null && wavFile.exists()) {
+                                            org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager.playWavFile(
+                                                wavFile = wavFile,
+                                                audioManager = audioManager,
+                                                onDone = {
+                                                    Log.d("CallTypingScreen", "VoiceClone TTS playback completed for: $textToSend")
+                                                }
+                                            )
+                                        } else {
+                                            TtsManager.speak(
+                                                tts = messageTts,
+                                                text = textToSend,
+                                                audioManager = audioManager,
+                                                onDone = {
+                                                    Log.d("CallTypingScreen", "Fallback TTS playback completed for: $textToSend")
+                                                }
+                                            )
+                                        }
                                     }
-                                )
+                                } else {
+                                    TtsManager.speak(
+                                        tts = messageTts,
+                                        text = textToSend,
+                                        audioManager = audioManager,
+                                        onDone = {
+                                            Log.d("CallTypingScreen", "TTS playback completed for: $textToSend")
+                                        }
+                                    )
+                                }
                             }
                         },
                         modifier = Modifier
