@@ -29,17 +29,20 @@ class SherpaOnnxSttManager(
     private var lastEmitAtMs: Long = 0L
     private var hpPrevIn: Float = 0f
     private var hpPrevOut: Float = 0f
+    private var agcGain: Float = 1f
 
     fun createStream(): OnlineStream? {
         return recognizer?.createStream()
     }
 
     fun processStream(stream: OnlineStream) {
-        if (recognizer != null && recognizer!!.isReady(stream)) {
-            recognizer!!.decode(stream)
-            val result = recognizer!!.getResult(stream)
-            if (result.text.isNotBlank()) {
-                emitStableResult(result.text)
+        if (recognizer != null) {
+            while (recognizer!!.isReady(stream)) {
+                recognizer!!.decode(stream)
+                val result = recognizer!!.getResult(stream)
+                if (result.text.isNotBlank()) {
+                    emitStableResult(result.text)
+                }
             }
         }
     }
@@ -131,6 +134,7 @@ class SherpaOnnxSttManager(
         lastEmitAtMs = 0L
         hpPrevIn = 0f
         hpPrevOut = 0f
+        agcGain = 1f
 
         // AudioRecord 설정 (16kHz, MONO, PCM 16bit)
         val sampleRate = 16000
@@ -156,10 +160,12 @@ class SherpaOnnxSttManager(
                         stream?.acceptWaveform(pcm, sampleRate)
                     }
                     if (recognizer!!.isReady(stream!!)) {
-                        recognizer!!.decode(stream!!)
-                        val result = recognizer!!.getResult(stream!!)
-                        if (result.text.isNotBlank()) {
-                            emitStableResult(result.text)
+                        while (recognizer!!.isReady(stream!!)) {
+                            recognizer!!.decode(stream!!)
+                            val result = recognizer!!.getResult(stream!!)
+                            if (result.text.isNotBlank()) {
+                                emitStableResult(result.text)
+                            }
                         }
                     }
                     kotlinx.coroutines.delay(10)
@@ -183,6 +189,7 @@ class SherpaOnnxSttManager(
         lastEmitAtMs = 0L
         hpPrevIn = 0f
         hpPrevOut = 0f
+        agcGain = 1f
         Log.d("SherpaOnnxSttManager", "Streaming STT 종료")
     }
 
@@ -197,6 +204,7 @@ class SherpaOnnxSttManager(
         var prevIn = hpPrevIn
         var prevOut = hpPrevOut
         var energy = 0f
+        var peak = 0f
 
         for (i in 0 until read) {
             val x = input[i].toFloat() / Short.MAX_VALUE
@@ -205,16 +213,35 @@ class SherpaOnnxSttManager(
             prevIn = x
             prevOut = y
             energy += y * y
+            val absY = kotlin.math.abs(y)
+            if (absY > peak) peak = absY
         }
         hpPrevIn = prevIn
         hpPrevOut = prevOut
 
-        // Mild RMS normalization to improve recognizer stability.
+        // Adaptive gain for low-volume speech.
         val rms = kotlin.math.sqrt((energy / read).coerceAtLeast(1e-9f))
-        val targetRms = 0.10f
-        val gain = (targetRms / rms).coerceIn(1f, 4f)
+        // Do not hard-drop low-level frames: quiet TTS gets removed otherwise.
+        val veryLowLevel = peak < 0.010f && rms < 0.005f
+        val targetRms = when {
+            rms < 0.015f -> 0.20f
+            rms < 0.03f -> 0.16f
+            rms < 0.06f -> 0.12f
+            else -> 0.10f
+        }
+        var desiredGain = (targetRms / rms).coerceIn(1f, 24f)
+        if (peak > 1e-6f) {
+            desiredGain = minOf(desiredGain, 0.92f / peak)
+        }
+        // Faster attack, slower release.
+        val smooth = if (desiredGain > agcGain) 0.45f else 0.10f
+        agcGain = agcGain + (desiredGain - agcGain) * smooth
+        if (veryLowLevel) {
+            // Keep tiny residual signal instead of muting to keep TTS decodable.
+            agcGain = maxOf(agcGain, 3.5f)
+        }
         for (i in out.indices) {
-            out[i] = (out[i] * gain).coerceIn(-1f, 1f)
+            out[i] = (out[i] * agcGain).coerceIn(-1f, 1f)
         }
         return out
     }
