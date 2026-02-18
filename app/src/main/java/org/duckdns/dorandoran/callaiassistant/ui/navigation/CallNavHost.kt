@@ -37,9 +37,9 @@ fun CallNavHost(
     onSendAiSuggestion: (String) -> Unit = {},
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    callViewModel: CallViewModel = viewModel()
 ) {
-    val callViewModel: CallViewModel = viewModel()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     var sttRunning by remember { mutableStateOf(false) }

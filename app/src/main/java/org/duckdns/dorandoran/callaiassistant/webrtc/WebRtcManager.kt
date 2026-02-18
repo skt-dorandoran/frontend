@@ -2,7 +2,6 @@ package org.duckdns.dorandoran.callaiassistant.webrtc
 
 import android.content.Context
 import android.util.Log
-import java.lang.reflect.Proxy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,6 +18,7 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
+import org.webrtc.AudioSink
 import org.webrtc.AudioSource
 import org.webrtc.AudioTrack
 import org.webrtc.audio.AudioDeviceModule
@@ -35,7 +35,7 @@ import org.webrtc.SessionDescription
 // 상대방 오디오 STT 연동용
 private var remoteSttManager: org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager? = null
 private var remoteSttStream: com.k2fsa.sherpa.onnx.OnlineStream? = null
-private var remoteAudioSink: Any? = null
+private var remoteAudioSink: AudioSink? = null
 private var remoteAudioSinkAttachedTrack: AudioTrack? = null
 
 /** 전역 고정 방 ID - 사용자 변경 불가 */
@@ -95,65 +95,62 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         val modelDir = java.io.File(context.filesDir, "sherpa-onnx/sherpa-onnx-streaming-zipformer-korean-2024-06-16")
         remoteSttManager?.initialize(modelDir)
         remoteSttStream = remoteSttManager?.createStream()
-        remoteAudioSink = createRemoteAudioSinkProxy()
-        attachRemoteAudioSinkIfSupported(_remoteAudioTrack.value)
+        remoteAudioSink = createRemoteAudioSink()
+        attachRemoteAudioSink(_remoteAudioTrack.value)
     }
 
     fun stopRemoteStt() {
-        detachRemoteAudioSinkIfSupported()
+        detachRemoteAudioSink()
         remoteAudioSink = null
         remoteSttStream = null
         remoteSttManager = null
     }
 
-    private fun createRemoteAudioSinkProxy(): Any? {
-        return try {
-            val sinkClass = Class.forName("org.webrtc.AudioSink")
-            Proxy.newProxyInstance(
-                sinkClass.classLoader,
-                arrayOf(sinkClass)
-            ) { _, method, args ->
-                if (method.name == "onData" && args != null && args.size >= 5) {
-                    val audioData = args[0] as? ByteArray ?: return@newProxyInstance null
-                    val bitsPerSample = (args[1] as? Number)?.toInt() ?: return@newProxyInstance null
-                    val sampleRate = (args[2] as? Number)?.toInt() ?: return@newProxyInstance null
-                    val numberOfChannels = (args[3] as? Number)?.toInt() ?: return@newProxyInstance null
-                    if (bitsPerSample == 16 && numberOfChannels == 1 && remoteSttStream != null) {
-                        val shortBuf = java.nio.ByteBuffer
-                            .wrap(audioData)
-                            .order(java.nio.ByteOrder.LITTLE_ENDIAN)
-                            .asShortBuffer()
-                        val shortArr = ShortArray(shortBuf.remaining())
-                        shortBuf.get(shortArr)
-                        val pcm = shortArr.map { it.toFloat() / Short.MAX_VALUE }.toFloatArray()
-                        remoteSttStream?.acceptWaveform(pcm, sampleRate)
-                        remoteSttManager?.processStream(remoteSttStream!!)
+    private fun createRemoteAudioSink(): AudioSink {
+        return AudioSink { audioData, bitsPerSample, sampleRate, numberOfChannels, _ ->
+            val stream = remoteSttStream ?: return@AudioSink
+            if (bitsPerSample != 16 || numberOfChannels <= 0) return@AudioSink
+
+            val shortBuf = java.nio.ByteBuffer
+                .wrap(audioData)
+                .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                .asShortBuffer()
+            val input = ShortArray(shortBuf.remaining())
+            shortBuf.get(input)
+
+            val mono = if (numberOfChannels == 1) {
+                input
+            } else {
+                // Remote track can arrive as stereo. Downmix to mono for STT.
+                val frameCount = input.size / numberOfChannels
+                val mixed = ShortArray(frameCount)
+                var src = 0
+                for (i in 0 until frameCount) {
+                    var sum = 0
+                    for (ch in 0 until numberOfChannels) {
+                        sum += input[src + ch].toInt()
                     }
+                    mixed[i] = (sum / numberOfChannels).toShort()
+                    src += numberOfChannels
                 }
-                null
+                mixed
             }
-        } catch (_: ClassNotFoundException) {
-            log("Remote AudioSink API not available in current WebRTC AAR")
-            null
-        } catch (e: Throwable) {
-            log("Failed to create remote AudioSink proxy: ${e.message}")
-            null
+
+            val pcm = FloatArray(mono.size) { i ->
+                mono[i].toFloat() / Short.MAX_VALUE
+            }
+            stream.acceptWaveform(pcm, sampleRate)
+            remoteSttManager?.processStream(stream)
         }
     }
 
-    private fun attachRemoteAudioSinkIfSupported(track: AudioTrack?) {
-        if (track == null || remoteAudioSink == null) return
+    private fun attachRemoteAudioSink(track: AudioTrack?) {
+        if (track == null) return
+        val sink = remoteAudioSink ?: return
         if (remoteAudioSinkAttachedTrack === track) return
-        detachRemoteAudioSinkIfSupported()
+        detachRemoteAudioSink()
         try {
-            val addSinkMethod = track.javaClass.methods.firstOrNull { m ->
-                m.name == "addSink" && m.parameterTypes.size == 1
-            }
-            if (addSinkMethod == null) {
-                log("Remote addSink API not available in current WebRTC AAR")
-                return
-            }
-            addSinkMethod.invoke(track, remoteAudioSink)
+            track.addSink(sink)
             remoteAudioSinkAttachedTrack = track
             log("Remote STT AudioSink attached")
         } catch (e: Throwable) {
@@ -161,17 +158,12 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         }
     }
 
-    private fun detachRemoteAudioSinkIfSupported() {
+    private fun detachRemoteAudioSink() {
         val attachedTrack = remoteAudioSinkAttachedTrack ?: return
         val sink = remoteAudioSink ?: return
         try {
-            val removeSinkMethod = attachedTrack.javaClass.methods.firstOrNull { m ->
-                m.name == "removeSink" && m.parameterTypes.size == 1
-            }
-            if (removeSinkMethod != null) {
-                removeSinkMethod.invoke(attachedTrack, sink)
-                log("Remote STT AudioSink detached")
-            }
+            attachedTrack.removeSink(sink)
+            log("Remote STT AudioSink detached")
         } catch (e: Throwable) {
             log("Failed to detach remote AudioSink: ${e.message}")
         } finally {
@@ -444,7 +436,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     scope.launch {
                         _remoteAudioTrack.value = track as org.webrtc.AudioTrack
                         log("Remote audio track set to state flow")
-                        attachRemoteAudioSinkIfSupported(_remoteAudioTrack.value)
+                        attachRemoteAudioSink(_remoteAudioTrack.value)
                     }
                 }
             }
@@ -739,7 +731,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
 
         peerConnection?.close()
         peerConnection = null
-        detachRemoteAudioSinkIfSupported()
+        detachRemoteAudioSink()
         localAudioTrack?.dispose()
         localAudioTrack = null
         audioSource?.dispose()

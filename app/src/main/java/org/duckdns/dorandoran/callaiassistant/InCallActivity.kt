@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.viewmodel.compose.viewModel
 import android.content.Intent
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -39,6 +40,7 @@ import org.duckdns.dorandoran.callaiassistant.ui.screens.WebRtcInCallScreen
 import org.duckdns.dorandoran.callaiassistant.webrtc.CallAudioManager
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
+import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 
 class InCallActivity : ComponentActivity() {
     companion object {
@@ -279,11 +281,26 @@ private fun WebRtcCallContent(
         LaunchedEffect(Unit) { onEndCall() }
         return
     }
+    val context = LocalContext.current
+    val callViewModel: CallViewModel = viewModel()
     val connectionState by manager.connectionState.collectAsState()
     var callDuration by remember { mutableLongStateOf(0L) }
+    var remoteSttStarted by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         manager.onRemoteDisconnected = { onRemoteDisconnected() }
+    }
+
+    LaunchedEffect(connectionState) {
+        val inCall =
+            connectionState == org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState.IN_CALL
+        if (inCall && !remoteSttStarted) {
+            manager.startRemoteStt(context.applicationContext, callViewModel)
+            remoteSttStarted = true
+        } else if (!inCall && remoteSttStarted) {
+            manager.stopRemoteStt()
+            remoteSttStarted = false
+        }
     }
 
     LaunchedEffect(connectionState) {
@@ -297,6 +314,15 @@ private fun WebRtcCallContent(
         }
     }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            if (remoteSttStarted) {
+                manager.stopRemoteStt()
+                remoteSttStarted = false
+            }
+        }
+    }
+
     val logMessages by manager.logMessages.collectAsState()
     WebRtcInCallScreen(
         phoneNumber = phoneNumber,
@@ -306,7 +332,8 @@ private fun WebRtcCallContent(
         onEndCall = onEndCall,
         onSpeakerphoneToggle = { isOn ->
             callAudioManager.setSpeakerphone(isOn)
-        }
+        },
+        viewModel = callViewModel
     )
 }
 

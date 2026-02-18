@@ -60,6 +60,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -86,6 +87,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import org.duckdns.dorandoran.callaiassistant.ui.screens.OnboardingPermissionsScreen
+import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import androidx.compose.ui.text.font.Font
 
 val Pretendard = FontFamily(
@@ -653,8 +655,10 @@ private fun WebRtcCallContent(
     onRemoteDisconnected: () -> Unit
 ) {
     val context = LocalContext.current
+    val callViewModel: CallViewModel = viewModel()
     val connectionState by webRtcManager.connectionState.collectAsState()
     var callDuration by remember { mutableLongStateOf(0L) }
+    var remoteSttStarted by remember { mutableStateOf(false) }
     var introPromptPlayed by remember { mutableStateOf(false) }
     var introTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
     val audioManager = remember {
@@ -687,7 +691,13 @@ private fun WebRtcCallContent(
     }
 
     DisposableEffect(Unit) {
-        onDispose { stopIntroTts() }
+        onDispose {
+            stopIntroTts()
+            if (remoteSttStarted) {
+                webRtcManager.stopRemoteStt()
+                remoteSttStarted = false
+            }
+        }
     }
 
     LaunchedEffect(connectionState) {
@@ -728,6 +738,18 @@ private fun WebRtcCallContent(
     }
 
     LaunchedEffect(connectionState) {
+        val inCall =
+            connectionState == org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState.IN_CALL
+        if (inCall && !remoteSttStarted) {
+            webRtcManager.startRemoteStt(context.applicationContext, callViewModel)
+            remoteSttStarted = true
+        } else if (!inCall && remoteSttStarted) {
+            webRtcManager.stopRemoteStt()
+            remoteSttStarted = false
+        }
+    }
+
+    LaunchedEffect(connectionState) {
         if (connectionState == org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState.IN_CALL) {
             while (true) {
                 delay(1000)
@@ -752,7 +774,8 @@ private fun WebRtcCallContent(
         onEndCall = handleEndCall,
         onSpeakerphoneToggle = { isOn ->
             callAudioManager.setSpeakerphone(isOn)
-        }
+        },
+        callViewModel = callViewModel
     )
 }
 
