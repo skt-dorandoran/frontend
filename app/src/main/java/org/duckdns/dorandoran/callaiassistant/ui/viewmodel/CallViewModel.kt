@@ -58,6 +58,13 @@ data class ConversationHistoryItem(
     val text: String
 )
 
+data class SilenceInterventionUiState(
+    val eventId: Long = 0L,
+    val silenceDurationSeconds: Double = 0.0,
+    val interventionText: String = "",
+    val visible: Boolean = false
+)
+
 class CallViewModel : ViewModel() {
     companion object {
         private const val TAG = "CallViewModel"
@@ -88,6 +95,10 @@ class CallViewModel : ViewModel() {
     val aiSuggestionTop2: StateFlow<String> = _aiSuggestionTop2.asStateFlow()
     private val _isRefreshingAiSuggestions = MutableStateFlow(false)
     val isRefreshingAiSuggestions: StateFlow<Boolean> = _isRefreshingAiSuggestions.asStateFlow()
+    private val _silenceIntervention = MutableStateFlow(SilenceInterventionUiState())
+    val silenceIntervention: StateFlow<SilenceInterventionUiState> = _silenceIntervention.asStateFlow()
+    private val _aiCorrectionAlert = MutableStateFlow(false)
+    val aiCorrectionAlert: StateFlow<Boolean> = _aiCorrectionAlert.asStateFlow()
     private var activeSessionId: Long = 0L
     private var activeSessionKey: String = ""
 
@@ -100,6 +111,8 @@ class CallViewModel : ViewModel() {
         _aiSuggestionTop1.value = "여보세요"
         _aiSuggestionTop2.value = "안녕하세요"
         _isRefreshingAiSuggestions.value = false
+        _silenceIntervention.value = SilenceInterventionUiState()
+        _aiCorrectionAlert.value = false
         refreshLastConversationBubbles()
         resetSttTracking()
         syncConversationHistory()
@@ -177,6 +190,9 @@ class CallViewModel : ViewModel() {
     }
 
     fun updateMySttMessage(rawText: String) {
+        if (rawText.trim().isNotBlank()) {
+            dismissSilenceIntervention()
+        }
         if (_aiCorrectionRecording.value) {
             updateAiCorrectionDraft(rawText)
             return
@@ -194,6 +210,28 @@ class CallViewModel : ViewModel() {
 
     fun resetIntroPromptPlayed() {
         _introPromptPlayed.value = false
+    }
+
+    fun onSilenceDetected(silenceDurationSeconds: Double) {
+        _silenceIntervention.value = SilenceInterventionUiState(
+            eventId = System.currentTimeMillis(),
+            silenceDurationSeconds = silenceDurationSeconds,
+            interventionText = "잠시만요",
+            visible = true
+        )
+    }
+
+    fun dismissSilenceIntervention() {
+        if (!_silenceIntervention.value.visible) return
+        _silenceIntervention.value = _silenceIntervention.value.copy(visible = false)
+    }
+
+    fun onComprehensionAlert() {
+        _aiCorrectionAlert.value = true
+    }
+
+    fun consumeComprehensionAlert() {
+        _aiCorrectionAlert.value = false
     }
 
     fun refreshAiSuggestions(context: Context) {
