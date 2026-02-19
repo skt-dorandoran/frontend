@@ -118,7 +118,6 @@ fun WebRtcInCallScreen(
     connectionState: WebRtcConnectionState,
     callDurationSeconds: Long,
     logMessages: List<String> = emptyList(),
-    aiSuggestions: List<String> = listOf("잠시만요, 다시 말씀해주실 수 있나요?", "네, 확인했습니다. 바로 처리하겠습니다."),
     onSendAiSuggestion: (String) -> Unit = {},
     onDirectMessageSent: (String) -> Unit = {},
     onEndCall: () -> Unit,
@@ -131,7 +130,6 @@ fun WebRtcInCallScreen(
     val hasPlayedIntroPrompt by viewModel.introPromptPlayed.collectAsState()
     var selectedMode by remember { mutableStateOf(CallMode.DIRECT) }
     var callScreenState by remember { mutableStateOf(CallScreenState.MODE_SELECT) }
-    var suggestionSetIndex by remember { mutableStateOf(0) }
     var selectedSuggestionIndex by remember { mutableStateOf<Int?>(null) }
     var userInputText by remember { mutableStateOf("") }
     var isDirectSpeakOverlayOpen by remember { mutableStateOf(false) }
@@ -141,6 +139,9 @@ fun WebRtcInCallScreen(
     val textModeLastMyBubble by viewModel.textModeLastMyBubble.collectAsState()
     val textModeLastRemoteBubble by viewModel.textModeLastRemoteBubble.collectAsState()
     val aiCorrectionDraftText by viewModel.aiCorrectionDraftText.collectAsState()
+    val aiSuggestionTop1 by viewModel.aiSuggestionTop1.collectAsState()
+    val aiSuggestionTop2 by viewModel.aiSuggestionTop2.collectAsState()
+    val isRefreshingAiSuggestions by viewModel.isRefreshingAiSuggestions.collectAsState()
     val isAiCorrectionMode = selectedMode == CallMode.AI_CORRECTION
     val isVoiceConversationMode = selectedMode == CallMode.DIRECT || selectedMode == CallMode.AI_CORRECTION
     val isKeypadActive = callScreenState == CallScreenState.KEYPAD
@@ -168,15 +169,11 @@ fun WebRtcInCallScreen(
         "assistant" -> "안녕하세요. 지금은 AI 통화 비서가 대화를 돕고 있습니다. 문자로 입력한 내용을 음성으로 전달해 드릴게요."
         else -> "안녕하세요, 원활한 소통을 위해 AI 음성 변환 서비스를 이용중입니다. 제 말이 조금 늦더라도 양해 부탁드립니다."
     }
-    val suggestionSets = remember(aiSuggestions) {
-        listOf(
-            aiSuggestions.take(2).ifEmpty {
-                listOf("잠시만요, 다시 말씀해주실 수 있나요?", "네, 확인했습니다. 바로 처리하겠습니다.")
-            },
-            listOf("조금만 기다려 주세요.", "지금 바로 확인해서 알려드릴게요.")
-        )
+    val currentSuggestions = if (isRefreshingAiSuggestions) {
+        listOf("...", "...")
+    } else {
+        listOf(aiSuggestionTop1, aiSuggestionTop2)
     }
-    val currentSuggestions = suggestionSets[suggestionSetIndex % suggestionSets.size]
     val displayNumber = if (phoneNumber.isNotBlank()) formatPhoneNumber(phoneNumber) else "상대방"
     val lastRemoteTypedMessageText = textModeLastRemoteBubble.ifBlank { "상대방 대화가 없습니다" }
     val lastMyTypedMessageText = textModeLastMyBubble.ifBlank { "내가 말한 대화가 없습니다" }
@@ -643,16 +640,19 @@ fun WebRtcInCallScreen(
                                         )
                                     }
                                     IconButton(
+                                        enabled = !isRefreshingAiSuggestions,
                                         onClick = {
-                                            suggestionSetIndex = (suggestionSetIndex + 1) % suggestionSets.size
                                             selectedSuggestionIndex = null
+                                            viewModel.refreshAiSuggestions(context)
                                         }
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Refresh,
-                                            contentDescription = "추천 새로고침",
-                                            tint = secondaryTextColor
-                                        )
+                                        if (!isRefreshingAiSuggestions) {
+                                            Icon(
+                                                imageVector = Icons.Default.Refresh,
+                                                contentDescription = "추천 새로고침",
+                                                tint = secondaryTextColor
+                                            )
+                                        }
                                     }
                                 }
 
@@ -666,19 +666,39 @@ fun WebRtcInCallScreen(
                                         val selected = selectedSuggestionIndex == index
                                         OutlinedButton(
                                             onClick = {
+                                                if (isRefreshingAiSuggestions) return@OutlinedButton
                                                 selectedSuggestionIndex = index
                                                 userInputText = suggestion
                                                 onSendAiSuggestion(suggestion)
                                             },
                                             modifier = Modifier.fillMaxWidth(),
                                             shape = RoundedCornerShape(999.dp),
+                                            enabled = !isRefreshingAiSuggestions && suggestion != "...",
                                             border = BorderStroke(
-                                                width = if (selected) 2.dp else 1.dp,
-                                                color = if (selected) primaryBlue else MaterialTheme.colorScheme.outline
+                                                width = if (selected && !isRefreshingAiSuggestions) 2.dp else 1.dp,
+                                                color = if (isRefreshingAiSuggestions) {
+                                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+                                                } else if (selected) {
+                                                    primaryBlue
+                                                } else {
+                                                    MaterialTheme.colorScheme.outline
+                                                }
                                             ),
                                             colors = ButtonDefaults.outlinedButtonColors(
-                                                containerColor = if (selected) primaryBlue.copy(alpha = 0.08f) else Color.Transparent,
-                                                contentColor = MaterialTheme.colorScheme.onBackground
+                                                containerColor = if (isRefreshingAiSuggestions) {
+                                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                                                } else if (selected) {
+                                                    primaryBlue.copy(alpha = 0.08f)
+                                                } else {
+                                                    Color.Transparent
+                                                },
+                                                contentColor = if (isRefreshingAiSuggestions) {
+                                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                                } else {
+                                                    MaterialTheme.colorScheme.onBackground
+                                                },
+                                                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                                                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         ) {
                                             Text(

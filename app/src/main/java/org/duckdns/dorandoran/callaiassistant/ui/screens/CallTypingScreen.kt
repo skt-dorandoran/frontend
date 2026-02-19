@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -63,7 +64,6 @@ fun CallTypingScreen(
     val callInfo by viewModel.callInfo.collectAsState()
     val messages by viewModel.messages.collectAsState()
     var inputText by remember { mutableStateOf(TextFieldValue()) }
-    var suggestionSetIndex by remember { mutableStateOf(0) }
     val isDark = isSystemInDarkTheme()
     val primaryBlue = Color(0xFF2F5BFF)
     val context = LocalContext.current
@@ -83,6 +83,14 @@ fun CallTypingScreen(
     val visibleOneClickReplies = remember(oneClickReplies) { oneClickReplies.filter { it.isNotBlank() } }
     val displayMessages = remember(messages) {
         messages.filter { isMeaningfulConversationText(it.text) }
+    }
+    val aiSuggestionTop1 by viewModel.aiSuggestionTop1.collectAsState()
+    val aiSuggestionTop2 by viewModel.aiSuggestionTop2.collectAsState()
+    val isRefreshingAiSuggestions by viewModel.isRefreshingAiSuggestions.collectAsState()
+    val sharedSuggestions = if (isRefreshingAiSuggestions) {
+        listOf("...", "...")
+    } else {
+        listOf(aiSuggestionTop1, aiSuggestionTop2)
     }
     
     val listState = rememberLazyListState()
@@ -122,20 +130,6 @@ fun CallTypingScreen(
         }
     }
     
-    val suggestionSets = listOf(
-        listOf(
-            "예약 시간 문의드려요",
-            "진료확인서 발급 방법 알려주세요",
-            "접수 마감이 몇시인가요?"
-        ),
-        listOf(
-            "오늘 진료 가능할까요?",
-            "초진 접수 절차 알려주세요",
-            "보험 청구서 발급되나요?"
-        )
-    )
-    val aiSuggestions = suggestionSets[suggestionSetIndex % suggestionSets.size]
-
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -279,13 +273,16 @@ fun CallTypingScreen(
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     IconButton(
-                        onClick = { suggestionSetIndex = (suggestionSetIndex + 1) % suggestionSets.size }
+                        enabled = !isRefreshingAiSuggestions,
+                        onClick = { viewModel.refreshAiSuggestions(context) }
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "추천 새로고침",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (!isRefreshingAiSuggestions) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "추천 새로고침",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
                 
@@ -296,10 +293,12 @@ fun CallTypingScreen(
                         .fillMaxWidth()
                         .padding(bottom = 12.dp)
                 ) {
-                    aiSuggestions.take(2).forEach { suggestion ->
+                    sharedSuggestions.forEach { suggestion ->
                         SuggestionButton(
                             text = suggestion,
+                            isLoading = isRefreshingAiSuggestions,
                             onClick = {
+                                if (isRefreshingAiSuggestions || suggestion == "...") return@SuggestionButton
                                 inputText = TextFieldValue(
                                     text = suggestion,
                                     selection = TextRange(suggestion.length)
@@ -337,7 +336,7 @@ fun CallTypingScreen(
                         onClick = {
                             val textToSend = inputText.text.trim()
                             if (textToSend.isEmpty()) return@IconButton
-                            val isAiSuggestionText = suggestionSets.flatten().contains(textToSend)
+                            val isAiSuggestionText = sharedSuggestions.contains(textToSend)
                             isSendingMessage = true
                             isSendingAiSuggestion = isAiSuggestionText
                             viewModel.sendMessage(textToSend, origin = MessageOrigin.TEXT_MODE)
@@ -417,19 +416,35 @@ fun CallTypingScreen(
 @Composable
 private fun SuggestionButton(
     text: String,
+    isLoading: Boolean,
     onClick: () -> Unit
 ) {
     OutlinedButton(
         onClick = onClick,
+        enabled = !isLoading && text != "...",
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onSurface
+            containerColor = if (isLoading) {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+            } else {
+                Color.Transparent
+            },
+            contentColor = if (isLoading) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
-        border = androidx.compose.foundation.BorderStroke(
+        border = BorderStroke(
             1.dp,
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+            if (isLoading) {
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+            } else {
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+            }
         )
     ) {
         Text(

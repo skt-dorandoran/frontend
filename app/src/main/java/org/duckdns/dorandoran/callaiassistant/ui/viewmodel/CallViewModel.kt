@@ -1,9 +1,16 @@
 package org.duckdns.dorandoran.callaiassistant.ui.viewmodel
 
+import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.duckdns.dorandoran.callaiassistant.SettingsStore
+import org.duckdns.dorandoran.callaiassistant.ai.AiSuggestionApi
+import java.util.UUID
 
 data class CallInfo(
     val phoneNumber: String = "",
@@ -46,8 +53,14 @@ data class ConversationHistory(
     val utterances: List<ConversationUtterance> = emptyList()
 )
 
+data class ConversationHistoryItem(
+    val role: String,
+    val text: String
+)
+
 class CallViewModel : ViewModel() {
     companion object {
+        private const val TAG = "CallViewModel"
         private const val STT_SEGMENT_SPLIT_GAP_MS = 1300L
         private val NOISE_ONLY_REGEX = Regex("^[\\p{Punct}\\s·…]+$")
         private val SENTENCE_END_REGEX = Regex("[.!?…。？！]$")
@@ -69,6 +82,12 @@ class CallViewModel : ViewModel() {
     val aiCorrectionRecording: StateFlow<Boolean> = _aiCorrectionRecording.asStateFlow()
     private val _conversationHistory = MutableStateFlow(ConversationHistory())
     val conversationHistory: StateFlow<ConversationHistory> = _conversationHistory.asStateFlow()
+    private val _aiSuggestionTop1 = MutableStateFlow("여보세요")
+    val aiSuggestionTop1: StateFlow<String> = _aiSuggestionTop1.asStateFlow()
+    private val _aiSuggestionTop2 = MutableStateFlow("안녕하세요")
+    val aiSuggestionTop2: StateFlow<String> = _aiSuggestionTop2.asStateFlow()
+    private val _isRefreshingAiSuggestions = MutableStateFlow(false)
+    val isRefreshingAiSuggestions: StateFlow<Boolean> = _isRefreshingAiSuggestions.asStateFlow()
     private var activeSessionId: Long = 0L
     private var activeSessionKey: String = ""
 
@@ -78,6 +97,9 @@ class CallViewModel : ViewModel() {
         _aiCorrectionRecording.value = false
         aiCorrectionCommittedText = ""
         aiCorrectionActiveSegmentText = ""
+        _aiSuggestionTop1.value = "여보세요"
+        _aiSuggestionTop2.value = "안녕하세요"
+        _isRefreshingAiSuggestions.value = false
         refreshLastConversationBubbles()
         resetSttTracking()
         syncConversationHistory()
@@ -172,6 +194,58 @@ class CallViewModel : ViewModel() {
 
     fun resetIntroPromptPlayed() {
         _introPromptPlayed.value = false
+    }
+
+    fun refreshAiSuggestions(context: Context) {
+        if (_isRefreshingAiSuggestions.value) return
+        _isRefreshingAiSuggestions.value = true
+        val appContext = context.applicationContext
+
+        viewModelScope.launch {
+            try {
+                val recent = getRecentUtterances(limit = 4)
+                    .filter { isMeaningfulText(it.text) }
+                val history = recent.map {
+                    ConversationHistoryItem(
+                        role = if (it.speaker == ConversationSpeaker.ME) "user" else "other",
+                        text = it.text.trim()
+                    )
+                }
+                val userSpeech = recent.asReversed()
+                    .firstOrNull { it.speaker == ConversationSpeaker.REMOTE && isMeaningfulText(it.text) }
+                    ?.text
+                    ?.trim()
+                    ?: recent.lastOrNull()?.text?.trim().orEmpty()
+                val phoneNumber = SettingsStore.getMyPhoneNumber(appContext).ifBlank {
+                    _callInfo.value.phoneNumber
+                }
+
+                val callId = "call_${UUID.randomUUID().toString().replace("-", "").take(12)}"
+                val result = AiSuggestionApi.generateResponse(
+                    callId = callId,
+                    userSpeech = userSpeech,
+                    conversationHistory = history,
+                    phoneNumber = phoneNumber
+                )
+                val top2 = result?.answers
+                    ?.map { it.text.trim() }
+                    ?.filter { it.isNotBlank() }
+                    ?.take(2)
+                    .orEmpty()
+                if (top2.size >= 2) {
+                    _aiSuggestionTop1.value = top2[0]
+                    _aiSuggestionTop2.value = top2[1]
+                    Log.d(TAG, "AI suggestions updated: top1='${top2[0]}', top2='${top2[1]}'")
+                } else if (top2.size == 1) {
+                    _aiSuggestionTop1.value = top2[0]
+                    Log.d(TAG, "AI suggestion updated: top1='${top2[0]}'")
+                } else {
+                    Log.w(TAG, "AI suggestions parse result empty; keeping previous suggestions")
+                }
+            } finally {
+                _isRefreshingAiSuggestions.value = false
+            }
+        }
     }
 
     fun startAiCorrectionRecording() {

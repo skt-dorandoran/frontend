@@ -29,9 +29,6 @@ fun CallNavHost(
     connectionState: WebRtcConnectionState,
     callDurationSeconds: Long,
     logMessages: List<String> = emptyList(),
-    sttText: String = "",
-    aiSuggestions: List<String> = listOf(),
-    onSendAiSuggestion: (String) -> Unit = {},
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
     onLocalAudioTransmissionToggle: (Boolean) -> Unit = {},
@@ -93,9 +90,6 @@ fun CallNavHost(
                 connectionState = connectionState,
                 callDurationSeconds = callDurationSeconds,
                 logMessages = logMessages,
-//                sttText = sttText,
-                aiSuggestions = aiSuggestions,
-                onSendAiSuggestion = onSendAiSuggestion,
                 onDirectMessageSent = { message ->
                     callViewModel.sendMessage(message)
                 },
