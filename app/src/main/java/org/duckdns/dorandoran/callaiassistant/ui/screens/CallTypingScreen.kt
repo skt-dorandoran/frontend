@@ -277,7 +277,7 @@ fun CallTypingScreen(
                         .fillMaxWidth()
                         .padding(bottom = 12.dp)
                 ) {
-                    aiSuggestions.forEach { suggestion ->
+                    aiSuggestions.take(2).forEach { suggestion ->
                         SuggestionButton(
                             text = suggestion,
                             onClick = {
