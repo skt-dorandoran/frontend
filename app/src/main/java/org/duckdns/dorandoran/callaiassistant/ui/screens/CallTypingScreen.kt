@@ -2,8 +2,10 @@ package org.duckdns.dorandoran.callaiassistant.ui.screens
 
 import android.media.AudioManager
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -13,7 +15,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,11 +37,22 @@ import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
+import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
 import android.util.Log
 import kotlinx.coroutines.launch
+
+private val NOISE_ONLY_REGEX = Regex("^[\\p{Punct}\\s·…]+$")
+
+private fun isMeaningfulConversationText(text: String): Boolean {
+    val normalized = text.trim()
+    if (normalized.isBlank()) return false
+    if (normalized.length == 1 && !normalized[0].isLetterOrDigit()) return false
+    if (NOISE_ONLY_REGEX.matches(normalized)) return false
+    return true
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,7 +64,6 @@ fun CallTypingScreen(
     val callInfo by viewModel.callInfo.collectAsState()
     val messages by viewModel.messages.collectAsState()
     var inputText by remember { mutableStateOf(TextFieldValue()) }
-    var suggestionSetIndex by remember { mutableStateOf(0) }
     val isDark = isSystemInDarkTheme()
     val primaryBlue = Color(0xFF2F5BFF)
     val context = LocalContext.current
@@ -59,9 +73,25 @@ fun CallTypingScreen(
     }
     var messageTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
     var isTtsReady by remember { mutableStateOf(false) }
+    var isSendingMessage by remember { mutableStateOf(false) }
+    var isSendingAiSuggestion by remember { mutableStateOf(false) }
     val voiceId = remember { VoiceCloneStore.getVoiceId(context) }
     val isVoiceCloneEnabled = remember { SettingsStore.isVoiceCloneEnabled(context) }
     val coroutineScope = rememberCoroutineScope()
+    val oneClickReplies = remember { SettingsStore.getOneClickReplies(context) }
+    val oneClickScrollState = rememberScrollState()
+    val visibleOneClickReplies = remember(oneClickReplies) { oneClickReplies.filter { it.isNotBlank() } }
+    val displayMessages = remember(messages) {
+        messages.filter { isMeaningfulConversationText(it.text) }
+    }
+    val aiSuggestionTop1 by viewModel.aiSuggestionTop1.collectAsState()
+    val aiSuggestionTop2 by viewModel.aiSuggestionTop2.collectAsState()
+    val isRefreshingAiSuggestions by viewModel.isRefreshingAiSuggestions.collectAsState()
+    val sharedSuggestions = if (isRefreshingAiSuggestions) {
+        listOf("...", "...")
+    } else {
+        listOf(aiSuggestionTop1, aiSuggestionTop2)
+    }
     
     val listState = rememberLazyListState()
 
@@ -83,11 +113,9 @@ fun CallTypingScreen(
             CustomAudioDeviceModule.clearTtsQueue()
             messageTts = null
             isTtsReady = false
-            // 통화 종료 시 history 초기화
-            viewModel.clearHistory()
         }
     }
-    
+
     // 메시지가 추가되면 스크롤을 가장 아래로 즉시 이동
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -102,20 +130,6 @@ fun CallTypingScreen(
         }
     }
     
-    val suggestionSets = listOf(
-        listOf(
-            "예약 시간 문의드려요",
-            "진료확인서 발급 방법 알려주세요",
-            "접수 마감이 몇시인가요?"
-        ),
-        listOf(
-            "오늘 진료 가능할까요?",
-            "초진 접수 절차 알려주세요",
-            "보험 청구서 발급되나요?"
-        )
-    )
-    val aiSuggestions = suggestionSets[suggestionSetIndex % suggestionSets.size]
-
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -183,8 +197,8 @@ fun CallTypingScreen(
             reverseLayout = true
         ) {
             // 메시지를 역순으로 표시 (최신 메시지가 맨 아래)
-            items(messages.size) { index ->
-                val message = messages[messages.size - 1 - index]
+            items(displayMessages.size) { index ->
+                val message = displayMessages[displayMessages.size - 1 - index]
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = if (message.isFromMe) Arrangement.End else Arrangement.Start
@@ -211,31 +225,64 @@ fun CallTypingScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
+                if (visibleOneClickReplies.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(oneClickScrollState)
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        visibleOneClickReplies.forEach { reply ->
+                            OutlinedButton(
+                                onClick = {
+                                    inputText = TextFieldValue(
+                                        text = reply,
+                                        selection = TextRange(reply.length)
+                                    )
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = reply,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // AI 추천 답변 섹션 (고정)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(bottom = 8.dp)
                 ) {
-                    Text(
-                        text = "✨",
-                        fontSize = 14.sp
+                    Icon(
+                        imageVector = Icons.Default.Lightbulb,
+                        contentDescription = "AI 추천",
+                        tint = Color(0xFFFFC107),
+                        modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "AI 추천 답변",
+                        text = if (isSendingAiSuggestion) "AI 추천 답변 전송 중.." else "AI 추천 답변",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     IconButton(
-                        onClick = { suggestionSetIndex = (suggestionSetIndex + 1) % suggestionSets.size }
+                        enabled = !isRefreshingAiSuggestions,
+                        onClick = { viewModel.refreshAiSuggestions(context) }
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "추천 새로고침",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (!isRefreshingAiSuggestions) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "추천 새로고침",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
                 
@@ -246,10 +293,12 @@ fun CallTypingScreen(
                         .fillMaxWidth()
                         .padding(bottom = 12.dp)
                 ) {
-                    aiSuggestions.forEach { suggestion ->
+                    sharedSuggestions.forEach { suggestion ->
                         SuggestionButton(
                             text = suggestion,
+                            isLoading = isRefreshingAiSuggestions,
                             onClick = {
+                                if (isRefreshingAiSuggestions || suggestion == "...") return@SuggestionButton
                                 inputText = TextFieldValue(
                                     text = suggestion,
                                     selection = TextRange(suggestion.length)
@@ -287,9 +336,15 @@ fun CallTypingScreen(
                         onClick = {
                             val textToSend = inputText.text.trim()
                             if (textToSend.isEmpty()) return@IconButton
-                            viewModel.sendMessage(textToSend)
+                            val isAiSuggestionText = sharedSuggestions.contains(textToSend)
+                            isSendingMessage = true
+                            isSendingAiSuggestion = isAiSuggestionText
+                            viewModel.sendMessage(textToSend, origin = MessageOrigin.TEXT_MODE)
                             inputText = TextFieldValue()
-                            
+                            val markSendDone = {
+                                isSendingMessage = false
+                                isSendingAiSuggestion = false
+                            }
                             // TTS로 메시지 재생
                             if (isTtsReady) {
                                 if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
@@ -309,6 +364,7 @@ fun CallTypingScreen(
                                                 audioManager = audioManager,
                                                 onDone = {
                                                     Log.d("CallTypingScreen", "VoiceClone TTS playback completed for: $textToSend")
+                                                    markSendDone()
                                                 }
                                             )
                                         } else {
@@ -318,6 +374,7 @@ fun CallTypingScreen(
                                                 audioManager = audioManager,
                                                 onDone = {
                                                     Log.d("CallTypingScreen", "Fallback TTS playback completed for: $textToSend")
+                                                    markSendDone()
                                                 }
                                             )
                                         }
@@ -329,20 +386,24 @@ fun CallTypingScreen(
                                         audioManager = audioManager,
                                         onDone = {
                                             Log.d("CallTypingScreen", "TTS playback completed for: $textToSend")
+                                            markSendDone()
                                         }
                                     )
                                 }
+                            } else {
+                                markSendDone()
                             }
                         },
                         modifier = Modifier
                             .size(48.dp)
                             .clip(CircleShape)
-                            .background(if (inputText.text.isNotBlank()) primaryBlue else MaterialTheme.colorScheme.surfaceVariant)
+                            .background(if (inputText.text.isNotBlank() && !isSendingMessage) primaryBlue else MaterialTheme.colorScheme.surfaceVariant),
+                        enabled = inputText.text.isNotBlank() && !isSendingMessage
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = "전송",
-                            tint = if (inputText.text.isNotBlank()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (inputText.text.isNotBlank() && !isSendingMessage) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -355,19 +416,35 @@ fun CallTypingScreen(
 @Composable
 private fun SuggestionButton(
     text: String,
+    isLoading: Boolean,
     onClick: () -> Unit
 ) {
     OutlinedButton(
         onClick = onClick,
+        enabled = !isLoading && text != "...",
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onSurface
+            containerColor = if (isLoading) {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+            } else {
+                Color.Transparent
+            },
+            contentColor = if (isLoading) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
-        border = androidx.compose.foundation.BorderStroke(
+        border = BorderStroke(
             1.dp,
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+            if (isLoading) {
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+            } else {
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+            }
         )
     ) {
         Text(

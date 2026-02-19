@@ -50,6 +50,18 @@ object TtsManager {
     }
 
     /**
+     * 앱 실행 중 백그라운드 선로딩(prewarm)
+     */
+    fun prewarm(context: Context) {
+        if (isInitialized || isShuttingDown) return
+        initializeForCall(
+            context = context,
+            onReady = { _ -> },
+            onDone = null
+        )
+    }
+
+    /**
      * 텍스트 재생 - Espeak TTS로 생성하여 AudioTrack 재생 (WebRTC 마이크가 캡처)
      */
     fun speak(tts: TextToSpeech?, text: String, audioManager: AudioManager, onDone: (() -> Unit)? = null) {

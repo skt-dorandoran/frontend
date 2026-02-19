@@ -2,7 +2,6 @@ package org.duckdns.dorandoran.callaiassistant.ui.navigation
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
@@ -13,9 +12,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager
 import org.duckdns.dorandoran.callaiassistant.ui.screens.CallTypingScreen
 import org.duckdns.dorandoran.callaiassistant.ui.screens.WebRtcInCallScreen
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
@@ -32,51 +29,32 @@ fun CallNavHost(
     connectionState: WebRtcConnectionState,
     callDurationSeconds: Long,
     logMessages: List<String> = emptyList(),
-    sttText: String = "",
-    aiSuggestions: List<String> = listOf(),
-    onSendAiSuggestion: (String) -> Unit = {},
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
+    onLocalAudioTransmissionToggle: (Boolean) -> Unit = {},
     navController: NavHostController = rememberNavController(),
     callViewModel: CallViewModel = viewModel()
 ) {
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
-    var sttRunning by remember { mutableStateOf(false) }
-    var currentRouteState by remember { mutableStateOf(CallRoutes.INTRO) }
-    LaunchedEffect(currentRoute) {
-        currentRouteState = currentRoute ?: CallRoutes.INTRO
-    }
-    val sttManager = remember {
-        SherpaOnnxSttManager(
-            context = navController.context,
-            onResult = { recognizedText ->
-                if (currentRouteState == CallRoutes.TYPING) {
-                    callViewModel.updateMySttMessage(recognizedText)
-                }
-            },
-            onError = { err ->
-                android.util.Log.e("CallNavHost-STT", err)
-            }
-        )
-    }
+    var hasActiveConversationSession by remember { mutableStateOf(false) }
 
-    LaunchedEffect(connectionState) {
-        val shouldRun = connectionState != WebRtcConnectionState.DISCONNECTED
-        if (shouldRun && !sttRunning) {
-            sttManager.startStreaming()
-            sttRunning = true
-        } else if (!shouldRun && sttRunning) {
-            sttManager.stopStreaming()
-            sttRunning = false
+    LaunchedEffect(connectionState, phoneNumber) {
+        val callActive = connectionState != WebRtcConnectionState.DISCONNECTED
+        if (callActive && !hasActiveConversationSession) {
+            val normalizedNumber = phoneNumber.ifBlank { "unknown" }
+            val sessionKey = "$normalizedNumber-${System.currentTimeMillis()}"
+            callViewModel.startNewConversationSession(sessionKey)
+            hasActiveConversationSession = true
+        } else if (!callActive && hasActiveConversationSession) {
+            callViewModel.endConversationSession()
+            hasActiveConversationSession = false
         }
     }
 
     DisposableEffect(Unit) {
         onDispose {
-            if (sttRunning) {
-                sttManager.stopStreaming()
-                sttRunning = false
+            if (hasActiveConversationSession) {
+                callViewModel.endConversationSession()
+                hasActiveConversationSession = false
             }
         }
     }
@@ -95,7 +73,7 @@ fun CallNavHost(
     
     // ViewModel에 통화 정보 업데이트
     callViewModel.updateCallInfo(
-        phoneNumber = phoneNumber,
+        phoneNumber = if (phoneNumber.isNotBlank()) formatPhoneNumber(phoneNumber) else "상대방",
         hospitalName = if (phoneNumber.isNotBlank()) formatPhoneNumber(phoneNumber) else "상대방",
         callTime = callTimeString
     )
@@ -112,14 +90,12 @@ fun CallNavHost(
                 connectionState = connectionState,
                 callDurationSeconds = callDurationSeconds,
                 logMessages = logMessages,
-//                sttText = sttText,
-                aiSuggestions = aiSuggestions,
-                onSendAiSuggestion = onSendAiSuggestion,
                 onDirectMessageSent = { message ->
                     callViewModel.sendMessage(message)
                 },
                 onEndCall = onEndCall,
                 onSpeakerphoneToggle = onSpeakerphoneToggle,
+                onLocalAudioTransmissionToggle = onLocalAudioTransmissionToggle,
                 navController = navController,
                 viewModel = callViewModel
             )

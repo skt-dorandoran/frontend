@@ -73,7 +73,7 @@ fun IncomingCallScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = callerName,
+            text = formatIncomingDisplay(callerName),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onBackground,
@@ -98,14 +98,14 @@ fun IncomingCallScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.CallEnd,
-                        contentDescription = "끊기",
+                        contentDescription = "거절",
                         modifier = Modifier.size(36.dp),
                         tint = MaterialTheme.colorScheme.onError
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "끊기",
+                    text = "거절",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -121,19 +121,35 @@ fun IncomingCallScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Call,
-                        contentDescription = "통화 받기",
+                        contentDescription = "응답",
                         modifier = Modifier.size(36.dp),
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "통화 받기",
+                    text = "응답",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
+    }
+}
+
+private fun formatIncomingDisplay(raw: String): String {
+    val digits = raw.filter { it.isDigit() }
+    if (digits.isBlank()) return raw
+    return when {
+        digits.startsWith("02") && digits.length == 9 ->
+            "${digits.substring(0, 2)}-${digits.substring(2, 5)}-${digits.substring(5)}"
+        digits.startsWith("02") && digits.length == 10 ->
+            "${digits.substring(0, 2)}-${digits.substring(2, 6)}-${digits.substring(6)}"
+        digits.length == 10 ->
+            "${digits.substring(0, 3)}-${digits.substring(3, 6)}-${digits.substring(6)}"
+        digits.length == 11 ->
+            "${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7)}"
+        else -> raw
     }
 }
 

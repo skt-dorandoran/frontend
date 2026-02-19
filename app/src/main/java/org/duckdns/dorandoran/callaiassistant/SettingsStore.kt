@@ -20,6 +20,7 @@ object SettingsStore {
     private const val KEY_CALL_INTRO_PROMPT_DEFAULTS_APPLIED = "call_intro_prompt_defaults_applied"
     private const val KEY_VOICE_CLONE_ENABLED = "voice_clone_enabled"
     private const val KEY_MY_PHONE_NUMBER = "my_phone_number"
+    private const val ONE_CLICK_REPLY_COUNT = 9
 
     const val DEFAULT_MY_PHONE_NUMBER = "00000000000"
 
@@ -100,6 +101,33 @@ object SettingsStore {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val digitsOnly = number.filter { it.isDigit() }
         prefs.edit().putString(KEY_MY_PHONE_NUMBER, digitsOnly).apply()
+    }
+
+    private fun oneClickReplyKey(index: Int): String {
+        return "one_click_reply_${index.coerceIn(1, ONE_CLICK_REPLY_COUNT)}"
+    }
+
+    fun getOneClickReplies(context: Context): List<String> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return (1..ONE_CLICK_REPLY_COUNT).map { idx ->
+            prefs.getString(oneClickReplyKey(idx), "") ?: ""
+        }
+    }
+
+    fun setOneClickReply(context: Context, index: Int, text: String) {
+        if (index !in 1..ONE_CLICK_REPLY_COUNT) return
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(oneClickReplyKey(index), text.trim()).apply()
+    }
+
+    fun setOneClickReplies(context: Context, replies: List<String>) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        for (idx in 1..ONE_CLICK_REPLY_COUNT) {
+            val value = replies.getOrNull(idx - 1)?.trim().orEmpty()
+            editor.putString(oneClickReplyKey(idx), value)
+        }
+        editor.apply()
     }
 }
 

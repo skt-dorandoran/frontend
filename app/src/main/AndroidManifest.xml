@@ -114,6 +114,14 @@
             android:theme="@style/Theme.Callaiassistant" />
 
         <activity
+            android:name=".OneClickReplyActivity"
+            android:exported="false"
+            android:label="원클릭 답변"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Callaiassistant"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".ServiceTermsActivity"
             android:exported="false"
             android:label="서비스 이용 약관 동의"

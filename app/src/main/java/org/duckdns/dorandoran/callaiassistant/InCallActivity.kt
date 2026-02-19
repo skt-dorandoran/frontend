@@ -286,20 +286,47 @@ private fun WebRtcCallContent(
     val connectionState by manager.connectionState.collectAsState()
     var callDuration by remember { mutableLongStateOf(0L) }
     var remoteSttStarted by remember { mutableStateOf(false) }
+    var localSttStarted by remember { mutableStateOf(false) }
+    var hasActiveConversationSession by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         manager.onRemoteDisconnected = { onRemoteDisconnected() }
     }
 
     LaunchedEffect(connectionState) {
-        val inCall =
-            connectionState == org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState.IN_CALL
-        if (inCall && !remoteSttStarted) {
+        val callActive =
+            connectionState != org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState.DISCONNECTED
+        if (callActive && !remoteSttStarted) {
             manager.startRemoteStt(context.applicationContext, callViewModel)
             remoteSttStarted = true
-        } else if (!inCall && remoteSttStarted) {
+        } else if (!callActive && remoteSttStarted) {
             manager.stopRemoteStt()
             remoteSttStarted = false
+        }
+    }
+
+    LaunchedEffect(connectionState) {
+        val callActive =
+            connectionState != org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState.DISCONNECTED
+        if (callActive && !localSttStarted) {
+            manager.startLocalStt(context.applicationContext, callViewModel)
+            localSttStarted = true
+        } else if (!callActive && localSttStarted) {
+            manager.stopLocalStt()
+            localSttStarted = false
+        }
+    }
+
+    LaunchedEffect(connectionState, phoneNumber) {
+        val callActive = connectionState != org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState.DISCONNECTED
+        if (callActive && !hasActiveConversationSession) {
+            val normalizedNumber = phoneNumber.ifBlank { "unknown" }
+            val sessionKey = "$normalizedNumber-${System.currentTimeMillis()}"
+            callViewModel.startNewConversationSession(sessionKey)
+            hasActiveConversationSession = true
+        } else if (!callActive && hasActiveConversationSession) {
+            callViewModel.endConversationSession()
+            hasActiveConversationSession = false
         }
     }
 
@@ -320,6 +347,14 @@ private fun WebRtcCallContent(
                 manager.stopRemoteStt()
                 remoteSttStarted = false
             }
+            if (localSttStarted) {
+                manager.stopLocalStt()
+                localSttStarted = false
+            }
+            if (hasActiveConversationSession) {
+                callViewModel.endConversationSession()
+                hasActiveConversationSession = false
+            }
         }
     }
 
@@ -332,6 +367,9 @@ private fun WebRtcCallContent(
         onEndCall = onEndCall,
         onSpeakerphoneToggle = { isOn ->
             callAudioManager.setSpeakerphone(isOn)
+        },
+        onLocalAudioTransmissionToggle = { enabled ->
+            manager.setLocalAudioTransmissionEnabled(enabled)
         },
         viewModel = callViewModel
     )

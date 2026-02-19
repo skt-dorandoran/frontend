@@ -23,7 +23,8 @@ import java.io.File
 class SherpaOnnxSttManager(
     private val context: Context,
     private val onResult: (String) -> Unit,
-    private val onError: ((String) -> Unit)? = null
+    private val onError: ((String) -> Unit)? = null,
+    private val streamLabel: String = "generic"
 ) {
     private var lastEmittedText: String = ""
     private var lastEmitAtMs: Long = 0L
@@ -46,20 +47,32 @@ class SherpaOnnxSttManager(
                     emitStableResult(result.text)
                 }
             }
+            maybeFinalizeEndpoint(stream)
         }
     }
     internal var recognizer: OnlineRecognizer? = null
     private var stream: OnlineStream? = null
     private var sttJob: Job? = null
+    private var startJob: Job? = null
     private var audioRecord: AudioRecord? = null
     private val scope = CoroutineScope(Dispatchers.Default)
+    @Volatile
+    private var isStarting = false
 
     fun initialize(modelDir: File) {
         try {
-            val encoder = File(modelDir, "encoder-epoch-99-avg-1.int8.onnx")
-            val decoder = File(modelDir, "decoder-epoch-99-avg-1.onnx")
-            val joiner = File(modelDir, "joiner-epoch-99-avg-1.int8.onnx")
+            val encoderFp32 = File(modelDir, "encoder-epoch-99-avg-1.onnx")
+            val encoderInt8 = File(modelDir, "encoder-epoch-99-avg-1.int8.onnx")
+            val decoderFp32 = File(modelDir, "decoder-epoch-99-avg-1.onnx")
+            val decoderInt8 = File(modelDir, "decoder-epoch-99-avg-1.int8.onnx")
+            val joinerFp32 = File(modelDir, "joiner-epoch-99-avg-1.onnx")
+            val joinerInt8 = File(modelDir, "joiner-epoch-99-avg-1.int8.onnx")
+            // Prefer fp32 for higher recognition accuracy; fallback to int8.
+            val encoder = if (encoderFp32.exists()) encoderFp32 else encoderInt8
+            val decoder = if (decoderFp32.exists()) decoderFp32 else decoderInt8
+            val joiner = if (joinerFp32.exists()) joinerFp32 else joinerInt8
             val tokens = File(modelDir, "tokens.txt")
+            val sttThreads = Runtime.getRuntime().availableProcessors().coerceIn(2, 4)
 
             // sherpa-onnx 공식 예제 구조에 맞게 config 객체 생성
             val modelConfig = com.k2fsa.sherpa.onnx.OnlineModelConfig(
@@ -69,14 +82,32 @@ class SherpaOnnxSttManager(
                     joiner = joiner.absolutePath
                 ),
                 tokens = tokens.absolutePath,
-                numThreads = 2,
+                numThreads = sttThreads,
                 debug = false
             )
             val featConfig = com.k2fsa.sherpa.onnx.FeatureConfig(
                 sampleRate = 16000,
                 featureDim = 80
             )
-            val endpointConfig = com.k2fsa.sherpa.onnx.EndpointConfig()
+            // Tune endpointing for conversation turn-taking:
+            // default trailing silence is too long for phone call UX.
+            val endpointConfig = com.k2fsa.sherpa.onnx.EndpointConfig(
+                com.k2fsa.sherpa.onnx.EndpointRule(
+                    false,
+                    1.0f,
+                    0.0f
+                ),
+                com.k2fsa.sherpa.onnx.EndpointRule(
+                    true,
+                    0.40f,
+                    0.0f
+                ),
+                com.k2fsa.sherpa.onnx.EndpointRule(
+                    false,
+                    0.0f,
+                    12.0f
+                )
+            )
             val lmConfig = com.k2fsa.sherpa.onnx.OnlineLMConfig()
             val ctcFstDecoderConfig = com.k2fsa.sherpa.onnx.OnlineCtcFstDecoderConfig()
 
@@ -86,14 +117,16 @@ class SherpaOnnxSttManager(
                 featConfig = featConfig,
                 ctcFstDecoderConfig = ctcFstDecoderConfig,
                 endpointConfig = endpointConfig,
-                // Local/remote streaming text is merged on UI side; disabling endpoint
-                // reduces aggressive sentence splits.
-                enableEndpoint = false,
-                decodingMethod = "greedy_search",
-                maxActivePaths = 4
+                // Endpointing helps fast speaker turn-taking and stream reset.
+                enableEndpoint = true,
+                decodingMethod = "modified_beam_search",
+                maxActivePaths = 8
             )
             recognizer = OnlineRecognizer(null, config)
-            Log.i("SherpaOnnxSttManager", "OnlineRecognizer 초기화 완료")
+            Log.i(
+                "SherpaOnnxSttManager",
+                "[$streamLabel] OnlineRecognizer 초기화 완료 (threads=$sttThreads, encoder=${encoder.name}, decoder=${decoder.name}, joiner=${joiner.name})"
+            )
         } catch (e: Exception) {
             Log.e("SherpaOnnxSttManager", "모델 초기화 실패", e)
             onError?.invoke(e.message ?: "모델 초기화 실패")
@@ -101,87 +134,102 @@ class SherpaOnnxSttManager(
     }
 
     fun startStreaming() {
-        val modelDir = File(context.filesDir, "sherpa-onnx/sherpa-onnx-streaming-zipformer-korean-2024-06-16")
-        // 모델 파일이 없으면 assets에서 복사
-        val requiredFiles = listOf(
-            "encoder-epoch-99-avg-1.int8.onnx",
-            "decoder-epoch-99-avg-1.onnx",
-            "joiner-epoch-99-avg-1.int8.onnx",
-            "tokens.txt"
-        )
-        val missing = requiredFiles.any { !File(modelDir, it).exists() }
-        if (missing) {
+        if (isStarting || sttJob?.isActive == true) return
+        isStarting = true
+        startJob?.cancel()
+        startJob = scope.launch {
             try {
-                org.duckdns.dorandoran.callaiassistant.util.AssetCopyUtil.copyAssetFolder(
-                    context,
-                    "sherpa-onnx/sherpa-onnx-streaming-zipformer-korean-2024-06-16",
-                    modelDir
-                )
-                Log.i("SherpaOnnxSttManager", "모델 파일 assets에서 복사 완료")
-            } catch (e: Exception) {
-                Log.e("SherpaOnnxSttManager", "모델 파일 복사 실패", e)
-                onError?.invoke("모델 파일 복사 실패: ${e.message}")
-                return
-            }
-        }
-        if (recognizer == null) {
-            initialize(modelDir)
-        }
-        if (recognizer == null) {
-            onError?.invoke("Recognizer 초기화 실패")
-            return
-        }
-        stream = recognizer!!.createStream()
-        lastEmittedText = ""
-        lastEmitAtMs = 0L
-        hpPrevIn = 0f
-        hpPrevOut = 0f
-        agcGain = 1f
-        mergedText = ""
-        lastRawResultAtMs = 0L
-
-        // AudioRecord 설정 (16kHz, MONO, PCM 16bit)
-        val sampleRate = 16000
-        val channelConfig = AudioFormat.CHANNEL_IN_MONO
-        val audioFormat = AudioFormat.ENCODING_PCM_16BIT
-        val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
-        audioRecord = AudioRecord(
-            MediaRecorder.AudioSource.VOICE_RECOGNITION,
-            sampleRate,
-            channelConfig,
-            audioFormat,
-            minBufferSize * 2
-        )
-        audioRecord?.startRecording()
-
-        sttJob = scope.launch {
-            val buffer = ShortArray(2048)
-            try {
-                while (isActive && audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                    val read = audioRecord?.read(buffer, 0, buffer.size) ?: 0
-                    if (read > 0) {
-                        val pcm = preprocessMicForStt(buffer, read)
-                        stream?.acceptWaveform(pcm, sampleRate)
+                val modelDir = File(context.filesDir, "sherpa-onnx/sherpa-onnx-streaming-zipformer-korean-2024-06-16")
+                val missing = !File(modelDir, "tokens.txt").exists() ||
+                    !(File(modelDir, "encoder-epoch-99-avg-1.onnx").exists() ||
+                        File(modelDir, "encoder-epoch-99-avg-1.int8.onnx").exists()) ||
+                    !(File(modelDir, "decoder-epoch-99-avg-1.onnx").exists() ||
+                        File(modelDir, "decoder-epoch-99-avg-1.int8.onnx").exists()) ||
+                    !(File(modelDir, "joiner-epoch-99-avg-1.onnx").exists() ||
+                        File(modelDir, "joiner-epoch-99-avg-1.int8.onnx").exists())
+                if (missing) {
+                    try {
+                        org.duckdns.dorandoran.callaiassistant.util.AssetCopyUtil.copyAssetFolder(
+                            context,
+                            "sherpa-onnx/sherpa-onnx-streaming-zipformer-korean-2024-06-16",
+                            modelDir
+                        )
+                        Log.i("SherpaOnnxSttManager", "모델 파일 assets에서 복사 완료")
+                    } catch (e: Exception) {
+                        Log.e("SherpaOnnxSttManager", "모델 파일 복사 실패", e)
+                        onError?.invoke("모델 파일 복사 실패: ${e.message}")
+                        return@launch
                     }
-                    if (recognizer!!.isReady(stream!!)) {
-                        while (recognizer!!.isReady(stream!!)) {
-                            recognizer!!.decode(stream!!)
-                            val result = recognizer!!.getResult(stream!!)
-                            if (result.text.isNotBlank()) {
-                                emitStableResult(result.text)
-                            }
-                        }
-                    }
-                    kotlinx.coroutines.delay(10)
                 }
-            } catch (e: Exception) {
-                onError?.invoke(e.message ?: "STT 오류")
+                if (recognizer == null) {
+                    initialize(modelDir)
+                }
+                if (recognizer == null) {
+                    onError?.invoke("Recognizer 초기화 실패")
+                    return@launch
+                }
+                stream = recognizer!!.createStream()
+                lastEmittedText = ""
+                lastEmitAtMs = 0L
+                hpPrevIn = 0f
+                hpPrevOut = 0f
+                agcGain = 1f
+                mergedText = ""
+                lastRawResultAtMs = 0L
+
+                val sampleRate = 16000
+                val channelConfig = AudioFormat.CHANNEL_IN_MONO
+                val audioFormat = AudioFormat.ENCODING_PCM_16BIT
+                val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+                audioRecord = createBestEffortAudioRecord(sampleRate, channelConfig, audioFormat, minBufferSize * 2)
+                if (audioRecord == null) {
+                    onError?.invoke("AudioRecord 초기화 실패")
+                    return@launch
+                }
+                audioRecord?.startRecording()
+                if (audioRecord?.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                    onError?.invoke("마이크 녹음 시작 실패")
+                    audioRecord?.release()
+                    audioRecord = null
+                    return@launch
+                }
+
+                sttJob = launch {
+                    val buffer = ShortArray(1024)
+                    try {
+                        while (isActive && audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                            val read = audioRecord?.read(buffer, 0, buffer.size) ?: 0
+                            if (read > 0) {
+                                val pcm = preprocessMicForStt(buffer, read)
+                                stream?.acceptWaveform(pcm, sampleRate)
+                            }
+                            if (recognizer!!.isReady(stream!!)) {
+                                while (recognizer!!.isReady(stream!!)) {
+                                    recognizer!!.decode(stream!!)
+                                    val result = recognizer!!.getResult(stream!!)
+                                    if (result.text.isNotBlank()) {
+                                        emitStableResult(result.text)
+                                    }
+                                }
+                                maybeFinalizeEndpoint(stream!!)
+                            }
+                            kotlinx.coroutines.delay(10)
+                        }
+                    } catch (e: Exception) {
+                        onError?.invoke(e.message ?: "STT 오류")
+                    }
+                }
+                Log.d("SherpaOnnxSttManager", "[$streamLabel] Streaming STT 시작 (AudioRecord)")
+            } finally {
+                isStarting = false
             }
         }
-        Log.d("SherpaOnnxSttManager", "Streaming STT 시작 (AudioRecord)")
     }
 
     fun stopStreaming() {
+        startJob?.cancel()
+        startJob = null
+        isStarting = false
         sttJob?.cancel()
         sttJob = null
         audioRecord?.stop()
@@ -196,7 +244,7 @@ class SherpaOnnxSttManager(
         agcGain = 1f
         mergedText = ""
         lastRawResultAtMs = 0L
-        Log.d("SherpaOnnxSttManager", "Streaming STT 종료")
+        Log.d("SherpaOnnxSttManager", "[$streamLabel] Streaming STT 종료")
     }
 
     fun release() {
@@ -204,9 +252,41 @@ class SherpaOnnxSttManager(
         recognizer = null
     }
 
+    private fun createBestEffortAudioRecord(
+        sampleRate: Int,
+        channelConfig: Int,
+        audioFormat: Int,
+        bufferSize: Int
+    ): AudioRecord? {
+        val preferredSources = intArrayOf(
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+            MediaRecorder.AudioSource.MIC
+        )
+        for (source in preferredSources) {
+            try {
+                val candidate = AudioRecord(
+                    source,
+                    sampleRate,
+                    channelConfig,
+                    audioFormat,
+                    bufferSize
+                )
+                if (candidate.state == AudioRecord.STATE_INITIALIZED) {
+                    Log.i("SherpaOnnxSttManager", "AudioRecord source selected: $source")
+                    return candidate
+                }
+                candidate.release()
+            } catch (_: Exception) {
+                // Try next source.
+            }
+        }
+        return null
+    }
+
     private fun preprocessMicForStt(input: ShortArray, read: Int): FloatArray {
         val out = FloatArray(read)
-        val hpAlpha = 0.973f
+        val hpAlpha = 0.94f
         var prevIn = hpPrevIn
         var prevOut = hpPrevOut
         var energy = 0f
@@ -214,7 +294,9 @@ class SherpaOnnxSttManager(
 
         for (i in 0 until read) {
             val x = input[i].toFloat() / Short.MAX_VALUE
-            val y = hpAlpha * (prevOut + x - prevIn)
+            val yHp = hpAlpha * (prevOut + x - prevIn)
+            // Keep some low-frequency component to avoid losing mumbled consonants/vowels.
+            val y = (yHp * 0.75f) + (x * 0.25f)
             out[i] = y
             prevIn = x
             prevOut = y
@@ -245,6 +327,7 @@ class SherpaOnnxSttManager(
         if (veryLowLevel) {
             agcGain = maxOf(agcGain, 1.5f)
         }
+        agcGain = agcGain.coerceIn(1f, 12f)
         for (i in out.indices) {
             out[i] = (out[i] * agcGain).coerceIn(-1f, 1f)
         }
@@ -257,7 +340,7 @@ class SherpaOnnxSttManager(
         val now = System.currentTimeMillis()
 
         // If decoder restarts after a pause, allow a clean sentence restart.
-        if (lastRawResultAtMs > 0L && now - lastRawResultAtMs > 2200L) {
+        if (lastRawResultAtMs > 0L && now - lastRawResultAtMs > 900L) {
             mergedText = ""
         }
         lastRawResultAtMs = now
@@ -265,12 +348,12 @@ class SherpaOnnxSttManager(
         val merged = mergeTranscript(mergedText, text)
         mergedText = merged
 
-        // Skip tiny fluctuations that cause choppy bubble updates.
-        val changedEnough = kotlin.math.abs(merged.length - lastEmittedText.length) >= 2 ||
-            !merged.startsWith(lastEmittedText)
-        val cooldownPassed = now - lastEmitAtMs >= 180
         if (merged == lastEmittedText) return
-        if (!changedEnough && !cooldownPassed) return
+        // Always deliver append-only updates so final syllables are not dropped.
+        // Only throttle rewrite-type fluctuations.
+        val appendOnly = merged.startsWith(lastEmittedText)
+        val cooldownPassed = now - lastEmitAtMs >= 120
+        if (!appendOnly && !cooldownPassed) return
 
         lastEmittedText = merged
         lastEmitAtMs = now
@@ -281,19 +364,25 @@ class SherpaOnnxSttManager(
         if (previous.isBlank()) return incoming
         if (incoming.startsWith(previous)) return incoming
         if (previous.startsWith(incoming)) return previous
-        if (previous.contains(incoming)) return previous
-
-        var overlap = 0
-        val max = minOf(previous.length, incoming.length)
-        for (k in max downTo 1) {
-            if (previous.endsWith(incoming.substring(0, k))) {
-                overlap = k
-                break
-            }
-        }
-        if (overlap > 0) {
-            return previous + incoming.substring(overlap)
-        }
+        // Avoid speculative overlap concatenation: it can produce gibberish joins.
         return incoming
+    }
+
+    private fun maybeFinalizeEndpoint(activeStream: OnlineStream) {
+        val currentRecognizer = recognizer ?: return
+        if (!currentRecognizer.isEndpoint(activeStream)) return
+
+        val finalText = currentRecognizer.getResult(activeStream).text.trim()
+        if (finalText.isNotBlank()) {
+            emitStableResult(finalText)
+        }
+
+        // Keep one recognizer/stream, but reset decoder states per utterance so
+        // the next sentence starts independently without transcript accumulation.
+        currentRecognizer.reset(activeStream)
+        mergedText = ""
+        lastEmittedText = ""
+        lastEmitAtMs = 0L
+        lastRawResultAtMs = 0L
     }
 }
