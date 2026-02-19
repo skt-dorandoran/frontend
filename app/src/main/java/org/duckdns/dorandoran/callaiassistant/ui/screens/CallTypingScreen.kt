@@ -43,6 +43,16 @@ import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
 import android.util.Log
 import kotlinx.coroutines.launch
 
+private val NOISE_ONLY_REGEX = Regex("^[\\p{Punct}\\s·…]+$")
+
+private fun isMeaningfulConversationText(text: String): Boolean {
+    val normalized = text.trim()
+    if (normalized.isBlank()) return false
+    if (normalized.length == 1 && !normalized[0].isLetterOrDigit()) return false
+    if (NOISE_ONLY_REGEX.matches(normalized)) return false
+    return true
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CallTypingScreen(
@@ -71,6 +81,9 @@ fun CallTypingScreen(
     val oneClickReplies = remember { SettingsStore.getOneClickReplies(context) }
     val oneClickScrollState = rememberScrollState()
     val visibleOneClickReplies = remember(oneClickReplies) { oneClickReplies.filter { it.isNotBlank() } }
+    val displayMessages = remember(messages) {
+        messages.filter { isMeaningfulConversationText(it.text) }
+    }
     
     val listState = rememberLazyListState()
 
@@ -190,8 +203,8 @@ fun CallTypingScreen(
             reverseLayout = true
         ) {
             // 메시지를 역순으로 표시 (최신 메시지가 맨 아래)
-            items(messages.size) { index ->
-                val message = messages[messages.size - 1 - index]
+            items(displayMessages.size) { index ->
+                val message = displayMessages[displayMessages.size - 1 - index]
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = if (message.isFromMe) Arrangement.End else Arrangement.Start

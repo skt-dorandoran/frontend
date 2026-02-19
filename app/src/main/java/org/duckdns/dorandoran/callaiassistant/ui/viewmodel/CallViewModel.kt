@@ -49,6 +49,9 @@ data class ConversationHistory(
 class CallViewModel : ViewModel() {
     companion object {
         private const val STT_BUBBLE_MERGE_WINDOW_MS = 800L
+        private const val STT_SEGMENT_SPLIT_GAP_MS = 1300L
+        private val NOISE_ONLY_REGEX = Regex("^[\\p{Punct}\\s·…]+$")
+        private val SENTENCE_END_REGEX = Regex("[.!?…。？！]$")
     }
 
     private val _callInfo = MutableStateFlow(CallInfo())
@@ -158,15 +161,15 @@ class CallViewModel : ViewModel() {
         _introPromptPlayed.value = false
     }
 
-    fun updateTextModeLastBubbles(myText: String, remoteText: String) {
-        _textModeLastMyBubble.value = myText.trim()
-        _textModeLastRemoteBubble.value = remoteText.trim()
-    }
-
     private fun upsertSttMessage(rawText: String, isFromMe: Boolean) {
         val now = System.currentTimeMillis()
         val normalizedRaw = rawText.trim()
         if (normalizedRaw.isBlank()) return
+
+        val lastUpdateAtMs = if (isFromMe) lastMySttUpdateAtMs else lastRemoteSttUpdateAtMs
+        if (activeSttSpeakerIsMe == isFromMe && lastUpdateAtMs > 0L && now - lastUpdateAtMs > STT_SEGMENT_SPLIT_GAP_MS) {
+            finalizeActiveSttSegment()
+        }
 
         if (activeSttSpeakerIsMe != null && activeSttSpeakerIsMe != isFromMe) {
             finalizeActiveSttSegment()
@@ -178,7 +181,7 @@ class CallViewModel : ViewModel() {
         }
 
         val consumed = if (isFromMe) myConsumedRawText else remoteConsumedRawText
-        val displayText = subtractConsumedPrefix(normalizedRaw, consumed).trim()
+        val displayText = subtractConsumedPrefixSmart(normalizedRaw, consumed).trim()
 
         if (isFromMe) {
             myLastRawText = normalizedRaw
@@ -236,6 +239,11 @@ class CallViewModel : ViewModel() {
         } else {
             lastRemoteSttUpdateAtMs = now
         }
+
+        // 문장 끝 표식이 잡히면 현재 STT 세그먼트를 닫아 다음 문장을 새 말풍선으로 시작한다.
+        if (SENTENCE_END_REGEX.containsMatchIn(displayText)) {
+            finalizeActiveSttSegment()
+        }
     }
 
     private fun finalizeActiveSttSegment() {
@@ -265,6 +273,25 @@ class CallViewModel : ViewModel() {
         return raw
     }
 
+    private fun subtractConsumedPrefixSmart(raw: String, consumed: String): String {
+        val direct = subtractConsumedPrefix(raw, consumed)
+        if (direct != raw) return direct
+        if (consumed.isBlank()) return raw
+
+        val normalizedConsumed = consumed.trim()
+        val normalizedRaw = raw.trim()
+        if (normalizedConsumed.isBlank() || normalizedRaw.isBlank()) return raw
+
+        val maxOverlap = minOf(normalizedConsumed.length, normalizedRaw.length)
+        for (len in maxOverlap downTo 2) {
+            val suffix = normalizedConsumed.takeLast(len)
+            if (normalizedRaw.startsWith(suffix)) {
+                return normalizedRaw.removePrefix(suffix).trimStart()
+            }
+        }
+        return raw
+    }
+
     private fun syncConversationHistory() {
         val utterances = _messages.value.map { message ->
             ConversationUtterance(
@@ -284,7 +311,21 @@ class CallViewModel : ViewModel() {
 
     private fun refreshLastConversationBubbles() {
         val current = _messages.value
-        _textModeLastMyBubble.value = current.lastOrNull { it.isFromMe }?.text.orEmpty()
-        _textModeLastRemoteBubble.value = current.lastOrNull { !it.isFromMe }?.text.orEmpty()
+        _textModeLastMyBubble.value = current.asReversed()
+            .firstOrNull { it.isFromMe && !it.isStt && isMeaningfulText(it.text) }
+            ?.text
+            .orEmpty()
+        _textModeLastRemoteBubble.value = current.asReversed()
+            .firstOrNull { !it.isFromMe && !it.isStt && isMeaningfulText(it.text) }
+            ?.text
+            .orEmpty()
+    }
+
+    private fun isMeaningfulText(text: String): Boolean {
+        val normalized = text.trim()
+        if (normalized.isBlank()) return false
+        if (normalized.length == 1 && !normalized[0].isLetterOrDigit()) return false
+        if (NOISE_ONLY_REGEX.matches(normalized)) return false
+        return true
     }
 }
