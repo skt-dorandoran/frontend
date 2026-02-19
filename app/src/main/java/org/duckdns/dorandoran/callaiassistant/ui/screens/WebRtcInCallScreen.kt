@@ -123,6 +123,7 @@ fun WebRtcInCallScreen(
     onDirectMessageSent: (String) -> Unit = {},
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
+    onLocalAudioTransmissionToggle: (Boolean) -> Unit = {},
     navController: NavController? = null,
     modifier: Modifier = Modifier,
     viewModel: CallViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
@@ -135,12 +136,16 @@ fun WebRtcInCallScreen(
     var userInputText by remember { mutableStateOf("") }
     var isDirectSpeakOverlayOpen by remember { mutableStateOf(false) }
     var isSendingMessage by remember { mutableStateOf(false) }
+    var isAiCorrectionSending by remember { mutableStateOf(false) }
+    var aiCorrectionOverlayState by remember { mutableStateOf(AiCorrectionOverlayState.RECORDING) }
     val textModeLastMyBubble by viewModel.textModeLastMyBubble.collectAsState()
     val textModeLastRemoteBubble by viewModel.textModeLastRemoteBubble.collectAsState()
+    val aiCorrectionDraftText by viewModel.aiCorrectionDraftText.collectAsState()
     val isAiCorrectionMode = selectedMode == CallMode.AI_CORRECTION
+    val isVoiceConversationMode = selectedMode == CallMode.DIRECT || selectedMode == CallMode.AI_CORRECTION
     val isKeypadActive = callScreenState == CallScreenState.KEYPAD
     val shouldAvoidIme = callScreenState == CallScreenState.MODE_SELECT &&
-        selectedMode == CallMode.DIRECT &&
+        isVoiceConversationMode &&
         connectionState == WebRtcConnectionState.IN_CALL
     val coroutineScope = rememberCoroutineScope()
     var messageTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
@@ -185,6 +190,78 @@ fun WebRtcInCallScreen(
 
     fun syncSpeakerphoneUiState() {
         isSpeakerphoneOn = audioManager.isSpeakerphoneOn
+    }
+
+    fun openSpeakOverlay() {
+        isDirectSpeakOverlayOpen = true
+        if (isAiCorrectionMode) {
+            aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
+            isAiCorrectionSending = false
+            viewModel.clearAiCorrectionDraft()
+            viewModel.startAiCorrectionRecording()
+            onLocalAudioTransmissionToggle(false)
+        }
+    }
+
+    fun closeSpeakOverlay() {
+        isDirectSpeakOverlayOpen = false
+        if (isAiCorrectionMode) {
+            viewModel.stopAiCorrectionRecording()
+            onLocalAudioTransmissionToggle(true)
+        }
+    }
+
+    fun speakTextWithTts(textToSend: String, onDone: () -> Unit) {
+        android.util.Log.e("VoiceCloneTTS", "[WebRtcInCallScreen] tts 분기: isVoiceCloneEnabled=$isVoiceCloneEnabled, voiceId=$voiceId, text=$textToSend")
+
+        if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
+            android.util.Log.d("VoiceCloneTTS", "[WebRtcInCallScreen] ==> voiceCloneTTS 분기 진입, text: $textToSend")
+            val callIdStr = "call_${System.currentTimeMillis()}"
+            val contextSafe = context.applicationContext
+            val audioManagerSafe = audioManager
+            coroutineScope.launch {
+                val wavFile = VoiceCloneTtsApi.synthesizeVoiceClone(
+                    callId = callIdStr,
+                    text = textToSend,
+                    voiceId = voiceId,
+                    sourceType = "ai_response",
+                    context = contextSafe
+                )
+                if (wavFile != null && wavFile.exists()) {
+                    android.util.Log.d("VoiceCloneTTS", "[WebRtcInCallScreen] 음성 클론 TTS 합성 및 재생 성공: ${wavFile.absolutePath}")
+                    SherpaOnnxTtsManager.playWavFile(wavFile, audioManagerSafe)
+                    onDone()
+                } else {
+                    android.util.Log.w("VoiceCloneTTS", "[WebRtcInCallScreen] 음성 클론 TTS 합성 실패, 내장 TTS로 대체: $textToSend")
+                    messageTts = TtsManager.initializeForCall(
+                        context = contextSafe,
+                        onReady = { tts ->
+                            messageTts = tts
+                            TtsManager.speak(
+                                tts = tts,
+                                text = textToSend,
+                                audioManager = audioManagerSafe,
+                                onDone = onDone
+                            )
+                        }
+                    )
+                }
+            }
+        } else {
+            android.util.Log.d("VoiceCloneTTS", "[WebRtcInCallScreen] ==> SherpaOnnxTtsManager(내장 TTS) 분기 진입, text: $textToSend")
+            messageTts = TtsManager.initializeForCall(
+                context = context,
+                onReady = { tts ->
+                    messageTts = tts
+                    TtsManager.speak(
+                        tts = tts,
+                        text = textToSend,
+                        audioManager = audioManager,
+                        onDone = onDone
+                    )
+                }
+            )
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -271,6 +348,31 @@ fun WebRtcInCallScreen(
         }
     }
 
+    LaunchedEffect(connectionState) {
+        if (connectionState != WebRtcConnectionState.IN_CALL && isDirectSpeakOverlayOpen) {
+            closeSpeakOverlay()
+        }
+    }
+
+    LaunchedEffect(selectedMode) {
+        if (selectedMode != CallMode.AI_CORRECTION) {
+            viewModel.stopAiCorrectionRecording()
+            aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
+            isAiCorrectionSending = false
+            if (isDirectSpeakOverlayOpen) {
+                isDirectSpeakOverlayOpen = false
+            }
+            onLocalAudioTransmissionToggle(true)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.stopAiCorrectionRecording()
+            onLocalAudioTransmissionToggle(true)
+        }
+    }
+
     BackHandler(enabled = callScreenState == CallScreenState.KEYPAD) {
         callScreenState = CallScreenState.MODE_SELECT
     }
@@ -325,9 +427,7 @@ fun WebRtcInCallScreen(
 
             when (callScreenState) {
                 CallScreenState.MODE_SELECT -> {
-                    if (isAiCorrectionMode) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    } else if (selectedMode == CallMode.DIRECT && connectionState == WebRtcConnectionState.IN_CALL) {
+                    if (isVoiceConversationMode && connectionState == WebRtcConnectionState.IN_CALL) {
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -384,14 +484,14 @@ fun WebRtcInCallScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     if (callScreenState == CallScreenState.MODE_SELECT) {
-                        if (connectionState == WebRtcConnectionState.IN_CALL && selectedMode == CallMode.DIRECT) {
+                        if (connectionState == WebRtcConnectionState.IN_CALL && isVoiceConversationMode) {
                             if (isDirectSpeakOverlayOpen) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.End
                                 ) {
                                     IconButton(
-                                        onClick = { isDirectSpeakOverlayOpen = false }
+                                        onClick = { closeSpeakOverlay() }
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Close,
@@ -421,19 +521,104 @@ fun WebRtcInCallScreen(
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Text(
-                                            text = "지금 이렇게 말하고 있어요",
+                                            text = if (isAiCorrectionMode && aiCorrectionOverlayState != AiCorrectionOverlayState.RECORDING) {
+                                                "보정된 문장을 확인해주세요"
+                                            } else {
+                                                "지금 이렇게 말하고 있어요"
+                                            },
                                             style = MaterialTheme.typography.labelLarge,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(14.dp))
                                     Text(
-                                        text = lastMyTypedMessageText,
+                                        text = if (isAiCorrectionMode) {
+                                            aiCorrectionDraftText.ifBlank { "말씀하시면 문장이 여기에 표시됩니다" }
+                                        } else {
+                                            lastMyTypedMessageText
+                                        },
                                         style = MaterialTheme.typography.bodyLarge.copy(
                                             fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale
                                         ),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
+
+                                    if (isAiCorrectionMode) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                        when (aiCorrectionOverlayState) {
+                                            AiCorrectionOverlayState.RECORDING -> {
+                                                Button(
+                                                    onClick = {
+                                                        viewModel.stopAiCorrectionRecording()
+                                                        aiCorrectionOverlayState = AiCorrectionOverlayState.READY_TO_SEND
+                                                    },
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = Color(0xFFD64545),
+                                                        contentColor = Color.White
+                                                    )
+                                                ) {
+                                                    Text("녹음 중지")
+                                                }
+                                            }
+                                            AiCorrectionOverlayState.READY_TO_SEND -> {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                                ) {
+                                                    OutlinedButton(
+                                                        onClick = {
+                                                            viewModel.clearAiCorrectionDraft()
+                                                            viewModel.startAiCorrectionRecording()
+                                                            aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
+                                                        },
+                                                        modifier = Modifier.weight(1f),
+                                                        shape = RoundedCornerShape(12.dp)
+                                                    ) {
+                                                        Text("다시 말하기")
+                                                    }
+                                                    Button(
+                                                        onClick = {
+                                                            val textToSend = aiCorrectionDraftText.trim()
+                                                            if (textToSend.isBlank() || isAiCorrectionSending) return@Button
+                                                            isAiCorrectionSending = true
+                                                            viewModel.sendMessage(
+                                                                textToSend,
+                                                                origin = org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin.TEXT_MODE
+                                                            )
+                                                            speakTextWithTts(textToSend) {
+                                                                isAiCorrectionSending = false
+                                                                aiCorrectionOverlayState = AiCorrectionOverlayState.SENT
+                                                            }
+                                                        },
+                                                        modifier = Modifier.weight(1f),
+                                                        shape = RoundedCornerShape(12.dp),
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = primaryBlue,
+                                                            contentColor = Color.White
+                                                        ),
+                                                        enabled = aiCorrectionDraftText.isNotBlank() && !isAiCorrectionSending
+                                                    ) {
+                                                        Text(if (isAiCorrectionSending) "전송 중..." else "보내기")
+                                                    }
+                                                }
+                                            }
+                                            AiCorrectionOverlayState.SENT -> {
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        viewModel.clearAiCorrectionDraft()
+                                                        viewModel.startAiCorrectionRecording()
+                                                        aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
+                                                    },
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    shape = RoundedCornerShape(12.dp)
+                                                ) {
+                                                    Text("다시 말하기")
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             } else {
                                 Row(
@@ -508,7 +693,7 @@ fun WebRtcInCallScreen(
                                 Spacer(modifier = Modifier.height(12.dp))
 
                                 OutlinedButton(
-                                    onClick = { isDirectSpeakOverlayOpen = true },
+                                    onClick = { openSpeakOverlay() },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(74.dp),
@@ -563,67 +748,9 @@ fun WebRtcInCallScreen(
                                     val textToSend = userInputText
                                     isSendingMessage = true
                                     onDirectMessageSent(textToSend)
-
-                                    // 분기 조건 로그
-                                    android.util.Log.e("VoiceCloneTTS", "[WebRtcInCallScreen] tts 분기: isVoiceCloneEnabled=$isVoiceCloneEnabled, voiceId=$voiceId, text=$textToSend")
-
-                                    if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
-                                        // 음성 클론 TTS 분기
-                                        android.util.Log.d("VoiceCloneTTS", "[WebRtcInCallScreen] ==> voiceCloneTTS 분기 진입, text: $textToSend")
-                                        val callIdStr = "call_${System.currentTimeMillis()}"
-                                        val contextSafe = context.applicationContext
-                                        val audioManagerSafe = audioManager
-                                        val updateUi: () -> Unit = {
-                                            userInputText = ""
-                                            isSendingMessage = false
-                                        }
-                                        // 코루틴으로 비동기 처리
-                                        coroutineScope.launch {
-                                            val wavFile = org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi.synthesizeVoiceClone(
-                                                callId = callIdStr,
-                                                text = textToSend,
-                                                voiceId = voiceId,
-                                                sourceType = "ai_response",
-                                                context = contextSafe
-                                            )
-                                            if (wavFile != null && wavFile.exists()) {
-                                                android.util.Log.d("VoiceCloneTTS", "[WebRtcInCallScreen] 음성 클론 TTS 합성 및 재생 성공: ${wavFile.absolutePath}")
-                                                org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager.playWavFile(wavFile, audioManagerSafe)
-                                            } else {
-                                                android.util.Log.w("VoiceCloneTTS", "[WebRtcInCallScreen] 음성 클론 TTS 합성 실패, 내장 TTS로 대체: $textToSend")
-                                                messageTts = TtsManager.initializeForCall(
-                                                    context = contextSafe,
-                                                    onReady = { tts ->
-                                                        messageTts = tts
-                                                        TtsManager.speak(
-                                                            tts = tts,
-                                                            text = textToSend,
-                                                            audioManager = audioManagerSafe,
-                                                            onDone = updateUi
-                                                        )
-                                                    }
-                                                )
-                                            }
-                                            updateUi()
-                                        }
-                                    } else {
-                                        // 내장 TTS 분기
-                                        android.util.Log.d("VoiceCloneTTS", "[WebRtcInCallScreen] ==> SherpaOnnxTtsManager(내장 TTS) 분기 진입, text: $textToSend")
-                                        messageTts = TtsManager.initializeForCall(
-                                            context = context,
-                                            onReady = { tts ->
-                                                messageTts = tts
-                                                TtsManager.speak(
-                                                    tts = tts,
-                                                    text = textToSend,
-                                                    audioManager = audioManager,
-                                                    onDone = {
-                                                        userInputText = ""
-                                                        isSendingMessage = false
-                                                    }
-                                                )
-                                            }
-                                        )
+                                    speakTextWithTts(textToSend) {
+                                        userInputText = ""
+                                        isSendingMessage = false
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
@@ -822,6 +949,12 @@ private enum class CallMode {
     DIRECT,
     AI_CORRECTION,
     TEXT
+}
+
+private enum class AiCorrectionOverlayState {
+    RECORDING,
+    READY_TO_SEND,
+    SENT
 }
 
 @Composable

@@ -63,6 +63,10 @@ class CallViewModel : ViewModel() {
     val textModeLastMyBubble: StateFlow<String> = _textModeLastMyBubble.asStateFlow()
     private val _textModeLastRemoteBubble = MutableStateFlow("")
     val textModeLastRemoteBubble: StateFlow<String> = _textModeLastRemoteBubble.asStateFlow()
+    private val _aiCorrectionDraftText = MutableStateFlow("")
+    val aiCorrectionDraftText: StateFlow<String> = _aiCorrectionDraftText.asStateFlow()
+    private val _aiCorrectionRecording = MutableStateFlow(false)
+    val aiCorrectionRecording: StateFlow<Boolean> = _aiCorrectionRecording.asStateFlow()
     private val _conversationHistory = MutableStateFlow(ConversationHistory())
     val conversationHistory: StateFlow<ConversationHistory> = _conversationHistory.asStateFlow()
     private var activeSessionId: Long = 0L
@@ -70,6 +74,10 @@ class CallViewModel : ViewModel() {
 
     fun clearHistory() {
         _messages.value = emptyList()
+        _aiCorrectionDraftText.value = ""
+        _aiCorrectionRecording.value = false
+        aiCorrectionCommittedText = ""
+        aiCorrectionActiveSegmentText = ""
         refreshLastConversationBubbles()
         resetSttTracking()
         syncConversationHistory()
@@ -84,6 +92,8 @@ class CallViewModel : ViewModel() {
     private var remoteLastRawText: String = ""
     private var lastMySttUpdateAtMs: Long = 0L
     private var lastRemoteSttUpdateAtMs: Long = 0L
+    private var aiCorrectionCommittedText: String = ""
+    private var aiCorrectionActiveSegmentText: String = ""
     
     fun updateCallInfo(phoneNumber: String, hospitalName: String, callTime: String) {
         _callInfo.value = CallInfo(phoneNumber, hospitalName, callTime)
@@ -145,6 +155,10 @@ class CallViewModel : ViewModel() {
     }
 
     fun updateMySttMessage(rawText: String) {
+        if (_aiCorrectionRecording.value) {
+            updateAiCorrectionDraft(rawText)
+            return
+        }
         upsertSttMessage(rawText = rawText, isFromMe = true)
     }
 
@@ -158,6 +172,24 @@ class CallViewModel : ViewModel() {
 
     fun resetIntroPromptPlayed() {
         _introPromptPlayed.value = false
+    }
+
+    fun startAiCorrectionRecording() {
+        finalizeActiveSttSegment()
+        _aiCorrectionDraftText.value = ""
+        _aiCorrectionRecording.value = true
+        aiCorrectionCommittedText = ""
+        aiCorrectionActiveSegmentText = ""
+    }
+
+    fun stopAiCorrectionRecording() {
+        _aiCorrectionRecording.value = false
+    }
+
+    fun clearAiCorrectionDraft() {
+        _aiCorrectionDraftText.value = ""
+        aiCorrectionCommittedText = ""
+        aiCorrectionActiveSegmentText = ""
     }
 
     private fun upsertSttMessage(rawText: String, isFromMe: Boolean) {
@@ -228,6 +260,45 @@ class CallViewModel : ViewModel() {
         if (SENTENCE_END_REGEX.containsMatchIn(displayText)) {
             finalizeActiveSttSegment()
         }
+    }
+
+    private fun updateAiCorrectionDraft(rawText: String) {
+        val normalizedRaw = rawText.trim()
+        if (normalizedRaw.isBlank()) return
+        myLastRawText = normalizedRaw
+
+        if (aiCorrectionActiveSegmentText.isBlank()) {
+            aiCorrectionActiveSegmentText = normalizedRaw
+        } else {
+            val sameSegment =
+                normalizedRaw.startsWith(aiCorrectionActiveSegmentText) ||
+                    aiCorrectionActiveSegmentText.startsWith(normalizedRaw)
+            if (sameSegment) {
+                aiCorrectionActiveSegmentText = normalizedRaw
+            } else {
+                aiCorrectionCommittedText = appendWithSpace(
+                    aiCorrectionCommittedText,
+                    aiCorrectionActiveSegmentText
+                )
+                aiCorrectionActiveSegmentText = normalizedRaw
+            }
+        }
+
+        _aiCorrectionDraftText.value = buildString {
+            if (aiCorrectionCommittedText.isNotBlank()) {
+                append(aiCorrectionCommittedText)
+            }
+            if (aiCorrectionActiveSegmentText.isNotBlank()) {
+                if (isNotEmpty()) append(' ')
+                append(aiCorrectionActiveSegmentText)
+            }
+        }.trim()
+    }
+
+    private fun appendWithSpace(base: String, added: String): String {
+        if (added.isBlank()) return base
+        if (base.isBlank()) return added.trim()
+        return "$base ${added.trim()}"
     }
 
     private fun finalizeActiveSttSegment() {

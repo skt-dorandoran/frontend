@@ -193,6 +193,11 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         localSttAgcGain = 1f
     }
 
+    fun setLocalAudioTransmissionEnabled(enabled: Boolean) {
+        localAudioTrack?.setEnabled(enabled)
+        log("Local audio transmission ${if (enabled) "enabled" else "muted"}")
+    }
+
     private fun createRemoteAudioSink(): AudioSink {
         return AudioSink { audioData, bitsPerSample, sampleRate, numberOfChannels, _ ->
             val stream = remoteSttStream ?: return@AudioSink

@@ -34,6 +34,7 @@ fun CallNavHost(
     onSendAiSuggestion: (String) -> Unit = {},
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
+    onLocalAudioTransmissionToggle: (Boolean) -> Unit = {},
     navController: NavHostController = rememberNavController(),
     callViewModel: CallViewModel = viewModel()
 ) {
@@ -100,6 +101,7 @@ fun CallNavHost(
                 },
                 onEndCall = onEndCall,
                 onSpeakerphoneToggle = onSpeakerphoneToggle,
+                onLocalAudioTransmissionToggle = onLocalAudioTransmissionToggle,
                 navController = navController,
                 viewModel = callViewModel
             )
