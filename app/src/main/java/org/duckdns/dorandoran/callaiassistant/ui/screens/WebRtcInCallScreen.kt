@@ -635,7 +635,7 @@ fun WebRtcInCallScreen(
                                 enabled = !isSendingMessage,
                                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                             ) {
-                                Text("보내기")
+                                Text(if (isSendingMessage) "AI 추천 답변 전송 중.." else "보내기")
                             }
                         } else {
                             // 모드 선택 버튼들
