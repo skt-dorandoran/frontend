@@ -187,22 +187,22 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
 
         val rms = kotlin.math.sqrt((energy / filtered.size).coerceAtLeast(1e-9f))
         val targetRms = when {
-            rms < 0.012f -> 0.16f
-            rms < 0.025f -> 0.13f
-            rms < 0.05f -> 0.11f
+            rms < 0.010f -> 0.19f
+            rms < 0.020f -> 0.16f
+            rms < 0.040f -> 0.13f
             else -> 0.10f
         }
-        var desiredGain = (targetRms / rms).coerceIn(1f, 16f)
+        var desiredGain = (targetRms / rms).coerceIn(1f, 18f)
         if (peak > 1e-6f) {
             desiredGain = minOf(desiredGain, 0.97f / peak)
         }
-        // Moderate AGC to avoid over-amplified artifacts on remote/TTS audio.
-        val smooth = if (desiredGain > remoteSttAgcGain) 0.25f else 0.08f
+        // Faster attack improves intelligibility for short/quiet remote speech.
+        val smooth = if (desiredGain > remoteSttAgcGain) 0.35f else 0.08f
         remoteSttAgcGain = remoteSttAgcGain + (desiredGain - remoteSttAgcGain) * smooth
         if (peak < 0.010f && rms < 0.005f) {
-            remoteSttAgcGain = maxOf(remoteSttAgcGain, 1.5f)
+            remoteSttAgcGain = maxOf(remoteSttAgcGain, 2.2f)
         }
-        remoteSttAgcGain = remoteSttAgcGain.coerceIn(1f, 16f)
+        remoteSttAgcGain = remoteSttAgcGain.coerceIn(1f, 18f)
 
         for (i in filtered.indices) {
             val boosted = filtered[i] * remoteSttAgcGain

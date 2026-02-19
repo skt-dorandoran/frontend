@@ -89,8 +89,9 @@ class SherpaOnnxSttManager(
                 // Local/remote streaming text is merged on UI side; disabling endpoint
                 // reduces aggressive sentence splits.
                 enableEndpoint = false,
-                decodingMethod = "greedy_search",
-                maxActivePaths = 4
+                // Beam search is noticeably more robust for less-clear pronunciation.
+                decodingMethod = "modified_beam_search",
+                maxActivePaths = 8
             )
             recognizer = OnlineRecognizer(null, config)
             Log.i("SherpaOnnxSttManager", "OnlineRecognizer 초기화 완료")
@@ -230,21 +231,22 @@ class SherpaOnnxSttManager(
         // Do not hard-drop low-level frames: quiet TTS gets removed otherwise.
         val veryLowLevel = peak < 0.010f && rms < 0.005f
         val targetRms = when {
-            rms < 0.012f -> 0.16f
-            rms < 0.025f -> 0.13f
-            rms < 0.05f -> 0.11f
+            rms < 0.010f -> 0.19f
+            rms < 0.020f -> 0.16f
+            rms < 0.040f -> 0.13f
             else -> 0.10f
         }
-        var desiredGain = (targetRms / rms).coerceIn(1f, 12f)
+        var desiredGain = (targetRms / rms).coerceIn(1f, 18f)
         if (peak > 1e-6f) {
             desiredGain = minOf(desiredGain, 0.97f / peak)
         }
-        // Moderate AGC: avoid distortion while still lifting quiet speech.
-        val smooth = if (desiredGain > agcGain) 0.25f else 0.08f
+        // Faster attack helps short/quiet syllables become decodable.
+        val smooth = if (desiredGain > agcGain) 0.35f else 0.08f
         agcGain = agcGain + (desiredGain - agcGain) * smooth
         if (veryLowLevel) {
-            agcGain = maxOf(agcGain, 1.5f)
+            agcGain = maxOf(agcGain, 2.2f)
         }
+        agcGain = agcGain.coerceIn(1f, 18f)
         for (i in out.indices) {
             out[i] = (out[i] * agcGain).coerceIn(-1f, 1f)
         }
