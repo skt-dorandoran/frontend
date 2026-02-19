@@ -2,8 +2,10 @@ package org.duckdns.dorandoran.callaiassistant.ui.screens
 
 import android.media.AudioManager
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -62,6 +64,9 @@ fun CallTypingScreen(
     val voiceId = remember { VoiceCloneStore.getVoiceId(context) }
     val isVoiceCloneEnabled = remember { SettingsStore.isVoiceCloneEnabled(context) }
     val coroutineScope = rememberCoroutineScope()
+    val oneClickReplies = remember { SettingsStore.getOneClickReplies(context) }
+    val oneClickScrollState = rememberScrollState()
+    val visibleOneClickReplies = remember(oneClickReplies) { oneClickReplies.filter { it.isNotBlank() } }
     
     val listState = rememberLazyListState()
 
@@ -209,6 +214,34 @@ fun CallTypingScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
+                if (visibleOneClickReplies.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(oneClickScrollState)
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        visibleOneClickReplies.forEach { reply ->
+                            OutlinedButton(
+                                onClick = {
+                                    inputText = TextFieldValue(
+                                        text = reply,
+                                        selection = TextRange(reply.length)
+                                    )
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = reply,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // AI 추천 답변 섹션 (고정)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

@@ -38,6 +38,9 @@ class SettingsActivity : ComponentActivity() {
                     onOpenMyPhoneNumber = {
                         startActivity(Intent(this, MyPhoneNumberActivity::class.java))
                     },
+                    onOpenOneClickReply = {
+                        startActivity(Intent(this, OneClickReplyActivity::class.java))
+                    },
                     onOpenPermissions = {
                         startActivity(Intent(this, CallPermissionsActivity::class.java))
                     },
@@ -56,6 +59,7 @@ class SettingsActivity : ComponentActivity() {
 private fun SettingsContent(
     onOpenVoiceClone: () -> Unit,
     onOpenMyPhoneNumber: () -> Unit,
+    onOpenOneClickReply: () -> Unit,
     onOpenPermissions: () -> Unit,
     onOpenCallIntroPrompt: () -> Unit,
     onBack: () -> Unit
@@ -254,6 +258,13 @@ private fun SettingsContent(
                     title = "내 번호 설정",
                     description = "상대방에게 표시될 내 전화번호를 입력해요",
                     onClick = onOpenMyPhoneNumber
+                )
+                SettingsDivider()
+
+                SettingsMenuRow(
+                    title = "원클릭 답변",
+                    description = "버튼 하나로 답장 문구를 보낼 수 있어요",
+                    onClick = onOpenOneClickReply
                 )
                 SettingsDivider()
 
