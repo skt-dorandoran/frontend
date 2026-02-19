@@ -345,9 +345,9 @@ object SherpaOnnxTtsManager {
                 currentAudioTrack?.release()
                 currentAudioTrack = audioTrack
             }
-            audioTrack.play()
-            audioTrack.write(pcmData, 0, pcmData.size)
-            audioTrack.setNotificationMarkerPosition(pcmData.size / 2)
+            val bytesPerFrame = 2 * channels
+            val totalFrames = (pcmData.size / bytesPerFrame).coerceAtLeast(1)
+            audioTrack.setNotificationMarkerPosition(totalFrames)
             audioTrack.setPlaybackPositionUpdateListener(object : AudioTrack.OnPlaybackPositionUpdateListener {
                 override fun onMarkerReached(track: AudioTrack?) {
                     onDone?.invoke()
@@ -360,6 +360,26 @@ object SherpaOnnxTtsManager {
                 }
                 override fun onPeriodicNotification(track: AudioTrack?) {}
             })
+            audioTrack.play()
+            var offset = 0
+            while (offset < pcmData.size) {
+                val written = audioTrack.write(pcmData, offset, pcmData.size - offset)
+                if (written <= 0) {
+                    Log.e(TAG, "WAV AudioTrack write error: $written, offset=$offset/${pcmData.size}")
+                    break
+                }
+                offset += written
+            }
+            Log.d(TAG, "WAV AudioTrack wrote $offset/${pcmData.size} bytes, frames=$totalFrames, channels=$channels")
+            if (offset < pcmData.size) {
+                onDone?.invoke()
+                audioTrack.stop()
+                audioTrack.release()
+                synchronized(this@SherpaOnnxTtsManager) {
+                    if (currentAudioTrack == audioTrack) currentAudioTrack = null
+                }
+                try { wavFile.delete() } catch (_: Exception) {}
+            }
         } catch (e: Exception) {
             Log.e(TAG, "WAV 파일 재생 오류", e)
             onDone?.invoke()

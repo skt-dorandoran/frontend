@@ -291,7 +291,9 @@ class CallViewModel : ViewModel() {
         }
 
         val segmentBaseline = if (isFromMe) mySegmentBaselineRawText else remoteSegmentBaselineRawText
-        val displayText = subtractConsumedPrefixSmart(normalizedRaw, segmentBaseline).trim()
+        val displayText = sanitizeSttDisplayText(
+            subtractConsumedPrefixSmart(normalizedRaw, segmentBaseline)
+        ).trim()
 
         if (isFromMe) {
             myLastRawText = normalizedRaw
@@ -424,6 +426,76 @@ class CallViewModel : ViewModel() {
             }
         }
         return raw
+    }
+
+    /**
+     * Streaming STT 재작성 과정에서 생기는 근접 중복 구문을 완화한다.
+     * 예) "제 이름은 한 조용 제 이름은 한지용이라고 합니다"
+     *  -> "제 이름은 한지용이라고 합니다"
+     */
+    private fun sanitizeSttDisplayText(raw: String): String {
+        var compact = raw.replace(Regex("\\s+"), " ").trim()
+        if (compact.isBlank()) return compact
+
+        var tokens = compact.split(' ').toMutableList()
+        if (tokens.size < 4) return compact
+
+        // 1) 인접 반복 n-gram 제거: "안녕하세요 안녕하세요", "제 이름은 제 이름은"
+        var changed = true
+        while (changed && tokens.size >= 4) {
+            changed = false
+            loop@ for (n in 5 downTo 2) {
+                if (tokens.size < n * 2) continue
+                for (i in 0..(tokens.size - n * 2)) {
+                    val first = tokens.subList(i, i + n)
+                    val second = tokens.subList(i + n, i + n * 2)
+                    if (first == second) {
+                        repeat(n) { tokens.removeAt(i) } // 앞 반복 제거, 최신 가설 유지
+                        changed = true
+                        break@loop
+                    }
+                }
+            }
+        }
+
+        compact = tokens.joinToString(" ").trim()
+        if (compact.isBlank()) return compact
+        tokens = compact.split(' ').toMutableList()
+        if (tokens.size < 6) return compact
+
+        var bestStart = -1
+        var bestRepeatStart = -1
+        var bestLen = 0
+
+        for (start in 0 until tokens.size - 3) {
+            // 너무 멀리 떨어진 반복은 실제 재언급일 수 있어 제한한다.
+            val maxRepeatStart = minOf(tokens.lastIndex, start + 14)
+            for (repeatStart in (start + 2)..maxRepeatStart) {
+                for (len in 5 downTo 2) {
+                    if (start + len > tokens.size || repeatStart + len > tokens.size) continue
+                    val first = tokens.subList(start, start + len)
+                    val second = tokens.subList(repeatStart, repeatStart + len)
+                    if (first == second) {
+                        if (len > bestLen || (len == bestLen && repeatStart > bestRepeatStart)) {
+                            bestStart = start
+                            bestRepeatStart = repeatStart
+                            bestLen = len
+                        }
+                        break
+                    }
+                }
+            }
+        }
+
+        if (bestStart >= 0 && bestRepeatStart > bestStart) {
+            val deduped = buildList {
+                addAll(tokens.subList(0, bestStart))
+                addAll(tokens.subList(bestRepeatStart, tokens.size))
+            }.joinToString(" ")
+            return deduped.replace(Regex("\\s+"), " ").trim()
+        }
+
+        return compact
     }
 
     private fun syncConversationHistory() {

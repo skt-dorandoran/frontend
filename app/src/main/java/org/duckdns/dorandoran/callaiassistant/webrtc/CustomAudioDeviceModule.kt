@@ -4,6 +4,13 @@ import android.content.Context
 import android.media.AudioFormat
 import android.media.MediaRecorder
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.webrtc.audio.AudioDeviceModule
 import org.webrtc.audio.JavaAudioDeviceModule
 import org.webrtc.audio.TtsAudioInjector
@@ -25,7 +32,14 @@ class CustomAudioDeviceModule private constructor(
         // Feeding 8kHz PCM here makes queued TTS drain ~6x too fast on the send path.
         private const val WEBRTC_SAMPLE_RATE = 48000
         @Volatile
+        private var lastCaptureSampleRate: Int = WEBRTC_SAMPLE_RATE
+        @Volatile
+        private var lastCaptureChannelCount: Int = 1
+        @Volatile
         private var micSamplesListener: ((data: ByteArray, sampleRate: Int, channelCount: Int, bitsPerSample: Int) -> Unit)? = null
+        private val ttsInjectScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        @Volatile
+        private var ttsInjectJob: Job? = null
         
         init {
             Log.i(TAG, "TtsAudioInjector ready")
@@ -43,27 +57,61 @@ class CustomAudioDeviceModule private constructor(
                     Short.MAX_VALUE.toFloat()
                 ).toInt().toShort()
             }
-            
-            // 리샘플링 (TTS source -> WebRTC capture rate)
-            val resampled = if (sampleRate != WEBRTC_SAMPLE_RATE) {
-                resample(shortSamples, sampleRate, WEBRTC_SAMPLE_RATE)
+
+            val targetSampleRate = lastCaptureSampleRate.takeIf { it in 8000..96000 } ?: WEBRTC_SAMPLE_RATE
+            val targetChannelCount = lastCaptureChannelCount.coerceIn(1, 2)
+
+            // 리샘플링 (TTS source -> 현재 WebRTC capture rate)
+            val resampled = if (sampleRate != targetSampleRate) {
+                resample(shortSamples, sampleRate, targetSampleRate)
             } else {
                 shortSamples
             }
-
-            // Push in 20ms chunks to reduce bursty queueing/latency artifacts.
-            val chunkSamples = (WEBRTC_SAMPLE_RATE / 50).coerceAtLeast(1) // 20ms
-            var offset = 0
-            while (offset < resampled.size) {
-                val len = minOf(chunkSamples, resampled.size - offset)
-                TtsAudioInjector.nativePushPcm(resampled.copyOfRange(offset, offset + len))
-                offset += len
+            // 믹서가 capture 샘플 수(len)를 기준으로 pop하므로 채널 수를 맞춘다.
+            val channelMatched = if (targetChannelCount == 1) {
+                resampled
+            } else {
+                val expanded = ShortArray(resampled.size * targetChannelCount)
+                var dst = 0
+                for (sample in resampled) {
+                    repeat(targetChannelCount) {
+                        expanded[dst++] = sample
+                    }
+                }
+                expanded
             }
-            Log.d(
-                TAG,
-                "✅ TTS PCM injected: ${resampled.size} samples @${WEBRTC_SAMPLE_RATE}Hz " +
-                    "(native queue: ${TtsAudioInjector.nativeGetAvailable()})"
-            )
+
+            val previousJob = ttsInjectJob
+            ttsInjectJob = ttsInjectScope.launch {
+                if (previousJob != null && previousJob.isActive) {
+                    previousJob.cancelAndJoin()
+                }
+                // 새 TTS가 시작되면 이전 잔여 큐는 비워 꼬임을 방지한다.
+                TtsAudioInjector.nativeClear()
+
+                // Push in paced 20ms chunks to avoid native queue overflow/drop.
+                val chunkSamples = ((targetSampleRate * targetChannelCount) / 50).coerceAtLeast(1) // 20ms
+                val maxBufferedSamples = ((targetSampleRate * targetChannelCount) / 4).coerceAtLeast(chunkSamples) // 250ms
+
+                var offset = 0
+                var pushed = 0
+                while (offset < channelMatched.size) {
+                    while (TtsAudioInjector.nativeGetAvailable() > maxBufferedSamples) {
+                        delay(5)
+                    }
+                    val len = minOf(chunkSamples, channelMatched.size - offset)
+                    TtsAudioInjector.nativePushPcm(channelMatched.copyOfRange(offset, offset + len))
+                    offset += len
+                    pushed += len
+                    delay(20)
+                }
+
+                Log.d(
+                    TAG,
+                    "✅ TTS PCM streamed: $pushed/${channelMatched.size} samples @${targetSampleRate}Hz ch=$targetChannelCount " +
+                        "(source=$sampleRate Hz, native queue=${TtsAudioInjector.nativeGetAvailable()})"
+                )
+            }
         }
         
         /**
@@ -92,8 +140,10 @@ class CustomAudioDeviceModule private constructor(
          * TTS 큐 초기화
          */
         fun clearTtsQueue() {
+            ttsInjectJob?.cancel()
+            ttsInjectJob = null
             TtsAudioInjector.nativeClear()
-            Log.d(TAG, "TTS queue cleared")
+            Log.d(TAG, "TTS queue cleared (inject job canceled)")
         }
 
         fun setMicSamplesListener(
@@ -137,6 +187,8 @@ class CustomAudioDeviceModule private constructor(
                 .setAudioSource(audioSource)
                 .setSamplesReadyCallback { samples ->
                     val data = samples.data ?: return@setSamplesReadyCallback
+                    lastCaptureSampleRate = samples.sampleRate
+                    lastCaptureChannelCount = samples.channelCount.coerceAtLeast(1)
                     micSamplesListener?.invoke(
                         data,
                         samples.sampleRate,
