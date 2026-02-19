@@ -666,7 +666,7 @@ fun WebRtcInCallScreen(
                                     ),
                                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                                 ) {
-                                    Text("AI 교정")
+                                    Text("AI 보정")
                                 }
 
                                 Button(
