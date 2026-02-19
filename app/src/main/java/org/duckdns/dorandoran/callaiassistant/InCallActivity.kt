@@ -286,6 +286,7 @@ private fun WebRtcCallContent(
     val connectionState by manager.connectionState.collectAsState()
     var callDuration by remember { mutableLongStateOf(0L) }
     var remoteSttStarted by remember { mutableStateOf(false) }
+    var hasActiveConversationSession by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         manager.onRemoteDisconnected = { onRemoteDisconnected() }
@@ -300,6 +301,19 @@ private fun WebRtcCallContent(
         } else if (!inCall && remoteSttStarted) {
             manager.stopRemoteStt()
             remoteSttStarted = false
+        }
+    }
+
+    LaunchedEffect(connectionState, phoneNumber) {
+        val callActive = connectionState != org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState.DISCONNECTED
+        if (callActive && !hasActiveConversationSession) {
+            val normalizedNumber = phoneNumber.ifBlank { "unknown" }
+            val sessionKey = "$normalizedNumber-${System.currentTimeMillis()}"
+            callViewModel.startNewConversationSession(sessionKey)
+            hasActiveConversationSession = true
+        } else if (!callActive && hasActiveConversationSession) {
+            callViewModel.endConversationSession()
+            hasActiveConversationSession = false
         }
     }
 
@@ -319,6 +333,10 @@ private fun WebRtcCallContent(
             if (remoteSttStarted) {
                 manager.stopRemoteStt()
                 remoteSttStarted = false
+            }
+            if (hasActiveConversationSession) {
+                callViewModel.endConversationSession()
+                hasActiveConversationSession = false
             }
         }
     }

@@ -1,6 +1,7 @@
 package org.duckdns.dorandoran.callaiassistant.webrtc
 
 import android.content.Context
+import android.media.MediaRecorder
 import android.util.Log
 import org.webrtc.audio.AudioDeviceModule
 import org.webrtc.audio.JavaAudioDeviceModule
@@ -103,6 +104,7 @@ class CustomAudioDeviceModule private constructor(
     class Builder(private val context: Context) {
         private var useHardwareAcousticEchoCanceler = true
         private var useHardwareNoiseSuppressor = true
+        private var audioSource = MediaRecorder.AudioSource.VOICE_COMMUNICATION
         
         fun setUseHardwareAcousticEchoCanceler(use: Boolean): Builder {
             useHardwareAcousticEchoCanceler = use
@@ -113,10 +115,16 @@ class CustomAudioDeviceModule private constructor(
             useHardwareNoiseSuppressor = use
             return this
         }
+
+        fun setAudioSource(source: Int): Builder {
+            audioSource = source
+            return this
+        }
         
         fun createAudioDeviceModule(): CustomAudioDeviceModule {
             // JavaAudioDeviceModule 생성
             val javaAudioModule = JavaAudioDeviceModule.builder(context)
+                .setAudioSource(audioSource)
                 .setUseHardwareAcousticEchoCanceler(useHardwareAcousticEchoCanceler)
                 .setUseHardwareNoiseSuppressor(useHardwareNoiseSuppressor)
                 .setAudioRecordErrorCallback(object : JavaAudioDeviceModule.AudioRecordErrorCallback {

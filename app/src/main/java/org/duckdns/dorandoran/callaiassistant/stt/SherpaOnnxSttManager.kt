@@ -62,10 +62,10 @@ class SherpaOnnxSttManager(
             val decoderInt8 = File(modelDir, "decoder-epoch-99-avg-1.int8.onnx")
             val joinerFp32 = File(modelDir, "joiner-epoch-99-avg-1.onnx")
             val joinerInt8 = File(modelDir, "joiner-epoch-99-avg-1.int8.onnx")
-            // Prefer int8 first for realtime stability on-device; fallback to fp32.
-            val encoder = if (encoderInt8.exists()) encoderInt8 else encoderFp32
-            val decoder = if (decoderInt8.exists()) decoderInt8 else decoderFp32
-            val joiner = if (joinerInt8.exists()) joinerInt8 else joinerFp32
+            // Prefer fp32 for higher recognition accuracy; fallback to int8.
+            val encoder = if (encoderFp32.exists()) encoderFp32 else encoderInt8
+            val decoder = if (decoderFp32.exists()) decoderFp32 else decoderInt8
+            val joiner = if (joinerFp32.exists()) joinerFp32 else joinerInt8
             val tokens = File(modelDir, "tokens.txt")
             val sttThreads = Runtime.getRuntime().availableProcessors().coerceIn(2, 4)
 
@@ -94,9 +94,8 @@ class SherpaOnnxSttManager(
                 featConfig = featConfig,
                 ctcFstDecoderConfig = ctcFstDecoderConfig,
                 endpointConfig = endpointConfig,
-                // Local/remote streaming text is merged on UI side; disabling endpoint
-                // reduces aggressive sentence splits.
-                enableEndpoint = false,
+                // Endpointing helps fast speaker turn-taking and stream reset.
+                enableEndpoint = true,
                 decodingMethod = "greedy_search",
                 maxActivePaths = 4
             )
@@ -253,7 +252,7 @@ class SherpaOnnxSttManager(
 
     private fun preprocessMicForStt(input: ShortArray, read: Int): FloatArray {
         val out = FloatArray(read)
-        val hpAlpha = 0.973f
+        val hpAlpha = 0.94f
         var prevIn = hpPrevIn
         var prevOut = hpPrevOut
         var energy = 0f
@@ -261,7 +260,9 @@ class SherpaOnnxSttManager(
 
         for (i in 0 until read) {
             val x = input[i].toFloat() / Short.MAX_VALUE
-            val y = hpAlpha * (prevOut + x - prevIn)
+            val yHp = hpAlpha * (prevOut + x - prevIn)
+            // Keep some low-frequency component to avoid losing mumbled consonants/vowels.
+            val y = (yHp * 0.75f) + (x * 0.25f)
             out[i] = y
             prevIn = x
             prevOut = y
@@ -305,7 +306,7 @@ class SherpaOnnxSttManager(
         val now = System.currentTimeMillis()
 
         // If decoder restarts after a pause, allow a clean sentence restart.
-        if (lastRawResultAtMs > 0L && now - lastRawResultAtMs > 2200L) {
+        if (lastRawResultAtMs > 0L && now - lastRawResultAtMs > 900L) {
             mergedText = ""
         }
         lastRawResultAtMs = now
@@ -329,19 +330,7 @@ class SherpaOnnxSttManager(
         if (previous.isBlank()) return incoming
         if (incoming.startsWith(previous)) return incoming
         if (previous.startsWith(incoming)) return previous
-        if (previous.contains(incoming)) return previous
-
-        var overlap = 0
-        val max = minOf(previous.length, incoming.length)
-        for (k in max downTo 1) {
-            if (previous.endsWith(incoming.substring(0, k))) {
-                overlap = k
-                break
-            }
-        }
-        if (overlap > 0) {
-            return previous + incoming.substring(overlap)
-        }
+        // Avoid speculative overlap concatenation: it can produce gibberish joins.
         return incoming
     }
 }

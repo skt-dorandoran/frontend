@@ -73,7 +73,7 @@ fun IncomingCallScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = callerName,
+            text = formatIncomingDisplay(callerName),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onBackground,
@@ -134,6 +134,22 @@ fun IncomingCallScreen(
                 )
             }
         }
+    }
+}
+
+private fun formatIncomingDisplay(raw: String): String {
+    val digits = raw.filter { it.isDigit() }
+    if (digits.isBlank()) return raw
+    return when {
+        digits.startsWith("02") && digits.length == 9 ->
+            "${digits.substring(0, 2)}-${digits.substring(2, 5)}-${digits.substring(5)}"
+        digits.startsWith("02") && digits.length == 10 ->
+            "${digits.substring(0, 2)}-${digits.substring(2, 6)}-${digits.substring(6)}"
+        digits.length == 10 ->
+            "${digits.substring(0, 3)}-${digits.substring(3, 6)}-${digits.substring(6)}"
+        digits.length == 11 ->
+            "${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7)}"
+        else -> raw
     }
 }
 

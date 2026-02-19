@@ -1,6 +1,7 @@
 package org.duckdns.dorandoran.callaiassistant.webrtc
 
 import android.content.Context
+import android.media.MediaRecorder
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -166,7 +167,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         if (input.isEmpty()) return input
 
         // Remove low-frequency rumble/DC (helps call-start "booming" artifacts).
-        val hpAlpha = 0.973f
+        val hpAlpha = 0.94f
         val filtered = FloatArray(input.size)
         var prevIn = remoteSttHpPrevIn
         var prevOut = remoteSttHpPrevOut
@@ -174,7 +175,9 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         var peak = 0f
         for (i in input.indices) {
             val x = input[i]
-            val y = hpAlpha * (prevOut + x - prevIn)
+            val yHp = hpAlpha * (prevOut + x - prevIn)
+            // Keep a portion of original signal to preserve muffled articulation.
+            val y = (yHp * 0.75f) + (x * 0.25f)
             filtered[i] = y
             prevIn = x
             prevOut = y
@@ -290,6 +293,8 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
 
         // Custom AudioDeviceModule: 에코 캔슬러 활성화 + TTS PCM 믹싱
         audioDeviceModule = CustomAudioDeviceModule.builder(context)
+            // Prefer speech-optimized capture for better articulation on the uplink.
+            .setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
             .setUseHardwareAcousticEchoCanceler(true)
             .setUseHardwareNoiseSuppressor(true)
             .createAudioDeviceModule()
@@ -461,7 +466,12 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
             iceCandidatePoolSize = 2
         }
 
-        val constraints = MediaConstraints()
+        val constraints = MediaConstraints().apply {
+            mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("googNoiseSuppression", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("googAutoGainControl", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("googHighpassFilter", "false"))
+        }
         audioSource = factory.createAudioSource(constraints)
         localAudioTrack = factory.createAudioTrack("audio0", audioSource)
         localAudioTrack?.setEnabled(true)

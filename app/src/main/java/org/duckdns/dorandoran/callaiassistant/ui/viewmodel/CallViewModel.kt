@@ -18,9 +18,31 @@ data class ChatMessage(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+enum class ConversationSpeaker {
+    ME, REMOTE
+}
+
+enum class ConversationSource {
+    STT, TYPED
+}
+
+data class ConversationUtterance(
+    val text: String,
+    val speaker: ConversationSpeaker,
+    val source: ConversationSource,
+    val timestamp: Long
+)
+
+data class ConversationHistory(
+    val sessionId: Long = 0L,
+    val sessionKey: String = "",
+    val startedAtMs: Long = 0L,
+    val utterances: List<ConversationUtterance> = emptyList()
+)
+
 class CallViewModel : ViewModel() {
     companion object {
-        private const val STT_BUBBLE_MERGE_WINDOW_MS = 2500L
+        private const val STT_BUBBLE_MERGE_WINDOW_MS = 800L
     }
 
     private val _callInfo = MutableStateFlow(CallInfo())
@@ -29,9 +51,15 @@ class CallViewModel : ViewModel() {
     val introPromptPlayed: StateFlow<Boolean> = _introPromptPlayed.asStateFlow()
     
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    private val _conversationHistory = MutableStateFlow(ConversationHistory())
+    val conversationHistory: StateFlow<ConversationHistory> = _conversationHistory.asStateFlow()
+    private var activeSessionId: Long = 0L
+    private var activeSessionKey: String = ""
+
     fun clearHistory() {
         _messages.value = emptyList()
         resetSttTracking()
+        syncConversationHistory()
     }
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
@@ -47,16 +75,50 @@ class CallViewModel : ViewModel() {
     fun updateCallInfo(phoneNumber: String, hospitalName: String, callTime: String) {
         _callInfo.value = CallInfo(phoneNumber, hospitalName, callTime)
     }
+
+    fun startNewConversationSession(sessionKey: String) {
+        val normalized = sessionKey.trim()
+        if (normalized.isBlank()) return
+        activeSessionId = System.currentTimeMillis()
+        activeSessionKey = normalized
+        clearHistory()
+        _conversationHistory.value = ConversationHistory(
+            sessionId = activeSessionId,
+            sessionKey = activeSessionKey,
+            startedAtMs = activeSessionId,
+            utterances = emptyList()
+        )
+    }
+
+    fun endConversationSession() {
+        finalizeActiveSttSegment()
+        activeSessionKey = ""
+    }
+
+    fun getRecentUtterances(limit: Int = 8): List<ConversationUtterance> {
+        if (limit <= 0) return emptyList()
+        return _conversationHistory.value.utterances.takeLast(limit)
+    }
+
+    fun getRecentConversationText(limit: Int = 8): String {
+        return getRecentUtterances(limit)
+            .joinToString(separator = "\n") { utterance ->
+                val speaker = if (utterance.speaker == ConversationSpeaker.ME) "ME" else "REMOTE"
+                "[$speaker] ${utterance.text}"
+            }
+    }
     
     fun sendMessage(text: String) {
         if (text.isBlank()) return
         finalizeActiveSttSegment()
         _messages.value = _messages.value + ChatMessage(text = text, isFromMe = true)
+        syncConversationHistory()
     }
     
     fun addRemoteMessage(text: String) {
         finalizeActiveSttSegment()
         _messages.value = _messages.value + ChatMessage(text = text, isFromMe = false)
+        syncConversationHistory()
     }
 
     fun updateMySttMessage(rawText: String) {
@@ -128,6 +190,7 @@ class CallViewModel : ViewModel() {
                 val prev = updated[idx]
                 updated[idx] = prev.copy(text = displayText)
                 _messages.value = updated
+                syncConversationHistory()
             }
         } else {
             updated += ChatMessage(
@@ -137,6 +200,7 @@ class CallViewModel : ViewModel() {
             )
             activeSttMessageIndex = updated.lastIndex
             _messages.value = updated
+            syncConversationHistory()
         }
 
         if (isFromMe) {
@@ -170,15 +234,23 @@ class CallViewModel : ViewModel() {
     private fun subtractConsumedPrefix(raw: String, consumed: String): String {
         if (consumed.isBlank()) return raw
         if (raw.startsWith(consumed)) return raw.removePrefix(consumed)
-
-        val lcpLength = longestCommonPrefixLength(raw, consumed)
-        return if (lcpLength > 0) raw.substring(lcpLength) else raw
+        return raw
     }
 
-    private fun longestCommonPrefixLength(a: String, b: String): Int {
-        val n = minOf(a.length, b.length)
-        var i = 0
-        while (i < n && a[i] == b[i]) i++
-        return i
+    private fun syncConversationHistory() {
+        val utterances = _messages.value.map { message ->
+            ConversationUtterance(
+                text = message.text,
+                speaker = if (message.isFromMe) ConversationSpeaker.ME else ConversationSpeaker.REMOTE,
+                source = if (message.isStt) ConversationSource.STT else ConversationSource.TYPED,
+                timestamp = message.timestamp
+            )
+        }
+        val current = _conversationHistory.value
+        _conversationHistory.value = current.copy(
+            sessionId = if (activeSessionId != 0L) activeSessionId else current.sessionId,
+            sessionKey = if (activeSessionKey.isNotBlank()) activeSessionKey else current.sessionKey,
+            utterances = utterances
+        )
     }
 }
