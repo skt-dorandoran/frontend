@@ -19,7 +19,9 @@ class CustomAudioDeviceModule private constructor(
 
     companion object {
         private const val TAG = "CustomAudioDeviceModule"
-        private const val WEBRTC_SAMPLE_RATE = 8000
+        // WebRTC Android audio processing path typically runs at 48kHz.
+        // Feeding 8kHz PCM here makes queued TTS drain ~6x too fast on the send path.
+        private const val WEBRTC_SAMPLE_RATE = 48000
         
         init {
             Log.i(TAG, "TtsAudioInjector ready")
