@@ -566,6 +566,7 @@ fun WebRtcInCallScreen(
                                                 ) {
                                                     OutlinedButton(
                                                         onClick = {
+                                                            onLocalAudioTransmissionToggle(false)
                                                             viewModel.clearAiCorrectionDraft()
                                                             viewModel.startAiCorrectionRecording()
                                                             aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
@@ -580,6 +581,7 @@ fun WebRtcInCallScreen(
                                                             val textToSend = aiCorrectionDraftText.trim()
                                                             if (textToSend.isBlank() || isAiCorrectionSending) return@Button
                                                             isAiCorrectionSending = true
+                                                            onLocalAudioTransmissionToggle(true)
                                                             viewModel.sendMessage(
                                                                 textToSend,
                                                                 origin = org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin.TEXT_MODE
@@ -604,6 +606,7 @@ fun WebRtcInCallScreen(
                                             AiCorrectionOverlayState.SENT -> {
                                                 OutlinedButton(
                                                     onClick = {
+                                                        onLocalAudioTransmissionToggle(false)
                                                         viewModel.clearAiCorrectionDraft()
                                                         viewModel.startAiCorrectionRecording()
                                                         aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING

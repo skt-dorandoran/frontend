@@ -108,10 +108,10 @@ class CallViewModel : ViewModel() {
 
     private var activeSttSpeakerIsMe: Boolean? = null
     private var activeSttMessageIndex: Int? = null
-    private var myConsumedRawText: String = ""
-    private var remoteConsumedRawText: String = ""
     private var myLastRawText: String = ""
     private var remoteLastRawText: String = ""
+    private var mySegmentBaselineRawText: String = ""
+    private var remoteSegmentBaselineRawText: String = ""
     private var lastMySttUpdateAtMs: Long = 0L
     private var lastRemoteSttUpdateAtMs: Long = 0L
     private var aiCorrectionCommittedText: String = ""
@@ -283,10 +283,15 @@ class CallViewModel : ViewModel() {
         if (activeSttSpeakerIsMe == null) {
             activeSttSpeakerIsMe = isFromMe
             activeSttMessageIndex = null
+            if (isFromMe) {
+                mySegmentBaselineRawText = myLastRawText
+            } else {
+                remoteSegmentBaselineRawText = remoteLastRawText
+            }
         }
 
-        val consumed = if (isFromMe) myConsumedRawText else remoteConsumedRawText
-        val displayText = subtractConsumedPrefixSmart(normalizedRaw, consumed).trim()
+        val segmentBaseline = if (isFromMe) mySegmentBaselineRawText else remoteSegmentBaselineRawText
+        val displayText = subtractConsumedPrefixSmart(normalizedRaw, segmentBaseline).trim()
 
         if (isFromMe) {
             myLastRawText = normalizedRaw
@@ -377,8 +382,8 @@ class CallViewModel : ViewModel() {
 
     private fun finalizeActiveSttSegment() {
         when (activeSttSpeakerIsMe) {
-            true -> myConsumedRawText = myLastRawText
-            false -> remoteConsumedRawText = remoteLastRawText
+            true -> mySegmentBaselineRawText = myLastRawText
+            false -> remoteSegmentBaselineRawText = remoteLastRawText
             null -> {}
         }
         activeSttSpeakerIsMe = null
@@ -388,10 +393,10 @@ class CallViewModel : ViewModel() {
     private fun resetSttTracking() {
         activeSttSpeakerIsMe = null
         activeSttMessageIndex = null
-        myConsumedRawText = ""
-        remoteConsumedRawText = ""
         myLastRawText = ""
         remoteLastRawText = ""
+        mySegmentBaselineRawText = ""
+        remoteSegmentBaselineRawText = ""
         lastMySttUpdateAtMs = 0L
         lastRemoteSttUpdateAtMs = 0L
     }
