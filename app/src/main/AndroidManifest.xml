@@ -118,7 +118,8 @@
             android:exported="false"
             android:label="원클릭 답변"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.Callaiassistant" />
+            android:theme="@style/Theme.Callaiassistant"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".ServiceTermsActivity"
