@@ -69,6 +69,12 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     private var remoteSttHpPrevOut: Float = 0f
     private var remoteSttAgcGain: Float = 1f
     private var remoteSttStartJob: Job? = null
+    private var localSttManager: org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager? = null
+    private var localSttStream: com.k2fsa.sherpa.onnx.OnlineStream? = null
+    private var localSttHpPrevIn: Float = 0f
+    private var localSttHpPrevOut: Float = 0f
+    private var localSttAgcGain: Float = 1f
+    private var localSttStartJob: Job? = null
 
     private var peerConnectionFactory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
@@ -129,6 +135,62 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         remoteSttHpPrevIn = 0f
         remoteSttHpPrevOut = 0f
         remoteSttAgcGain = 1f
+    }
+
+    fun startLocalStt(context: Context, viewModel: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel) {
+        if (localSttStartJob?.isActive == true || localSttManager != null) return
+        localSttHpPrevIn = 0f
+        localSttHpPrevOut = 0f
+        localSttAgcGain = 1f
+        localSttStartJob = scope.launch(Dispatchers.Default) {
+            val manager = org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager(
+                context = context,
+                onResult = { text ->
+                    viewModel.updateMySttMessage(text)
+                },
+                onError = { err -> Log.e(TAG, "Local STT error: $err") },
+                streamLabel = "local-webrtc-capture"
+            )
+            val modelDir = java.io.File(context.filesDir, "sherpa-onnx/sherpa-onnx-streaming-zipformer-korean-2024-06-16")
+            manager.initialize(modelDir)
+            val stream = manager.createStream()
+            withContext(Dispatchers.Main.immediate) {
+                if (stream == null) {
+                    Log.e(TAG, "Local STT stream 생성 실패")
+                    return@withContext
+                }
+                localSttManager = manager
+                localSttStream = stream
+                CustomAudioDeviceModule.setMicSamplesListener { audioData, sampleRate, numberOfChannels, bitsPerSample ->
+                    val localStream = localSttStream ?: return@setMicSamplesListener
+                    if (bitsPerSample != 16 || numberOfChannels <= 0) return@setMicSamplesListener
+                    val pcm = pcm16BytesToMonoFloat(audioData, numberOfChannels)
+                    if (pcm.isEmpty()) return@setMicSamplesListener
+                    val sttSampleRate = 16000
+                    val sttPcm = if (sampleRate != sttSampleRate) {
+                        resampleFloatPcm(pcm, sampleRate, sttSampleRate)
+                    } else {
+                        pcm
+                    }
+                    val preprocessed = preprocessLocalAudioForStt(sttPcm)
+                    if (preprocessed.isEmpty()) return@setMicSamplesListener
+                    localStream.acceptWaveform(preprocessed, sttSampleRate)
+                    localSttManager?.processStream(localStream)
+                }
+                log("Local STT initialized (WebRTC capture)")
+            }
+        }
+    }
+
+    fun stopLocalStt() {
+        localSttStartJob?.cancel()
+        localSttStartJob = null
+        CustomAudioDeviceModule.setMicSamplesListener(null)
+        localSttStream = null
+        localSttManager = null
+        localSttHpPrevIn = 0f
+        localSttHpPrevOut = 0f
+        localSttAgcGain = 1f
     }
 
     private fun createRemoteAudioSink(): AudioSink {
@@ -227,6 +289,86 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
             filtered[i] = boosted.coerceIn(-1f, 1f)
         }
         return filtered
+    }
+
+    private fun preprocessLocalAudioForStt(input: FloatArray): FloatArray {
+        if (input.isEmpty()) return input
+        val hpAlpha = 0.94f
+        val filtered = FloatArray(input.size)
+        var prevIn = localSttHpPrevIn
+        var prevOut = localSttHpPrevOut
+        var energy = 0f
+        var peak = 0f
+        for (i in input.indices) {
+            val x = input[i]
+            val yHp = hpAlpha * (prevOut + x - prevIn)
+            val y = (yHp * 0.72f) + (x * 0.28f)
+            filtered[i] = y
+            prevIn = x
+            prevOut = y
+            energy += y * y
+            val absY = kotlin.math.abs(y)
+            if (absY > peak) peak = absY
+        }
+        localSttHpPrevIn = prevIn
+        localSttHpPrevOut = prevOut
+
+        val rms = kotlin.math.sqrt((energy / filtered.size).coerceAtLeast(1e-9f))
+        val targetRms = when {
+            rms < 0.010f -> 0.17f
+            rms < 0.020f -> 0.14f
+            rms < 0.040f -> 0.12f
+            else -> 0.10f
+        }
+        var desiredGain = (targetRms / rms).coerceIn(1f, 14f)
+        if (peak > 1e-6f) {
+            desiredGain = minOf(desiredGain, 0.97f / peak)
+        }
+        val smooth = if (desiredGain > localSttAgcGain) 0.22f else 0.08f
+        localSttAgcGain = localSttAgcGain + (desiredGain - localSttAgcGain) * smooth
+        if (peak < 0.010f && rms < 0.005f) {
+            localSttAgcGain = maxOf(localSttAgcGain, 1.5f)
+        }
+        localSttAgcGain = localSttAgcGain.coerceIn(1f, 14f)
+        for (i in filtered.indices) {
+            filtered[i] = (filtered[i] * localSttAgcGain).coerceIn(-1f, 1f)
+        }
+        return filtered
+    }
+
+    private fun pcm16BytesToMonoFloat(audioData: ByteArray, numberOfChannels: Int): FloatArray {
+        if (audioData.isEmpty() || numberOfChannels <= 0) return FloatArray(0)
+        val shortBuf = java.nio.ByteBuffer
+            .wrap(audioData)
+            .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+            .asShortBuffer()
+        if (!shortBuf.hasRemaining()) return FloatArray(0)
+
+        val input = ShortArray(shortBuf.remaining())
+        shortBuf.get(input)
+        if (input.isEmpty()) return FloatArray(0)
+
+        val monoShort = if (numberOfChannels == 1) {
+            input
+        } else {
+            val frameCount = input.size / numberOfChannels
+            if (frameCount <= 0) return FloatArray(0)
+            val mixed = ShortArray(frameCount)
+            var src = 0
+            for (i in 0 until frameCount) {
+                var sum = 0
+                for (ch in 0 until numberOfChannels) {
+                    sum += input[src + ch].toInt()
+                }
+                mixed[i] = (sum / numberOfChannels).toShort()
+                src += numberOfChannels
+            }
+            mixed
+        }
+
+        return FloatArray(monoShort.size) { i ->
+            monoShort[i].toFloat() / Short.MAX_VALUE
+        }
     }
 
     private fun resampleFloatPcm(input: FloatArray, inputRate: Int, outputRate: Int): FloatArray {
@@ -845,6 +987,8 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
 
         peerConnection?.close()
         peerConnection = null
+        stopRemoteStt()
+        stopLocalStt()
         detachRemoteAudioSink()
         CustomAudioDeviceModule.clearTtsQueue()
         localAudioTrack?.dispose()

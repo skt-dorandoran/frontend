@@ -659,6 +659,7 @@ private fun WebRtcCallContent(
     val connectionState by webRtcManager.connectionState.collectAsState()
     var callDuration by remember { mutableLongStateOf(0L) }
     var remoteSttStarted by remember { mutableStateOf(false) }
+    var localSttStarted by remember { mutableStateOf(false) }
     var introPromptPlayed by remember { mutableStateOf(false) }
     var introTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
     val audioManager = remember {
@@ -696,6 +697,10 @@ private fun WebRtcCallContent(
             if (remoteSttStarted) {
                 webRtcManager.stopRemoteStt()
                 remoteSttStarted = false
+            }
+            if (localSttStarted) {
+                webRtcManager.stopLocalStt()
+                localSttStarted = false
             }
         }
     }
@@ -746,6 +751,18 @@ private fun WebRtcCallContent(
         } else if (!callActive && remoteSttStarted) {
             webRtcManager.stopRemoteStt()
             remoteSttStarted = false
+        }
+    }
+
+    LaunchedEffect(connectionState) {
+        val callActive =
+            connectionState != org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState.DISCONNECTED
+        if (callActive && !localSttStarted) {
+            webRtcManager.startLocalStt(context.applicationContext, callViewModel)
+            localSttStarted = true
+        } else if (!callActive && localSttStarted) {
+            webRtcManager.stopLocalStt()
+            localSttStarted = false
         }
     }
 

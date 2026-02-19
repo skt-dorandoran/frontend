@@ -88,7 +88,25 @@ class SherpaOnnxSttManager(
                 sampleRate = 16000,
                 featureDim = 80
             )
-            val endpointConfig = com.k2fsa.sherpa.onnx.EndpointConfig()
+            // Tune endpointing for conversation turn-taking:
+            // default trailing silence is too long for phone call UX.
+            val endpointConfig = com.k2fsa.sherpa.onnx.EndpointConfig(
+                com.k2fsa.sherpa.onnx.EndpointRule(
+                    false,
+                    1.0f,
+                    0.0f
+                ),
+                com.k2fsa.sherpa.onnx.EndpointRule(
+                    true,
+                    0.40f,
+                    0.0f
+                ),
+                com.k2fsa.sherpa.onnx.EndpointRule(
+                    false,
+                    0.0f,
+                    12.0f
+                )
+            )
             val lmConfig = com.k2fsa.sherpa.onnx.OnlineLMConfig()
             val ctcFstDecoderConfig = com.k2fsa.sherpa.onnx.OnlineCtcFstDecoderConfig()
 
@@ -100,8 +118,8 @@ class SherpaOnnxSttManager(
                 endpointConfig = endpointConfig,
                 // Endpointing helps fast speaker turn-taking and stream reset.
                 enableEndpoint = true,
-                decodingMethod = "greedy_search",
-                maxActivePaths = 4
+                decodingMethod = "modified_beam_search",
+                maxActivePaths = 8
             )
             recognizer = OnlineRecognizer(null, config)
             Log.i(

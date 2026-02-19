@@ -2,7 +2,6 @@ package org.duckdns.dorandoran.callaiassistant.ui.navigation
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
@@ -14,7 +13,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager
 import org.duckdns.dorandoran.callaiassistant.ui.screens.CallTypingScreen
 import org.duckdns.dorandoran.callaiassistant.ui.screens.WebRtcInCallScreen
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
@@ -39,31 +37,7 @@ fun CallNavHost(
     navController: NavHostController = rememberNavController(),
     callViewModel: CallViewModel = viewModel()
 ) {
-    var sttRunning by remember { mutableStateOf(false) }
     var hasActiveConversationSession by remember { mutableStateOf(false) }
-    val sttManager = remember {
-        SherpaOnnxSttManager(
-            context = navController.context,
-            onResult = { recognizedText ->
-                callViewModel.updateMySttMessage(recognizedText)
-            },
-            onError = { err ->
-                android.util.Log.e("CallNavHost-STT", err)
-            },
-            streamLabel = "local-mic"
-        )
-    }
-
-    LaunchedEffect(connectionState) {
-        val shouldRun = connectionState != WebRtcConnectionState.DISCONNECTED
-        if (shouldRun && !sttRunning) {
-            sttManager.startStreaming()
-            sttRunning = true
-        } else if (!shouldRun && sttRunning) {
-            sttManager.stopStreaming()
-            sttRunning = false
-        }
-    }
 
     LaunchedEffect(connectionState, phoneNumber) {
         val callActive = connectionState != WebRtcConnectionState.DISCONNECTED
@@ -80,10 +54,6 @@ fun CallNavHost(
 
     DisposableEffect(Unit) {
         onDispose {
-            if (sttRunning) {
-                sttManager.stopStreaming()
-                sttRunning = false
-            }
             if (hasActiveConversationSession) {
                 callViewModel.endConversationSession()
                 hasActiveConversationSession = false

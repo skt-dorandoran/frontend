@@ -1,6 +1,7 @@
 package org.duckdns.dorandoran.callaiassistant.webrtc
 
 import android.content.Context
+import android.media.AudioFormat
 import android.media.MediaRecorder
 import android.util.Log
 import org.webrtc.audio.AudioDeviceModule
@@ -23,6 +24,8 @@ class CustomAudioDeviceModule private constructor(
         // WebRTC Android audio processing path typically runs at 48kHz.
         // Feeding 8kHz PCM here makes queued TTS drain ~6x too fast on the send path.
         private const val WEBRTC_SAMPLE_RATE = 48000
+        @Volatile
+        private var micSamplesListener: ((data: ByteArray, sampleRate: Int, channelCount: Int, bitsPerSample: Int) -> Unit)? = null
         
         init {
             Log.i(TAG, "TtsAudioInjector ready")
@@ -92,6 +95,13 @@ class CustomAudioDeviceModule private constructor(
             TtsAudioInjector.nativeClear()
             Log.d(TAG, "TTS queue cleared")
         }
+
+        fun setMicSamplesListener(
+            listener: ((data: ByteArray, sampleRate: Int, channelCount: Int, bitsPerSample: Int) -> Unit)?
+        ) {
+            micSamplesListener = listener
+            Log.d(TAG, if (listener == null) "Mic samples listener cleared" else "Mic samples listener registered")
+        }
         
         /**
          * Builder
@@ -125,6 +135,15 @@ class CustomAudioDeviceModule private constructor(
             // JavaAudioDeviceModule 생성
             val javaAudioModule = JavaAudioDeviceModule.builder(context)
                 .setAudioSource(audioSource)
+                .setSamplesReadyCallback { samples ->
+                    val data = samples.data ?: return@setSamplesReadyCallback
+                    micSamplesListener?.invoke(
+                        data,
+                        samples.sampleRate,
+                        samples.channelCount,
+                        if (samples.audioFormat == AudioFormat.ENCODING_PCM_16BIT) 16 else 0
+                    )
+                }
                 .setUseHardwareAcousticEchoCanceler(useHardwareAcousticEchoCanceler)
                 .setUseHardwareNoiseSuppressor(useHardwareNoiseSuppressor)
                 .setAudioRecordErrorCallback(object : JavaAudioDeviceModule.AudioRecordErrorCallback {
