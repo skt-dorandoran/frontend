@@ -23,7 +23,8 @@ import java.io.File
 class SherpaOnnxSttManager(
     private val context: Context,
     private val onResult: (String) -> Unit,
-    private val onError: ((String) -> Unit)? = null
+    private val onError: ((String) -> Unit)? = null,
+    private val streamLabel: String = "generic"
 ) {
     private var lastEmittedText: String = ""
     private var lastEmitAtMs: Long = 0L
@@ -51,8 +52,11 @@ class SherpaOnnxSttManager(
     internal var recognizer: OnlineRecognizer? = null
     private var stream: OnlineStream? = null
     private var sttJob: Job? = null
+    private var startJob: Job? = null
     private var audioRecord: AudioRecord? = null
     private val scope = CoroutineScope(Dispatchers.Default)
+    @Volatile
+    private var isStarting = false
 
     fun initialize(modelDir: File) {
         try {
@@ -102,7 +106,7 @@ class SherpaOnnxSttManager(
             recognizer = OnlineRecognizer(null, config)
             Log.i(
                 "SherpaOnnxSttManager",
-                "OnlineRecognizer 초기화 완료 (threads=$sttThreads, encoder=${encoder.name}, decoder=${decoder.name}, joiner=${joiner.name})"
+                "[$streamLabel] OnlineRecognizer 초기화 완료 (threads=$sttThreads, encoder=${encoder.name}, decoder=${decoder.name}, joiner=${joiner.name})"
             )
         } catch (e: Exception) {
             Log.e("SherpaOnnxSttManager", "모델 초기화 실패", e)
@@ -111,91 +115,101 @@ class SherpaOnnxSttManager(
     }
 
     fun startStreaming() {
-        val modelDir = File(context.filesDir, "sherpa-onnx/sherpa-onnx-streaming-zipformer-korean-2024-06-16")
-        // 모델 파일이 없으면 assets에서 복사
-        val missing = !File(modelDir, "tokens.txt").exists() ||
-            !(File(modelDir, "encoder-epoch-99-avg-1.onnx").exists() ||
-                File(modelDir, "encoder-epoch-99-avg-1.int8.onnx").exists()) ||
-            !(File(modelDir, "decoder-epoch-99-avg-1.onnx").exists() ||
-                File(modelDir, "decoder-epoch-99-avg-1.int8.onnx").exists()) ||
-            !(File(modelDir, "joiner-epoch-99-avg-1.onnx").exists() ||
-                File(modelDir, "joiner-epoch-99-avg-1.int8.onnx").exists())
-        if (missing) {
+        if (isStarting || sttJob?.isActive == true) return
+        isStarting = true
+        startJob?.cancel()
+        startJob = scope.launch {
             try {
-                org.duckdns.dorandoran.callaiassistant.util.AssetCopyUtil.copyAssetFolder(
-                    context,
-                    "sherpa-onnx/sherpa-onnx-streaming-zipformer-korean-2024-06-16",
-                    modelDir
-                )
-                Log.i("SherpaOnnxSttManager", "모델 파일 assets에서 복사 완료")
-            } catch (e: Exception) {
-                Log.e("SherpaOnnxSttManager", "모델 파일 복사 실패", e)
-                onError?.invoke("모델 파일 복사 실패: ${e.message}")
-                return
-            }
-        }
-        if (recognizer == null) {
-            initialize(modelDir)
-        }
-        if (recognizer == null) {
-            onError?.invoke("Recognizer 초기화 실패")
-            return
-        }
-        stream = recognizer!!.createStream()
-        lastEmittedText = ""
-        lastEmitAtMs = 0L
-        hpPrevIn = 0f
-        hpPrevOut = 0f
-        agcGain = 1f
-        mergedText = ""
-        lastRawResultAtMs = 0L
-
-        // AudioRecord 설정 (16kHz, MONO, PCM 16bit)
-        val sampleRate = 16000
-        val channelConfig = AudioFormat.CHANNEL_IN_MONO
-        val audioFormat = AudioFormat.ENCODING_PCM_16BIT
-        val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
-        audioRecord = createBestEffortAudioRecord(sampleRate, channelConfig, audioFormat, minBufferSize * 2)
-        if (audioRecord == null) {
-            onError?.invoke("AudioRecord 초기화 실패")
-            return
-        }
-        audioRecord?.startRecording()
-        if (audioRecord?.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
-            onError?.invoke("마이크 녹음 시작 실패")
-            audioRecord?.release()
-            audioRecord = null
-            return
-        }
-
-        sttJob = scope.launch {
-            val buffer = ShortArray(1024)
-            try {
-                while (isActive && audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                    val read = audioRecord?.read(buffer, 0, buffer.size) ?: 0
-                    if (read > 0) {
-                        val pcm = preprocessMicForStt(buffer, read)
-                        stream?.acceptWaveform(pcm, sampleRate)
+                val modelDir = File(context.filesDir, "sherpa-onnx/sherpa-onnx-streaming-zipformer-korean-2024-06-16")
+                val missing = !File(modelDir, "tokens.txt").exists() ||
+                    !(File(modelDir, "encoder-epoch-99-avg-1.onnx").exists() ||
+                        File(modelDir, "encoder-epoch-99-avg-1.int8.onnx").exists()) ||
+                    !(File(modelDir, "decoder-epoch-99-avg-1.onnx").exists() ||
+                        File(modelDir, "decoder-epoch-99-avg-1.int8.onnx").exists()) ||
+                    !(File(modelDir, "joiner-epoch-99-avg-1.onnx").exists() ||
+                        File(modelDir, "joiner-epoch-99-avg-1.int8.onnx").exists())
+                if (missing) {
+                    try {
+                        org.duckdns.dorandoran.callaiassistant.util.AssetCopyUtil.copyAssetFolder(
+                            context,
+                            "sherpa-onnx/sherpa-onnx-streaming-zipformer-korean-2024-06-16",
+                            modelDir
+                        )
+                        Log.i("SherpaOnnxSttManager", "모델 파일 assets에서 복사 완료")
+                    } catch (e: Exception) {
+                        Log.e("SherpaOnnxSttManager", "모델 파일 복사 실패", e)
+                        onError?.invoke("모델 파일 복사 실패: ${e.message}")
+                        return@launch
                     }
-                    if (recognizer!!.isReady(stream!!)) {
-                        while (recognizer!!.isReady(stream!!)) {
-                            recognizer!!.decode(stream!!)
-                            val result = recognizer!!.getResult(stream!!)
-                            if (result.text.isNotBlank()) {
-                                emitStableResult(result.text)
-                            }
-                        }
-                    }
-                    kotlinx.coroutines.delay(10)
                 }
-            } catch (e: Exception) {
-                onError?.invoke(e.message ?: "STT 오류")
+                if (recognizer == null) {
+                    initialize(modelDir)
+                }
+                if (recognizer == null) {
+                    onError?.invoke("Recognizer 초기화 실패")
+                    return@launch
+                }
+                stream = recognizer!!.createStream()
+                lastEmittedText = ""
+                lastEmitAtMs = 0L
+                hpPrevIn = 0f
+                hpPrevOut = 0f
+                agcGain = 1f
+                mergedText = ""
+                lastRawResultAtMs = 0L
+
+                val sampleRate = 16000
+                val channelConfig = AudioFormat.CHANNEL_IN_MONO
+                val audioFormat = AudioFormat.ENCODING_PCM_16BIT
+                val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+                audioRecord = createBestEffortAudioRecord(sampleRate, channelConfig, audioFormat, minBufferSize * 2)
+                if (audioRecord == null) {
+                    onError?.invoke("AudioRecord 초기화 실패")
+                    return@launch
+                }
+                audioRecord?.startRecording()
+                if (audioRecord?.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                    onError?.invoke("마이크 녹음 시작 실패")
+                    audioRecord?.release()
+                    audioRecord = null
+                    return@launch
+                }
+
+                sttJob = launch {
+                    val buffer = ShortArray(1024)
+                    try {
+                        while (isActive && audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                            val read = audioRecord?.read(buffer, 0, buffer.size) ?: 0
+                            if (read > 0) {
+                                val pcm = preprocessMicForStt(buffer, read)
+                                stream?.acceptWaveform(pcm, sampleRate)
+                            }
+                            if (recognizer!!.isReady(stream!!)) {
+                                while (recognizer!!.isReady(stream!!)) {
+                                    recognizer!!.decode(stream!!)
+                                    val result = recognizer!!.getResult(stream!!)
+                                    if (result.text.isNotBlank()) {
+                                        emitStableResult(result.text)
+                                    }
+                                }
+                            }
+                            kotlinx.coroutines.delay(10)
+                        }
+                    } catch (e: Exception) {
+                        onError?.invoke(e.message ?: "STT 오류")
+                    }
+                }
+                Log.d("SherpaOnnxSttManager", "[$streamLabel] Streaming STT 시작 (AudioRecord)")
+            } finally {
+                isStarting = false
             }
         }
-        Log.d("SherpaOnnxSttManager", "Streaming STT 시작 (AudioRecord)")
     }
 
     fun stopStreaming() {
+        startJob?.cancel()
+        startJob = null
+        isStarting = false
         sttJob?.cancel()
         sttJob = null
         audioRecord?.stop()
@@ -210,7 +224,7 @@ class SherpaOnnxSttManager(
         agcGain = 1f
         mergedText = ""
         lastRawResultAtMs = 0L
-        Log.d("SherpaOnnxSttManager", "Streaming STT 종료")
+        Log.d("SherpaOnnxSttManager", "[$streamLabel] Streaming STT 종료")
     }
 
     fun release() {

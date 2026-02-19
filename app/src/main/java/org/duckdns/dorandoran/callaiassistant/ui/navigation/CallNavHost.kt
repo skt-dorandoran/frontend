@@ -49,7 +49,8 @@ fun CallNavHost(
             },
             onError = { err ->
                 android.util.Log.e("CallNavHost-STT", err)
-            }
+            },
+            streamLabel = "local-mic"
         )
     }
 

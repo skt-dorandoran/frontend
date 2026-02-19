@@ -33,15 +33,6 @@ import org.webrtc.PeerConnectionFactory
 import org.webrtc.RtpReceiver
 import org.webrtc.SessionDescription
 
-// 상대방 오디오 STT 연동용
-private var remoteSttManager: org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager? = null
-private var remoteSttStream: com.k2fsa.sherpa.onnx.OnlineStream? = null
-private var remoteAudioSink: AudioSink? = null
-private var remoteAudioSinkAttachedTrack: AudioTrack? = null
-private var remoteSttHpPrevIn: Float = 0f
-private var remoteSttHpPrevOut: Float = 0f
-private var remoteSttAgcGain: Float = 1f
-
 /** 전역 고정 방 ID - 사용자 변경 불가 */
 const val WEBRTC_ROOM_ID = "dorandoran-room"
 
@@ -69,6 +60,15 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    // 상대방 오디오 STT 상태는 WebRtcManager 인스턴스별로 분리한다.
+    private var remoteSttManager: org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager? = null
+    private var remoteSttStream: com.k2fsa.sherpa.onnx.OnlineStream? = null
+    private var remoteAudioSink: AudioSink? = null
+    private var remoteAudioSinkAttachedTrack: AudioTrack? = null
+    private var remoteSttHpPrevIn: Float = 0f
+    private var remoteSttHpPrevOut: Float = 0f
+    private var remoteSttAgcGain: Float = 1f
+    private var remoteSttStartJob: Job? = null
 
     private var peerConnectionFactory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
@@ -89,24 +89,39 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
      * 상대방 오디오 STT 연동 시작 (ViewModel 주입 필요)
      */
     fun startRemoteStt(context: Context, viewModel: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel) {
+        if (remoteSttStartJob?.isActive == true || remoteSttManager != null) return
         remoteSttHpPrevIn = 0f
         remoteSttHpPrevOut = 0f
         remoteSttAgcGain = 1f
-        remoteSttManager = org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager(
-            context = context,
-            onResult = { text ->
-                viewModel.updateRemoteSttMessage(text)
-            },
-            onError = { err -> Log.e(TAG, "Remote STT error: $err") }
-        )
-        val modelDir = java.io.File(context.filesDir, "sherpa-onnx/sherpa-onnx-streaming-zipformer-korean-2024-06-16")
-        remoteSttManager?.initialize(modelDir)
-        remoteSttStream = remoteSttManager?.createStream()
-        remoteAudioSink = createRemoteAudioSink()
-        attachRemoteAudioSink(_remoteAudioTrack.value)
+        remoteSttStartJob = scope.launch(Dispatchers.Default) {
+            val manager = org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager(
+                context = context,
+                onResult = { text ->
+                    viewModel.updateRemoteSttMessage(text)
+                },
+                onError = { err -> Log.e(TAG, "Remote STT error: $err") },
+                streamLabel = "remote-track"
+            )
+            val modelDir = java.io.File(context.filesDir, "sherpa-onnx/sherpa-onnx-streaming-zipformer-korean-2024-06-16")
+            manager.initialize(modelDir)
+            val stream = manager.createStream()
+            withContext(Dispatchers.Main.immediate) {
+                if (stream == null) {
+                    Log.e(TAG, "Remote STT stream 생성 실패")
+                    return@withContext
+                }
+                remoteSttManager = manager
+                remoteSttStream = stream
+                remoteAudioSink = createRemoteAudioSink()
+                attachRemoteAudioSink(_remoteAudioTrack.value)
+                log("Remote STT initialized (background)")
+            }
+        }
     }
 
     fun stopRemoteStt() {
+        remoteSttStartJob?.cancel()
+        remoteSttStartJob = null
         detachRemoteAudioSink()
         remoteAudioSink = null
         remoteSttStream = null

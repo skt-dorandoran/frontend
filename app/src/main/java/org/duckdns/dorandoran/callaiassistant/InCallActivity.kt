@@ -293,12 +293,12 @@ private fun WebRtcCallContent(
     }
 
     LaunchedEffect(connectionState) {
-        val inCall =
-            connectionState == org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState.IN_CALL
-        if (inCall && !remoteSttStarted) {
+        val callActive =
+            connectionState != org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState.DISCONNECTED
+        if (callActive && !remoteSttStarted) {
             manager.startRemoteStt(context.applicationContext, callViewModel)
             remoteSttStarted = true
-        } else if (!inCall && remoteSttStarted) {
+        } else if (!callActive && remoteSttStarted) {
             manager.stopRemoteStt()
             remoteSttStarted = false
         }
