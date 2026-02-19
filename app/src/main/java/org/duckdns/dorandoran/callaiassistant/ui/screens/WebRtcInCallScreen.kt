@@ -123,6 +123,7 @@ fun WebRtcInCallScreen(
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
     onLocalAudioTransmissionToggle: (Boolean) -> Unit = {},
+    enableIntroPromptPlayback: Boolean = true,
     navController: NavController? = null,
     modifier: Modifier = Modifier,
     viewModel: CallViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
@@ -286,7 +287,12 @@ fun WebRtcInCallScreen(
             messageTts = null
             SherpaOnnxTtsManager.shutdown()
             viewModel.resetIntroPromptPlayed()
-        } else if (connectionState == WebRtcConnectionState.IN_CALL && !hasPlayedIntroPrompt && introPromptEnabled) {
+        } else if (
+            connectionState == WebRtcConnectionState.IN_CALL &&
+            !hasPlayedIntroPrompt &&
+            introPromptEnabled &&
+            enableIntroPromptPlayback
+        ) {
             viewModel.markIntroPromptPlayed()
             // 통화 시작 안내 멘트도 내 발화 말풍선으로 기록
             if (introPromptText.isNotBlank()) {

@@ -32,6 +32,7 @@ fun CallNavHost(
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
     onLocalAudioTransmissionToggle: (Boolean) -> Unit = {},
+    enableIntroPromptPlayback: Boolean = true,
     navController: NavHostController = rememberNavController(),
     callViewModel: CallViewModel = viewModel()
 ) {
@@ -96,6 +97,7 @@ fun CallNavHost(
                 onEndCall = onEndCall,
                 onSpeakerphoneToggle = onSpeakerphoneToggle,
                 onLocalAudioTransmissionToggle = onLocalAudioTransmissionToggle,
+                enableIntroPromptPlayback = enableIntroPromptPlayback,
                 navController = navController,
                 viewModel = callViewModel
             )
