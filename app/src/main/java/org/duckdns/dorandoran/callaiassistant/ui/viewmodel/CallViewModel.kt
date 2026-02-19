@@ -48,7 +48,6 @@ data class ConversationHistory(
 
 class CallViewModel : ViewModel() {
     companion object {
-        private const val STT_BUBBLE_MERGE_WINDOW_MS = 800L
         private const val STT_SEGMENT_SPLIT_GAP_MS = 1300L
         private val NOISE_ONLY_REGEX = Regex("^[\\p{Punct}\\s·…]+$")
         private val SENTENCE_END_REGEX = Regex("[.!?…。？！]$")
@@ -194,21 +193,6 @@ class CallViewModel : ViewModel() {
         val updated = _messages.value.toMutableList()
         var idx = activeSttMessageIndex
 
-        // If active segment was reset but same-speaker STT resumed shortly,
-        // merge back into the last STT bubble to avoid sentence fragmentation.
-        if (idx == null && updated.isNotEmpty()) {
-            val last = updated.last()
-            val withinMergeWindow = if (isFromMe) {
-                now - lastMySttUpdateAtMs <= STT_BUBBLE_MERGE_WINDOW_MS
-            } else {
-                now - lastRemoteSttUpdateAtMs <= STT_BUBBLE_MERGE_WINDOW_MS
-            }
-            if (last.isStt && last.isFromMe == isFromMe && withinMergeWindow) {
-                idx = updated.lastIndex
-                activeSttMessageIndex = idx
-            }
-        }
-
         val canUpdateCurrentBubble = idx != null &&
             idx in updated.indices &&
             updated[idx].isStt &&
@@ -312,11 +296,11 @@ class CallViewModel : ViewModel() {
     private fun refreshLastConversationBubbles() {
         val current = _messages.value
         _textModeLastMyBubble.value = current.asReversed()
-            .firstOrNull { it.isFromMe && !it.isStt && isMeaningfulText(it.text) }
+            .firstOrNull { it.isFromMe && isMeaningfulText(it.text) }
             ?.text
             .orEmpty()
         _textModeLastRemoteBubble.value = current.asReversed()
-            .firstOrNull { !it.isFromMe && !it.isStt && isMeaningfulText(it.text) }
+            .firstOrNull { !it.isFromMe && isMeaningfulText(it.text) }
             ?.text
             .orEmpty()
     }

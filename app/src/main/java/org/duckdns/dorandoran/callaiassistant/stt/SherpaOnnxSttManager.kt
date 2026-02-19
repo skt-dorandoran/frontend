@@ -47,6 +47,7 @@ class SherpaOnnxSttManager(
                     emitStableResult(result.text)
                 }
             }
+            maybeFinalizeEndpoint(stream)
         }
     }
     internal var recognizer: OnlineRecognizer? = null
@@ -210,6 +211,7 @@ class SherpaOnnxSttManager(
                                         emitStableResult(result.text)
                                     }
                                 }
+                                maybeFinalizeEndpoint(stream!!)
                             }
                             kotlinx.coroutines.delay(10)
                         }
@@ -364,5 +366,23 @@ class SherpaOnnxSttManager(
         if (previous.startsWith(incoming)) return previous
         // Avoid speculative overlap concatenation: it can produce gibberish joins.
         return incoming
+    }
+
+    private fun maybeFinalizeEndpoint(activeStream: OnlineStream) {
+        val currentRecognizer = recognizer ?: return
+        if (!currentRecognizer.isEndpoint(activeStream)) return
+
+        val finalText = currentRecognizer.getResult(activeStream).text.trim()
+        if (finalText.isNotBlank()) {
+            emitStableResult(finalText)
+        }
+
+        // Keep one recognizer/stream, but reset decoder states per utterance so
+        // the next sentence starts independently without transcript accumulation.
+        currentRecognizer.reset(activeStream)
+        mergedText = ""
+        lastEmittedText = ""
+        lastEmitAtMs = 0L
+        lastRawResultAtMs = 0L
     }
 }
