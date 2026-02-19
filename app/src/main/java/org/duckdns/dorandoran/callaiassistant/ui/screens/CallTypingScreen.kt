@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -61,6 +62,8 @@ fun CallTypingScreen(
     }
     var messageTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
     var isTtsReady by remember { mutableStateOf(false) }
+    var isSendingMessage by remember { mutableStateOf(false) }
+    var isSendingAiSuggestion by remember { mutableStateOf(false) }
     val voiceId = remember { VoiceCloneStore.getVoiceId(context) }
     val isVoiceCloneEnabled = remember { SettingsStore.isVoiceCloneEnabled(context) }
     val coroutineScope = rememberCoroutineScope()
@@ -247,13 +250,15 @@ fun CallTypingScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(bottom = 8.dp)
                 ) {
-                    Text(
-                        text = "✨",
-                        fontSize = 14.sp
+                    Icon(
+                        imageVector = Icons.Default.Lightbulb,
+                        contentDescription = "AI 추천",
+                        tint = Color(0xFFFFC107),
+                        modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "AI 추천 답변",
+                        text = if (isSendingAiSuggestion) "AI 추천 답변 전송 중.." else "AI 추천 답변",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold
@@ -318,9 +323,15 @@ fun CallTypingScreen(
                         onClick = {
                             val textToSend = inputText.text.trim()
                             if (textToSend.isEmpty()) return@IconButton
+                            val isAiSuggestionText = suggestionSets.flatten().contains(textToSend)
+                            isSendingMessage = true
+                            isSendingAiSuggestion = isAiSuggestionText
                             viewModel.sendMessage(textToSend)
                             inputText = TextFieldValue()
-                            
+                            val markSendDone = {
+                                isSendingMessage = false
+                                isSendingAiSuggestion = false
+                            }
                             // TTS로 메시지 재생
                             if (isTtsReady) {
                                 if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
@@ -340,6 +351,7 @@ fun CallTypingScreen(
                                                 audioManager = audioManager,
                                                 onDone = {
                                                     Log.d("CallTypingScreen", "VoiceClone TTS playback completed for: $textToSend")
+                                                    markSendDone()
                                                 }
                                             )
                                         } else {
@@ -349,6 +361,7 @@ fun CallTypingScreen(
                                                 audioManager = audioManager,
                                                 onDone = {
                                                     Log.d("CallTypingScreen", "Fallback TTS playback completed for: $textToSend")
+                                                    markSendDone()
                                                 }
                                             )
                                         }
@@ -360,20 +373,24 @@ fun CallTypingScreen(
                                         audioManager = audioManager,
                                         onDone = {
                                             Log.d("CallTypingScreen", "TTS playback completed for: $textToSend")
+                                            markSendDone()
                                         }
                                     )
                                 }
+                            } else {
+                                markSendDone()
                             }
                         },
                         modifier = Modifier
                             .size(48.dp)
                             .clip(CircleShape)
-                            .background(if (inputText.text.isNotBlank()) primaryBlue else MaterialTheme.colorScheme.surfaceVariant)
+                            .background(if (inputText.text.isNotBlank() && !isSendingMessage) primaryBlue else MaterialTheme.colorScheme.surfaceVariant),
+                        enabled = inputText.text.isNotBlank() && !isSendingMessage
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = "전송",
-                            tint = if (inputText.text.isNotBlank()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (inputText.text.isNotBlank() && !isSendingMessage) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }

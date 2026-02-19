@@ -23,12 +23,15 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
@@ -37,10 +40,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.ui.unit.sp
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -63,6 +64,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavController
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager
@@ -124,12 +128,12 @@ fun WebRtcInCallScreen(
     viewModel: CallViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     val hasPlayedIntroPrompt by viewModel.introPromptPlayed.collectAsState()
-    var isSpeakerphoneOn by remember { mutableStateOf<Boolean>(false) }
     var selectedMode by remember { mutableStateOf(CallMode.DIRECT) }
     var callScreenState by remember { mutableStateOf(CallScreenState.MODE_SELECT) }
     var suggestionSetIndex by remember { mutableStateOf(0) }
     var selectedSuggestionIndex by remember { mutableStateOf<Int?>(null) }
     var userInputText by remember { mutableStateOf("") }
+    var isDirectSpeakOverlayOpen by remember { mutableStateOf(false) }
     var isSendingMessage by remember { mutableStateOf(false) }
     val messages by viewModel.messages.collectAsState()
     val isAiCorrectionMode = selectedMode == CallMode.AI_CORRECTION
@@ -140,9 +144,11 @@ fun WebRtcInCallScreen(
     val coroutineScope = rememberCoroutineScope()
     var messageTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val audioManager = remember {
         context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
     }
+    var isSpeakerphoneOn by remember { mutableStateOf(audioManager.isSpeakerphoneOn) }
     // 음성 클론 TTS 분기용 상태
     val voiceId = remember { org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore.getVoiceId(context) }
     val isVoiceCloneEnabled = remember { org.duckdns.dorandoran.callaiassistant.SettingsStore.isVoiceCloneEnabled(context) }
@@ -166,6 +172,10 @@ fun WebRtcInCallScreen(
     }
     val currentSuggestions = suggestionSets[suggestionSetIndex % suggestionSets.size]
     val displayNumber = if (phoneNumber.isNotBlank()) formatPhoneNumber(phoneNumber) else "상대방"
+    val lastRemoteMessageText = messages.lastOrNull { !it.isFromMe }?.text ?: "아직 상대방 발화가 없어요"
+    val lastMySpokenText = messages.lastOrNull { it.isFromMe && it.isStt }?.text
+        ?: messages.lastOrNull { it.isFromMe }?.text
+        ?: "아직 내 발화가 없어요"
     val textScale = remember { SettingsStore.getCallTextScale(context) }
     val isDark = isSystemInDarkTheme()
     val backgroundColor = if (isDark) Color(0xFF0B0B0C) else Color(0xFFF6F6F9)
@@ -173,6 +183,26 @@ fun WebRtcInCallScreen(
     val secondaryTextColor = if (isDark) Color(0xFFB0B0B6) else Color(0xFF8E8E93)
     val primaryBlue = Color(0xFF2F5BFF)
     val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_DTMF, 80) }
+
+    fun syncSpeakerphoneUiState() {
+        isSpeakerphoneOn = audioManager.isSpeakerphoneOn
+    }
+
+    LaunchedEffect(Unit) {
+        syncSpeakerphoneUiState()
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                syncSpeakerphoneUiState()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     // 통화가 완전히 끝났을 때만 TTS 정리 및 안내 멘트 재생
     // 안내 멘트는 최초 통화 시작 시에만 재생, 직접 말하기 모드 복귀 시에는 재생하지 않음
@@ -291,6 +321,7 @@ fun WebRtcInCallScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
+
             }
 
             when (callScreenState) {
@@ -298,104 +329,22 @@ fun WebRtcInCallScreen(
                     if (isAiCorrectionMode) {
                         Spacer(modifier = Modifier.weight(1f))
                     } else if (selectedMode == CallMode.DIRECT && connectionState == WebRtcConnectionState.IN_CALL) {
-                        Column(
+                        Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth()
                                 .padding(horizontal = 24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                            contentAlignment = Alignment.Center
                         ) {
-                            // 메시지 리스트(말풍선) 표시
-                            androidx.compose.foundation.lazy.LazyColumn(
-                                modifier = Modifier.weight(1f).fillMaxWidth(),
-                                reverseLayout = true
-                            ) {
-                                items(messages.size) { idx ->
-                                    val msg = messages[messages.size - 1 - idx]
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = if (msg.isFromMe) Arrangement.End else Arrangement.Start
-                                    ) {
-                                        if (msg.isFromMe) {
-                                            MyMessageBubble(message = msg, textScale = textScale)
-                                        } else {
-                                            RemoteMessageBubble(message = msg, textScale = textScale)
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.AutoAwesome,
-                                        contentDescription = "AI 추천",
-                                        tint = primaryBlue,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        text = "AI 추천 답변",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onBackground
-                                    )
-                                }
-                                IconButton(
-                                    onClick = {
-                                        suggestionSetIndex = (suggestionSetIndex + 1) % suggestionSets.size
-                                        selectedSuggestionIndex = null
-                                    }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Refresh,
-                                        contentDescription = "추천 새로고침",
-                                        tint = secondaryTextColor
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                currentSuggestions.forEachIndexed { index, suggestion ->
-                                    val selected = selectedSuggestionIndex == index
-                                    OutlinedButton(
-                                        onClick = {
-                                            selectedSuggestionIndex = index
-                                            userInputText = suggestion
-                                            onSendAiSuggestion(suggestion)
-                                        },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(999.dp),
-                                        border = BorderStroke(
-                                            width = if (selected) 2.dp else 1.dp,
-                                            color = if (selected) primaryBlue else MaterialTheme.colorScheme.outline
-                                        ),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            containerColor = if (selected) primaryBlue.copy(alpha = 0.08f) else Color.Transparent,
-                                            contentColor = MaterialTheme.colorScheme.onBackground
-                                        )
-                                    ) {
-                                        Text(
-                                            text = suggestion,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            textAlign = TextAlign.Center
-                                        )
-                                    }
-                                }
-                            }
+                            Text(
+                                text = lastRemoteMessageText,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale
+                                ),
+                                color = MaterialTheme.colorScheme.onBackground,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     } else {
                         Spacer(modifier = Modifier.weight(1f))
@@ -435,28 +384,163 @@ fun WebRtcInCallScreen(
                 ) {
                     if (callScreenState == CallScreenState.MODE_SELECT) {
                         if (connectionState == WebRtcConnectionState.IN_CALL && selectedMode == CallMode.DIRECT) {
-                            OutlinedTextField(
-                                value = userInputText,
-                                onValueChange = { userInputText = it },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(80.dp),
-                                placeholder = {
+                            if (isDirectSpeakOverlayOpen) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    IconButton(
+                                        onClick = { isDirectSpeakOverlayOpen = false }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "닫기",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(260.dp)
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalArrangement = Arrangement.Top
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Mic,
+                                            contentDescription = "마이크",
+                                            tint = primaryBlue,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = "지금 이렇게 말하고 있어요",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(14.dp))
                                     Text(
-                                        text = "직접 말씀하시거나\n위의 추천 답변을 선택하세요",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = secondaryTextColor
+                                        text = lastMySpokenText,
+                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                            fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
-                                },
-                                shape = RoundedCornerShape(14.dp),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                    focusedIndicatorColor = primaryBlue,
-                                    unfocusedIndicatorColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                                ),
-                                textStyle = MaterialTheme.typography.bodyMedium
-                            )
+                                }
+                            } else {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Lightbulb,
+                                            contentDescription = "AI 추천",
+                                            tint = Color(0xFFFFC107),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Text(
+                                            text = "AI 추천 답변",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.onBackground
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            suggestionSetIndex = (suggestionSetIndex + 1) % suggestionSets.size
+                                            selectedSuggestionIndex = null
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = "추천 새로고침",
+                                            tint = secondaryTextColor
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    currentSuggestions.forEachIndexed { index, suggestion ->
+                                        val selected = selectedSuggestionIndex == index
+                                        OutlinedButton(
+                                            onClick = {
+                                                selectedSuggestionIndex = index
+                                                userInputText = suggestion
+                                                onSendAiSuggestion(suggestion)
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(999.dp),
+                                            border = BorderStroke(
+                                                width = if (selected) 2.dp else 1.dp,
+                                                color = if (selected) primaryBlue else MaterialTheme.colorScheme.outline
+                                            ),
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                containerColor = if (selected) primaryBlue.copy(alpha = 0.08f) else Color.Transparent,
+                                                contentColor = MaterialTheme.colorScheme.onBackground
+                                            )
+                                        ) {
+                                            Text(
+                                                text = suggestion,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                OutlinedButton(
+                                    onClick = { isDirectSpeakOverlayOpen = true },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(74.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                        contentColor = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Mic,
+                                            contentDescription = "마이크",
+                                            tint = primaryBlue,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = "직접 말하거나\n위의 추천 답변을 선택하세요",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = secondaryTextColor,
+                                            textAlign = TextAlign.Start
+                                        )
+                                    }
+                                }
+                            }
                         } else {
                             Text(
                                 text = "전화 모드를 선택해주세요",
