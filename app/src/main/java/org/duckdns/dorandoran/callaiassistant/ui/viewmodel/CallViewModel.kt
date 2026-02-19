@@ -15,8 +15,14 @@ data class ChatMessage(
     val text: String,
     val isFromMe: Boolean,
     val isStt: Boolean = false,
+    val origin: MessageOrigin = MessageOrigin.GENERAL,
     val timestamp: Long = System.currentTimeMillis()
 )
+
+enum class MessageOrigin {
+    GENERAL,
+    TEXT_MODE
+}
 
 enum class ConversationSpeaker {
     ME, REMOTE
@@ -51,6 +57,10 @@ class CallViewModel : ViewModel() {
     val introPromptPlayed: StateFlow<Boolean> = _introPromptPlayed.asStateFlow()
     
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    private val _textModeLastMyBubble = MutableStateFlow("")
+    val textModeLastMyBubble: StateFlow<String> = _textModeLastMyBubble.asStateFlow()
+    private val _textModeLastRemoteBubble = MutableStateFlow("")
+    val textModeLastRemoteBubble: StateFlow<String> = _textModeLastRemoteBubble.asStateFlow()
     private val _conversationHistory = MutableStateFlow(ConversationHistory())
     val conversationHistory: StateFlow<ConversationHistory> = _conversationHistory.asStateFlow()
     private var activeSessionId: Long = 0L
@@ -58,6 +68,7 @@ class CallViewModel : ViewModel() {
 
     fun clearHistory() {
         _messages.value = emptyList()
+        refreshLastConversationBubbles()
         resetSttTracking()
         syncConversationHistory()
     }
@@ -108,16 +119,26 @@ class CallViewModel : ViewModel() {
             }
     }
     
-    fun sendMessage(text: String) {
+    fun sendMessage(text: String, origin: MessageOrigin = MessageOrigin.GENERAL) {
         if (text.isBlank()) return
         finalizeActiveSttSegment()
-        _messages.value = _messages.value + ChatMessage(text = text, isFromMe = true)
+        _messages.value = _messages.value + ChatMessage(
+            text = text,
+            isFromMe = true,
+            origin = origin
+        )
+        refreshLastConversationBubbles()
         syncConversationHistory()
     }
     
-    fun addRemoteMessage(text: String) {
+    fun addRemoteMessage(text: String, origin: MessageOrigin = MessageOrigin.GENERAL) {
         finalizeActiveSttSegment()
-        _messages.value = _messages.value + ChatMessage(text = text, isFromMe = false)
+        _messages.value = _messages.value + ChatMessage(
+            text = text,
+            isFromMe = false,
+            origin = origin
+        )
+        refreshLastConversationBubbles()
         syncConversationHistory()
     }
 
@@ -135,6 +156,11 @@ class CallViewModel : ViewModel() {
 
     fun resetIntroPromptPlayed() {
         _introPromptPlayed.value = false
+    }
+
+    fun updateTextModeLastBubbles(myText: String, remoteText: String) {
+        _textModeLastMyBubble.value = myText.trim()
+        _textModeLastRemoteBubble.value = remoteText.trim()
     }
 
     private fun upsertSttMessage(rawText: String, isFromMe: Boolean) {
@@ -190,6 +216,7 @@ class CallViewModel : ViewModel() {
                 val prev = updated[idx]
                 updated[idx] = prev.copy(text = displayText)
                 _messages.value = updated
+                refreshLastConversationBubbles()
                 syncConversationHistory()
             }
         } else {
@@ -200,6 +227,7 @@ class CallViewModel : ViewModel() {
             )
             activeSttMessageIndex = updated.lastIndex
             _messages.value = updated
+            refreshLastConversationBubbles()
             syncConversationHistory()
         }
 
@@ -252,5 +280,11 @@ class CallViewModel : ViewModel() {
             sessionKey = if (activeSessionKey.isNotBlank()) activeSessionKey else current.sessionKey,
             utterances = utterances
         )
+    }
+
+    private fun refreshLastConversationBubbles() {
+        val current = _messages.value
+        _textModeLastMyBubble.value = current.lastOrNull { it.isFromMe }?.text.orEmpty()
+        _textModeLastRemoteBubble.value = current.lastOrNull { !it.isFromMe }?.text.orEmpty()
     }
 }

@@ -98,14 +98,14 @@ fun IncomingCallScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.CallEnd,
-                        contentDescription = "끊기",
+                        contentDescription = "거절",
                         modifier = Modifier.size(36.dp),
                         tint = MaterialTheme.colorScheme.onError
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "끊기",
+                    text = "거절",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -121,14 +121,14 @@ fun IncomingCallScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Call,
-                        contentDescription = "통화 받기",
+                        contentDescription = "응답",
                         modifier = Modifier.size(36.dp),
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "통화 받기",
+                    text = "응답",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )

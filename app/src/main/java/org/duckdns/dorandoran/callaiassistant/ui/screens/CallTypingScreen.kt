@@ -36,6 +36,7 @@ import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
+import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
@@ -93,7 +94,7 @@ fun CallTypingScreen(
             isTtsReady = false
         }
     }
-    
+
     // 메시지가 추가되면 스크롤을 가장 아래로 즉시 이동
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -326,7 +327,7 @@ fun CallTypingScreen(
                             val isAiSuggestionText = suggestionSets.flatten().contains(textToSend)
                             isSendingMessage = true
                             isSendingAiSuggestion = isAiSuggestionText
-                            viewModel.sendMessage(textToSend)
+                            viewModel.sendMessage(textToSend, origin = MessageOrigin.TEXT_MODE)
                             inputText = TextFieldValue()
                             val markSendDone = {
                                 isSendingMessage = false

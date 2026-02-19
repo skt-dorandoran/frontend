@@ -135,7 +135,8 @@ fun WebRtcInCallScreen(
     var userInputText by remember { mutableStateOf("") }
     var isDirectSpeakOverlayOpen by remember { mutableStateOf(false) }
     var isSendingMessage by remember { mutableStateOf(false) }
-    val messages by viewModel.messages.collectAsState()
+    val textModeLastMyBubble by viewModel.textModeLastMyBubble.collectAsState()
+    val textModeLastRemoteBubble by viewModel.textModeLastRemoteBubble.collectAsState()
     val isAiCorrectionMode = selectedMode == CallMode.AI_CORRECTION
     val isKeypadActive = callScreenState == CallScreenState.KEYPAD
     val shouldAvoidIme = callScreenState == CallScreenState.MODE_SELECT &&
@@ -172,10 +173,8 @@ fun WebRtcInCallScreen(
     }
     val currentSuggestions = suggestionSets[suggestionSetIndex % suggestionSets.size]
     val displayNumber = if (phoneNumber.isNotBlank()) formatPhoneNumber(phoneNumber) else "상대방"
-    val lastRemoteMessageText = messages.lastOrNull { !it.isFromMe }?.text ?: "아직 상대방 발화가 없어요"
-    val lastMySpokenText = messages.lastOrNull { it.isFromMe && it.isStt }?.text
-        ?: messages.lastOrNull { it.isFromMe }?.text
-        ?: "아직 내 발화가 없어요"
+    val lastRemoteTypedMessageText = textModeLastRemoteBubble.ifBlank { "상대방 대화가 없습니다" }
+    val lastMyTypedMessageText = textModeLastMyBubble.ifBlank { "내가 말한 대화가 없습니다" }
     val textScale = remember { SettingsStore.getCallTextScale(context) }
     val isDark = isSystemInDarkTheme()
     val backgroundColor = if (isDark) Color(0xFF0B0B0C) else Color(0xFFF6F6F9)
@@ -337,10 +336,12 @@ fun WebRtcInCallScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = lastRemoteMessageText,
+                                text = lastRemoteTypedMessageText,
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = MaterialTheme.typography.bodyMedium.fontSize * textScale
+                                    // 기존 2배에서 0.7배로 축소
+                                    fontSize = (MaterialTheme.typography.bodyMedium.fontSize.value * textScale * 1.4f).sp
                                 ),
+                                fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onBackground,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth()
@@ -427,7 +428,7 @@ fun WebRtcInCallScreen(
                                     }
                                     Spacer(modifier = Modifier.height(14.dp))
                                     Text(
-                                        text = lastMySpokenText,
+                                        text = lastMyTypedMessageText,
                                         style = MaterialTheme.typography.bodyLarge.copy(
                                             fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale
                                         ),
