@@ -56,10 +56,18 @@ class SherpaOnnxSttManager(
 
     fun initialize(modelDir: File) {
         try {
-            val encoder = File(modelDir, "encoder-epoch-99-avg-1.int8.onnx")
-            val decoder = File(modelDir, "decoder-epoch-99-avg-1.onnx")
-            val joiner = File(modelDir, "joiner-epoch-99-avg-1.int8.onnx")
+            val encoderFp32 = File(modelDir, "encoder-epoch-99-avg-1.onnx")
+            val encoderInt8 = File(modelDir, "encoder-epoch-99-avg-1.int8.onnx")
+            val decoderFp32 = File(modelDir, "decoder-epoch-99-avg-1.onnx")
+            val decoderInt8 = File(modelDir, "decoder-epoch-99-avg-1.int8.onnx")
+            val joinerFp32 = File(modelDir, "joiner-epoch-99-avg-1.onnx")
+            val joinerInt8 = File(modelDir, "joiner-epoch-99-avg-1.int8.onnx")
+            // Prefer int8 first for realtime stability on-device; fallback to fp32.
+            val encoder = if (encoderInt8.exists()) encoderInt8 else encoderFp32
+            val decoder = if (decoderInt8.exists()) decoderInt8 else decoderFp32
+            val joiner = if (joinerInt8.exists()) joinerInt8 else joinerFp32
             val tokens = File(modelDir, "tokens.txt")
+            val sttThreads = Runtime.getRuntime().availableProcessors().coerceIn(2, 4)
 
             // sherpa-onnx 공식 예제 구조에 맞게 config 객체 생성
             val modelConfig = com.k2fsa.sherpa.onnx.OnlineModelConfig(
@@ -69,7 +77,7 @@ class SherpaOnnxSttManager(
                     joiner = joiner.absolutePath
                 ),
                 tokens = tokens.absolutePath,
-                numThreads = 2,
+                numThreads = sttThreads,
                 debug = false
             )
             val featConfig = com.k2fsa.sherpa.onnx.FeatureConfig(
@@ -89,12 +97,14 @@ class SherpaOnnxSttManager(
                 // Local/remote streaming text is merged on UI side; disabling endpoint
                 // reduces aggressive sentence splits.
                 enableEndpoint = false,
-                // Beam search is noticeably more robust for less-clear pronunciation.
-                decodingMethod = "modified_beam_search",
-                maxActivePaths = 8
+                decodingMethod = "greedy_search",
+                maxActivePaths = 4
             )
             recognizer = OnlineRecognizer(null, config)
-            Log.i("SherpaOnnxSttManager", "OnlineRecognizer 초기화 완료")
+            Log.i(
+                "SherpaOnnxSttManager",
+                "OnlineRecognizer 초기화 완료 (threads=$sttThreads, encoder=${encoder.name}, decoder=${decoder.name}, joiner=${joiner.name})"
+            )
         } catch (e: Exception) {
             Log.e("SherpaOnnxSttManager", "모델 초기화 실패", e)
             onError?.invoke(e.message ?: "모델 초기화 실패")
@@ -104,13 +114,13 @@ class SherpaOnnxSttManager(
     fun startStreaming() {
         val modelDir = File(context.filesDir, "sherpa-onnx/sherpa-onnx-streaming-zipformer-korean-2024-06-16")
         // 모델 파일이 없으면 assets에서 복사
-        val requiredFiles = listOf(
-            "encoder-epoch-99-avg-1.int8.onnx",
-            "decoder-epoch-99-avg-1.onnx",
-            "joiner-epoch-99-avg-1.int8.onnx",
-            "tokens.txt"
-        )
-        val missing = requiredFiles.any { !File(modelDir, it).exists() }
+        val missing = !File(modelDir, "tokens.txt").exists() ||
+            !(File(modelDir, "encoder-epoch-99-avg-1.onnx").exists() ||
+                File(modelDir, "encoder-epoch-99-avg-1.int8.onnx").exists()) ||
+            !(File(modelDir, "decoder-epoch-99-avg-1.onnx").exists() ||
+                File(modelDir, "decoder-epoch-99-avg-1.int8.onnx").exists()) ||
+            !(File(modelDir, "joiner-epoch-99-avg-1.onnx").exists() ||
+                File(modelDir, "joiner-epoch-99-avg-1.int8.onnx").exists())
         if (missing) {
             try {
                 org.duckdns.dorandoran.callaiassistant.util.AssetCopyUtil.copyAssetFolder(
@@ -146,17 +156,21 @@ class SherpaOnnxSttManager(
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
         val audioFormat = AudioFormat.ENCODING_PCM_16BIT
         val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
-        audioRecord = AudioRecord(
-            MediaRecorder.AudioSource.VOICE_RECOGNITION,
-            sampleRate,
-            channelConfig,
-            audioFormat,
-            minBufferSize * 2
-        )
+        audioRecord = createBestEffortAudioRecord(sampleRate, channelConfig, audioFormat, minBufferSize * 2)
+        if (audioRecord == null) {
+            onError?.invoke("AudioRecord 초기화 실패")
+            return
+        }
         audioRecord?.startRecording()
+        if (audioRecord?.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+            onError?.invoke("마이크 녹음 시작 실패")
+            audioRecord?.release()
+            audioRecord = null
+            return
+        }
 
         sttJob = scope.launch {
-            val buffer = ShortArray(2048)
+            val buffer = ShortArray(1024)
             try {
                 while (isActive && audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
                     val read = audioRecord?.read(buffer, 0, buffer.size) ?: 0
@@ -205,6 +219,38 @@ class SherpaOnnxSttManager(
         recognizer = null
     }
 
+    private fun createBestEffortAudioRecord(
+        sampleRate: Int,
+        channelConfig: Int,
+        audioFormat: Int,
+        bufferSize: Int
+    ): AudioRecord? {
+        val preferredSources = intArrayOf(
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+            MediaRecorder.AudioSource.MIC
+        )
+        for (source in preferredSources) {
+            try {
+                val candidate = AudioRecord(
+                    source,
+                    sampleRate,
+                    channelConfig,
+                    audioFormat,
+                    bufferSize
+                )
+                if (candidate.state == AudioRecord.STATE_INITIALIZED) {
+                    Log.i("SherpaOnnxSttManager", "AudioRecord source selected: $source")
+                    return candidate
+                }
+                candidate.release()
+            } catch (_: Exception) {
+                // Try next source.
+            }
+        }
+        return null
+    }
+
     private fun preprocessMicForStt(input: ShortArray, read: Int): FloatArray {
         val out = FloatArray(read)
         val hpAlpha = 0.973f
@@ -231,22 +277,22 @@ class SherpaOnnxSttManager(
         // Do not hard-drop low-level frames: quiet TTS gets removed otherwise.
         val veryLowLevel = peak < 0.010f && rms < 0.005f
         val targetRms = when {
-            rms < 0.010f -> 0.19f
-            rms < 0.020f -> 0.16f
-            rms < 0.040f -> 0.13f
+            rms < 0.012f -> 0.16f
+            rms < 0.025f -> 0.13f
+            rms < 0.05f -> 0.11f
             else -> 0.10f
         }
-        var desiredGain = (targetRms / rms).coerceIn(1f, 18f)
+        var desiredGain = (targetRms / rms).coerceIn(1f, 12f)
         if (peak > 1e-6f) {
             desiredGain = minOf(desiredGain, 0.97f / peak)
         }
-        // Faster attack helps short/quiet syllables become decodable.
-        val smooth = if (desiredGain > agcGain) 0.35f else 0.08f
+        // Moderate AGC: avoid distortion while still lifting quiet speech.
+        val smooth = if (desiredGain > agcGain) 0.25f else 0.08f
         agcGain = agcGain + (desiredGain - agcGain) * smooth
         if (veryLowLevel) {
-            agcGain = maxOf(agcGain, 2.2f)
+            agcGain = maxOf(agcGain, 1.5f)
         }
-        agcGain = agcGain.coerceIn(1f, 18f)
+        agcGain = agcGain.coerceIn(1f, 12f)
         for (i in out.indices) {
             out[i] = (out[i] * agcGain).coerceIn(-1f, 1f)
         }
@@ -267,12 +313,12 @@ class SherpaOnnxSttManager(
         val merged = mergeTranscript(mergedText, text)
         mergedText = merged
 
-        // Skip tiny fluctuations that cause choppy bubble updates.
-        val changedEnough = kotlin.math.abs(merged.length - lastEmittedText.length) >= 2 ||
-            !merged.startsWith(lastEmittedText)
-        val cooldownPassed = now - lastEmitAtMs >= 180
         if (merged == lastEmittedText) return
-        if (!changedEnough && !cooldownPassed) return
+        // Always deliver append-only updates so final syllables are not dropped.
+        // Only throttle rewrite-type fluctuations.
+        val appendOnly = merged.startsWith(lastEmittedText)
+        val cooldownPassed = now - lastEmitAtMs >= 120
+        if (!appendOnly && !cooldownPassed) return
 
         lastEmittedText = merged
         lastEmitAtMs = now
