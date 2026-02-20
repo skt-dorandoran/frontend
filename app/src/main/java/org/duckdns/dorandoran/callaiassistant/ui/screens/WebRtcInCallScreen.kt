@@ -817,9 +817,13 @@ fun WebRtcInCallScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        if (connectionState == WebRtcConnectionState.IN_CALL && 
-                            selectedMode == CallMode.DIRECT && 
-                            userInputText.isNotBlank()) {
+                        val canSendSuggestedMessage =
+                            connectionState == WebRtcConnectionState.IN_CALL &&
+                                (selectedMode == CallMode.DIRECT || selectedMode == CallMode.AI_CORRECTION) &&
+                                userInputText.isNotBlank() &&
+                                !isDirectSpeakOverlayOpen
+
+                        if (canSendSuggestedMessage) {
                             // 보내기 버튼 (텍스트 입력 시)
                             Button(
                                 onClick = {
