@@ -219,7 +219,7 @@ fun WebRtcInCallScreen(
     }
     val displayNumber = if (phoneNumber.isNotBlank()) formatPhoneNumber(phoneNumber) else "상대방"
     val lastRemoteTypedMessageText = textModeLastRemoteBubble.ifBlank { "상대방 대화가 없습니다" }
-    val lastMyTypedMessageText = textModeLastMyBubble.ifBlank { "내가 말한 대화가 없습니다" }
+    val directSpeakPlaceholderText = "직접 말하거나\n위의 추천 답변을 선택하세요"
     val textScale = remember { SettingsStore.getCallTextScale(context) }
     val isDark = isSystemInDarkTheme()
     val backgroundColor = if (isDark) Color(0xFF0B0B0C) else Color(0xFFF6F6F9)
@@ -587,7 +587,7 @@ fun WebRtcInCallScreen(
                 ) {
                     if (callScreenState == CallScreenState.MODE_SELECT) {
                         if (connectionState == WebRtcConnectionState.IN_CALL && isVoiceConversationMode) {
-                            if (isDirectSpeakOverlayOpen) {
+                            if (isAiCorrectionMode && isDirectSpeakOverlayOpen) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.End
@@ -623,7 +623,7 @@ fun WebRtcInCallScreen(
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Text(
-                                            text = if (isAiCorrectionMode && aiCorrectionOverlayState != AiCorrectionOverlayState.RECORDING) {
+                                            text = if (aiCorrectionOverlayState != AiCorrectionOverlayState.RECORDING) {
                                                 "보정된 문장을 확인해주세요"
                                             } else {
                                                 "지금 이렇게 말하고 있어요"
@@ -634,81 +634,36 @@ fun WebRtcInCallScreen(
                                     }
                                     Spacer(modifier = Modifier.height(14.dp))
                                     Text(
-                                        text = if (isAiCorrectionMode) {
-                                            aiCorrectionDraftText.ifBlank { "말씀하시면 문장이 여기에 표시됩니다" }
-                                        } else {
-                                            lastMyTypedMessageText
-                                        },
+                                        text = aiCorrectionDraftText.ifBlank { "말씀하시면 문장이 여기에 표시됩니다" },
                                         style = MaterialTheme.typography.bodyLarge.copy(
                                             fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale
                                         ),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
 
-                                    if (isAiCorrectionMode) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                        when (aiCorrectionOverlayState) {
-                                            AiCorrectionOverlayState.RECORDING -> {
-                                                Button(
-                                                    onClick = {
-                                                        viewModel.stopAiCorrectionRecording()
-                                                        aiCorrectionOverlayState = AiCorrectionOverlayState.READY_TO_SEND
-                                                    },
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    shape = RoundedCornerShape(12.dp),
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = Color(0xFF7E57C2),
-                                                        contentColor = Color.White
-                                                    )
-                                                ) {
-                                                    Text("보정 시작")
-                                                }
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    when (aiCorrectionOverlayState) {
+                                        AiCorrectionOverlayState.RECORDING -> {
+                                            Button(
+                                                onClick = {
+                                                    viewModel.stopAiCorrectionRecording()
+                                                    aiCorrectionOverlayState = AiCorrectionOverlayState.READY_TO_SEND
+                                                },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = Color(0xFF7E57C2),
+                                                    contentColor = Color.White
+                                                )
+                                            ) {
+                                                Text("보정 시작")
                                             }
-                                            AiCorrectionOverlayState.READY_TO_SEND -> {
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                                ) {
-                                                    OutlinedButton(
-                                                        onClick = {
-                                                            onLocalAudioTransmissionToggle(false)
-                                                            viewModel.clearAiCorrectionDraft()
-                                                            viewModel.startAiCorrectionRecording()
-                                                            aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
-                                                        },
-                                                        modifier = Modifier.weight(1f),
-                                                        shape = RoundedCornerShape(12.dp)
-                                                    ) {
-                                                        Text("다시 말하기")
-                                                    }
-                                                    Button(
-                                                        onClick = {
-                                                            val textToSend = aiCorrectionDraftText.trim()
-                                                            if (textToSend.isBlank() || isAiCorrectionSending) return@Button
-                                                            isAiCorrectionSending = true
-                                                            onLocalAudioTransmissionToggle(true)
-                                                            viewModel.sendMessage(
-                                                                textToSend,
-                                                                origin = org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin.TEXT_MODE
-                                                            )
-                                                            speakTextWithTts(textToSend) {
-                                                                isAiCorrectionSending = false
-                                                                aiCorrectionOverlayState = AiCorrectionOverlayState.SENT
-                                                            }
-                                                        },
-                                                        modifier = Modifier.weight(1f),
-                                                        shape = RoundedCornerShape(12.dp),
-                                                        colors = ButtonDefaults.buttonColors(
-                                                            containerColor = primaryBlue,
-                                                            contentColor = Color.White
-                                                        ),
-                                                        enabled = aiCorrectionDraftText.isNotBlank() && !isAiCorrectionSending
-                                                    ) {
-                                                        Text(if (isAiCorrectionSending) "전송 중..." else "보내기")
-                                                    }
-                                                }
-                                            }
-                                            AiCorrectionOverlayState.SENT -> {
+                                        }
+                                        AiCorrectionOverlayState.READY_TO_SEND -> {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
                                                 OutlinedButton(
                                                     onClick = {
                                                         onLocalAudioTransmissionToggle(false)
@@ -716,11 +671,50 @@ fun WebRtcInCallScreen(
                                                         viewModel.startAiCorrectionRecording()
                                                         aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
                                                     },
-                                                    modifier = Modifier.fillMaxWidth(),
+                                                    modifier = Modifier.weight(1f),
                                                     shape = RoundedCornerShape(12.dp)
                                                 ) {
                                                     Text("다시 말하기")
                                                 }
+                                                Button(
+                                                    onClick = {
+                                                        val textToSend = aiCorrectionDraftText.trim()
+                                                        if (textToSend.isBlank() || isAiCorrectionSending) return@Button
+                                                        isAiCorrectionSending = true
+                                                        onLocalAudioTransmissionToggle(true)
+                                                        viewModel.sendMessage(
+                                                            textToSend,
+                                                            origin = org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin.TEXT_MODE
+                                                        )
+                                                        speakTextWithTts(textToSend) {
+                                                            isAiCorrectionSending = false
+                                                            aiCorrectionOverlayState = AiCorrectionOverlayState.SENT
+                                                        }
+                                                    },
+                                                    modifier = Modifier.weight(1f),
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = primaryBlue,
+                                                        contentColor = Color.White
+                                                    ),
+                                                    enabled = aiCorrectionDraftText.isNotBlank() && !isAiCorrectionSending
+                                                ) {
+                                                    Text(if (isAiCorrectionSending) "전송 중..." else "보내기")
+                                                }
+                                            }
+                                        }
+                                        AiCorrectionOverlayState.SENT -> {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    onLocalAudioTransmissionToggle(false)
+                                                    viewModel.clearAiCorrectionDraft()
+                                                    viewModel.startAiCorrectionRecording()
+                                                    aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
+                                                },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) {
+                                                Text("다시 말하기")
                                             }
                                         }
                                     }
@@ -820,38 +814,78 @@ fun WebRtcInCallScreen(
 
                                 Spacer(modifier = Modifier.height(12.dp))
 
-                                OutlinedButton(
-                                    onClick = { openSpeakOverlay() },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(74.dp),
-                                    shape = RoundedCornerShape(14.dp),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                        contentColor = MaterialTheme.colorScheme.onSurface
-                                    ),
-                                    border = BorderStroke(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                                    )
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically
+                                if (textModeLastMyBubble.isNotBlank() && !isAiCorrectionMode) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(126.dp)
+                                            .clip(RoundedCornerShape(18.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                                        verticalArrangement = Arrangement.Top
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Mic,
-                                            contentDescription = "마이크",
-                                            tint = primaryBlue,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Mic,
+                                                contentDescription = "마이크",
+                                                tint = primaryBlue,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Text(
+                                                text = "지금 이렇게 말하고 있어요",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(14.dp))
                                         Text(
-                                            text = "직접 말하거나\n위의 추천 답변을 선택하세요",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = secondaryTextColor,
-                                            textAlign = TextAlign.Start
+                                            text = textModeLastMyBubble,
+                                            style = MaterialTheme.typography.bodyLarge.copy(
+                                                fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
+                                    }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = {},
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(126.dp),
+                                        shape = RoundedCornerShape(14.dp),
+                                        enabled = false,
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                            contentColor = MaterialTheme.colorScheme.onSurface,
+                                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                            disabledContentColor = MaterialTheme.colorScheme.onSurface
+                                        ),
+                                        border = BorderStroke(
+                                            1.dp,
+                                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                        )
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Mic,
+                                                contentDescription = "마이크",
+                                                tint = primaryBlue,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Text(
+                                                text = directSpeakPlaceholderText,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = secondaryTextColor,
+                                                textAlign = TextAlign.Start
+                                            )
+                                        }
                                     }
                                 }
                             }
