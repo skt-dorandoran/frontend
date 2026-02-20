@@ -99,6 +99,7 @@ fun CallNavHost(
                 onEndCall = onEndCall,
                 onSpeakerphoneToggle = onSpeakerphoneToggle,
                 onLocalAudioTransmissionToggle = onLocalAudioTransmissionToggle,
+                webRtcManager = webRtcManager,
                 enableIntroPromptPlayback = enableIntroPromptPlayback,
                 navController = navController,
                 viewModel = callViewModel

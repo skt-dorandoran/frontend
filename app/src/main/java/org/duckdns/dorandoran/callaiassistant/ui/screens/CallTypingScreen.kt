@@ -3,7 +3,6 @@ package org.duckdns.dorandoran.callaiassistant.ui.screens
 import android.media.AudioManager
 import android.media.ToneGenerator
 import androidx.compose.foundation.background
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -22,19 +21,12 @@ import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.*
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextRange
@@ -47,6 +39,7 @@ import androidx.navigation.NavController
 import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
+import org.duckdns.dorandoran.callaiassistant.ui.components.RemoteVoiceWaveMini
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage
@@ -55,7 +48,6 @@ import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 import android.util.Log
 import kotlinx.coroutines.launch
-import kotlin.math.sin
 
 private val NOISE_ONLY_REGEX = Regex("^[\\p{Punct}\\s·…]+$")
 
@@ -490,58 +482,6 @@ fun CallTypingScreen(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun RemoteVoiceWaveMini(
-    level: Float,
-    modifier: Modifier = Modifier,
-    minBarHeight: Dp = 4.dp
-) {
-    val infinite = rememberInfiniteTransition(label = "remoteWave")
-    val phase by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = (Math.PI * 2f).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1100, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "remoteWavePhase"
-    )
-    val clampedLevel = level.coerceIn(0f, 1f)
-    val profile = floatArrayOf(0.36f, 0.68f, 1f, 0.68f, 0.4f)
-    val barColors = listOf(
-        Color(0xFF8B79F6),
-        Color(0xFF7B8CF8),
-        Color(0xFF6BA3F8),
-        Color(0xFF67BCCF),
-        Color(0xFF7ADFD0)
-    )
-
-    Canvas(modifier = modifier) {
-        val bars = profile.size
-        val barWidth = size.width / 9f
-        val gap = barWidth * 0.78f
-        val totalWidth = bars * barWidth + (bars - 1) * gap
-        var x = (size.width - totalWidth) / 2f
-        val minHeightPx = minBarHeight.toPx()
-
-        repeat(bars) { index ->
-            val idle = (sin(phase + (index * 0.7f)) * 0.5f + 0.5f) * 0.26f + 0.08f
-            val activity = idle + clampedLevel * 0.92f
-            val barHeight = (size.height * (0.18f + profile[index] * activity))
-                .coerceIn(minHeightPx, size.height)
-            val top = (size.height - barHeight) / 2f
-
-            drawRoundRect(
-                color = barColors[index],
-                topLeft = androidx.compose.ui.geometry.Offset(x, top),
-                size = androidx.compose.ui.geometry.Size(barWidth, barHeight),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(x = barWidth, y = barWidth)
-            )
-            x += barWidth + gap
         }
     }
 }

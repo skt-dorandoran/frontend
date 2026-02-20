@@ -72,8 +72,10 @@ import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager
 import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
+import org.duckdns.dorandoran.callaiassistant.ui.components.RemoteVoiceWaveMini
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState
+import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
@@ -124,6 +126,7 @@ fun WebRtcInCallScreen(
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
     onLocalAudioTransmissionToggle: (Boolean) -> Unit = {},
+    webRtcManager: WebRtcManager,
     enableIntroPromptPlayback: Boolean = true,
     navController: NavController? = null,
     modifier: Modifier = Modifier,
@@ -144,6 +147,7 @@ fun WebRtcInCallScreen(
     val aiSuggestionTop1 by viewModel.aiSuggestionTop1.collectAsState()
     val aiSuggestionTop2 by viewModel.aiSuggestionTop2.collectAsState()
     val isRefreshingAiSuggestions by viewModel.isRefreshingAiSuggestions.collectAsState()
+    val remoteAudioLevel by webRtcManager.remoteAudioLevel.collectAsState()
     val silenceIntervention by viewModel.silenceIntervention.collectAsState()
     val aiCorrectionAlert by viewModel.aiCorrectionAlert.collectAsState()
     val isAiCorrectionMode = selectedMode == CallMode.AI_CORRECTION
@@ -444,16 +448,25 @@ fun WebRtcInCallScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                Text(
-                    text = displayNumber,
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontSize = MaterialTheme.typography.headlineMedium.fontSize * textScale
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RemoteVoiceWaveMini(
+                        level = remoteAudioLevel,
+                        modifier = Modifier.size(width = 20.dp, height = 18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = displayNumber,
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontSize = MaterialTheme.typography.headlineMedium.fontSize * textScale
+                        ),
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
 
             }
 
@@ -1251,10 +1264,13 @@ private fun formatDuration(seconds: Long): String {
 @Composable
 fun WebRtcInCallScreenConnectedPreview() {
     CallaiassistantTheme {
+        val context = LocalContext.current
+        val webRtcManager = remember { WebRtcManager(context.applicationContext) }
         WebRtcInCallScreen(
             phoneNumber = "01012345678",
             connectionState = WebRtcConnectionState.CONNECTED,
             callDurationSeconds = 0,
+            webRtcManager = webRtcManager,
             onEndCall = {}
         )
     }
@@ -1264,10 +1280,13 @@ fun WebRtcInCallScreenConnectedPreview() {
 @Composable
 fun WebRtcInCallScreenInCallPreview() {
     CallaiassistantTheme {
+        val context = LocalContext.current
+        val webRtcManager = remember { WebRtcManager(context.applicationContext) }
         WebRtcInCallScreen(
             phoneNumber = "01012345678",
             connectionState = WebRtcConnectionState.IN_CALL,
             callDurationSeconds = 125,
+            webRtcManager = webRtcManager,
             logMessages = listOf(
                 "Connecting to WebRTC server...",
                 "Offer sent.",
