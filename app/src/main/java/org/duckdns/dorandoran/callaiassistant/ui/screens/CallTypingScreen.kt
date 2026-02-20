@@ -85,6 +85,7 @@ fun CallTypingScreen(
     var isSendingMessage by remember { mutableStateOf(false) }
     var isSendingAiSuggestion by remember { mutableStateOf(false) }
     var isInlineKeypadVisible by remember { mutableStateOf(false) }
+    var selectedSuggestionIndex by remember { mutableStateOf<Int?>(null) }
     val voiceId = remember { VoiceCloneStore.getVoiceId(context) }
     val isVoiceCloneEnabled = remember { SettingsStore.isVoiceCloneEnabled(context) }
     val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_DTMF, 80) }
@@ -266,7 +267,10 @@ fun CallTypingScreen(
                 Spacer(modifier = Modifier.width(6.dp))
                 IconButton(
                     enabled = !isRefreshingAiSuggestions && !isInlineKeypadVisible,
-                    onClick = { viewModel.refreshAiSuggestions(context) },
+                    onClick = {
+                        selectedSuggestionIndex = null
+                        viewModel.refreshAiSuggestions(context)
+                    },
                     modifier = Modifier.size(22.dp)
                 ) {
                     if (!isRefreshingAiSuggestions) {
@@ -285,11 +289,12 @@ fun CallTypingScreen(
                     text = suggestion,
                     isLoading = isRefreshingAiSuggestions,
                     controlsEnabled = !isInlineKeypadVisible,
-                    isSelected = inputText.text.trim() == suggestion,
+                    isSelected = selectedSuggestionIndex == index,
                     useGradientBorder = index == 0,
                     modifier = Modifier.fillMaxWidth(0.62f),
                     onClick = {
                         if (isRefreshingAiSuggestions || suggestion == "...") return@SuggestionButton
+                        selectedSuggestionIndex = index
                         inputText = TextFieldValue(
                             text = suggestion,
                             selection = TextRange(suggestion.length)
@@ -329,6 +334,7 @@ fun CallTypingScreen(
                                         OutlinedButton(
                                             enabled = !isInlineKeypadVisible,
                                             onClick = {
+                                                selectedSuggestionIndex = null
                                                 inputText = TextFieldValue(
                                                     text = reply,
                                                     selection = TextRange(reply.length)
@@ -394,7 +400,15 @@ fun CallTypingScreen(
 
                         OutlinedTextField(
                             value = inputText,
-                            onValueChange = { inputText = it },
+                            onValueChange = { newValue ->
+                                inputText = newValue
+                                val selectedText = selectedSuggestionIndex?.let { index ->
+                                    sharedSuggestions.getOrNull(index)
+                                }
+                                if (selectedText != null && newValue.text.trim() != selectedText) {
+                                    selectedSuggestionIndex = null
+                                }
+                            },
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(end = 8.dp),
@@ -422,6 +436,7 @@ fun CallTypingScreen(
                                     textToSend,
                                     origin = if (isAiSuggestionText) MessageOrigin.AI_SUGGESTION else MessageOrigin.TEXT_MODE
                                 )
+                                selectedSuggestionIndex = null
                                 inputText = TextFieldValue()
                                 val markSendDone = {
                                     isSendingMessage = false
