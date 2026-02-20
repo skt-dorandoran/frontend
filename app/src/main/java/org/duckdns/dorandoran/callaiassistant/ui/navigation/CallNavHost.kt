@@ -17,6 +17,7 @@ import org.duckdns.dorandoran.callaiassistant.ui.screens.CallTypingScreen
 import org.duckdns.dorandoran.callaiassistant.ui.screens.WebRtcInCallScreen
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState
+import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 
 object CallRoutes {
     const val INTRO = "call_intro"
@@ -28,6 +29,7 @@ fun CallNavHost(
     phoneNumber: String,
     connectionState: WebRtcConnectionState,
     callDurationSeconds: Long,
+    webRtcManager: WebRtcManager,
     logMessages: List<String> = emptyList(),
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
@@ -107,6 +109,7 @@ fun CallNavHost(
             CallTypingScreen(
                 navController = navController,
                 viewModel = callViewModel,
+                webRtcManager = webRtcManager,
                 onEndCall = onEndCall
             )
         }

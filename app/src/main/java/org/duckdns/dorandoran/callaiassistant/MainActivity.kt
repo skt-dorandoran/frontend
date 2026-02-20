@@ -822,6 +822,7 @@ private fun WebRtcCallContent(
         phoneNumber = phoneNumber,
         connectionState = connectionState,
         callDurationSeconds = callDuration,
+        webRtcManager = webRtcManager,
         logMessages = logMessages,
         onEndCall = handleEndCall,
         onSpeakerphoneToggle = { isOn ->

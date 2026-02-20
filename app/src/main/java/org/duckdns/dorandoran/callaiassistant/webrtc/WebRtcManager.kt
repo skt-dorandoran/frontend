@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -90,6 +91,12 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
 
     private val _remoteAudioTrack = MutableStateFlow<org.webrtc.AudioTrack?>(null)
     val remoteAudioTrack: StateFlow<org.webrtc.AudioTrack?> = _remoteAudioTrack.asStateFlow()
+    private val _remoteAudioLevel = MutableStateFlow(0f)
+    val remoteAudioLevel: StateFlow<Float> = _remoteAudioLevel.asStateFlow()
+    @Volatile
+    private var remoteAudioLevelSmoothed = 0f
+    @Volatile
+    private var remoteAudioLevelLastEmitMs = 0L
     /**
      * 상대방 오디오 STT 연동 시작 (ViewModel 주입 필요)
      */
@@ -134,6 +141,9 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         remoteSttHpPrevIn = 0f
         remoteSttHpPrevOut = 0f
         remoteSttAgcGain = 1f
+        remoteAudioLevelSmoothed = 0f
+        remoteAudioLevelLastEmitMs = 0L
+        _remoteAudioLevel.value = 0f
     }
 
     fun startLocalStt(context: Context, viewModel: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel) {
@@ -239,9 +249,38 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
             } else {
                 pcm
             }
+            updateRemoteAudioLevel(sttPcm)
             val preprocessed = preprocessRemoteAudioForStt(sttPcm)
             if (preprocessed.isEmpty()) return@AudioSink
             client.sendPcm16Mono16k(floatToPcm16Bytes(preprocessed))
+        }
+    }
+
+    private fun updateRemoteAudioLevel(pcm: FloatArray) {
+        if (pcm.isEmpty()) return
+        var energy = 0f
+        var peak = 0f
+        for (sample in pcm) {
+            val absSample = kotlin.math.abs(sample)
+            energy += sample * sample
+            if (absSample > peak) peak = absSample
+        }
+        val rms = kotlin.math.sqrt((energy / pcm.size).coerceAtLeast(1e-9f))
+        val normalized = (rms * 3.2f + peak * 0.22f).coerceIn(0f, 1f)
+        val previous = remoteAudioLevelSmoothed
+        val smoothed = if (normalized > previous) {
+            previous + (normalized - previous) * 0.45f
+        } else {
+            previous + (normalized - previous) * 0.12f
+        }.let { if (it < 0.015f) 0f else it }
+
+        val nowMs = System.currentTimeMillis()
+        if (nowMs - remoteAudioLevelLastEmitMs >= 33L || abs(smoothed - _remoteAudioLevel.value) >= 0.018f) {
+            remoteAudioLevelSmoothed = smoothed
+            remoteAudioLevelLastEmitMs = nowMs
+            _remoteAudioLevel.value = smoothed
+        } else {
+            remoteAudioLevelSmoothed = smoothed
         }
     }
 
@@ -1029,6 +1068,9 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         audioSource?.dispose()
         audioSource = null
         _remoteAudioTrack.value = null
+        remoteAudioLevelSmoothed = 0f
+        remoteAudioLevelLastEmitMs = 0L
+        _remoteAudioLevel.value = 0f
         _connectionState.value = WebRtcConnectionState.DISCONNECTED
         currentCallId = null
         lastKnownCallId = null
