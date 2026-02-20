@@ -6,6 +6,7 @@ import android.media.ToneGenerator
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -57,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -77,21 +79,34 @@ import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
+import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
 import java.io.File
 // --- 파일 최상위에 선언: 말풍선 컴포저블 ---
 @Composable
 public fun MyMessageBubble(message: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage, textScale: Float) {
-    androidx.compose.material3.Surface(
-        color = androidx.compose.ui.graphics.Color(0xFF2F5BFF),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+    val bubbleShape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+    val aiGradientBorder = Brush.horizontalGradient(
+        colors = listOf(Color(0xFF8B7BFF), Color(0xFF66D1C5))
+    )
+    val isAiGeneratedMessage = message.origin == MessageOrigin.AI_SUGGESTION
+    Box(
         modifier = Modifier
             .padding(horizontal = 8.dp, vertical = 2.dp)
+            .then(
+                if (isAiGeneratedMessage) {
+                    Modifier.border(width = 1.5.dp, brush = aiGradientBorder, shape = bubbleShape)
+                } else {
+                    Modifier
+                }
+            )
+            .clip(bubbleShape)
+            .background(Color(0xFFEEF5FF))
     ) {
         Text(
             text = message.text,
-            color = androidx.compose.ui.graphics.Color.White,
+            color = Color(0xFF111111),
             fontSize = (16 * textScale).sp,
             modifier = Modifier.padding(12.dp)
         )
@@ -101,7 +116,7 @@ public fun MyMessageBubble(message: org.duckdns.dorandoran.callaiassistant.ui.vi
 @Composable
 public fun RemoteMessageBubble(message: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage, textScale: Float) {
     androidx.compose.material3.Surface(
-        color = androidx.compose.ui.graphics.Color(0xFFE5E5EA),
+        color = Color(0xFFFFFFFF),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
         modifier = Modifier
             .padding(horizontal = 8.dp, vertical = 2.dp)

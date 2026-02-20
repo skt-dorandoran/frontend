@@ -29,7 +29,8 @@ data class ChatMessage(
 
 enum class MessageOrigin {
     GENERAL,
-    TEXT_MODE
+    TEXT_MODE,
+    AI_SUGGESTION
 }
 
 enum class ConversationSpeaker {
