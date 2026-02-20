@@ -3,6 +3,7 @@ package org.duckdns.dorandoran.callaiassistant.ui.screens
 import android.media.AudioManager
 import android.media.ToneGenerator
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -25,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -72,6 +74,7 @@ fun CallTypingScreen(
     var inputText by remember { mutableStateOf(TextFieldValue()) }
     val isDark = isSystemInDarkTheme()
     val primaryBlue = Color(0xFF2F5BFF)
+    val typingBodyBackground = if (isDark) Color(0xFF111316) else Color(0xFFF8FBFF)
     val context = LocalContext.current
     val textScale = SettingsStore.getCallTextScale(context)
     val audioManager = remember {
@@ -141,7 +144,9 @@ fun CallTypingScreen(
     }
     
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .background(typingBodyBackground)
     ) {
         // TopBar (고정)
         TopAppBar(
@@ -202,28 +207,95 @@ fun CallTypingScreen(
         )
 
         // 메시지 영역 (스크롤 가능)
-        LazyColumn(
-            state = listState,
+        Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            reverseLayout = true
+                .background(typingBodyBackground)
         ) {
-            // 메시지를 역순으로 표시 (최신 메시지가 맨 아래)
-            items(displayMessages.size) { index ->
-                val message = displayMessages[displayMessages.size - 1 - index]
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = if (message.isFromMe) Arrangement.End else Arrangement.Start
-                ) {
-                    if (!message.isFromMe) {
-                        RemoteMessageBubble(message = message, textScale = textScale)
-                    } else {
-                        MyMessageBubble(message = message, textScale = textScale)
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                reverseLayout = true
+            ) {
+                // 메시지를 역순으로 표시 (최신 메시지가 맨 아래)
+                items(displayMessages.size) { index ->
+                    val message = displayMessages[displayMessages.size - 1 - index]
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = if (message.isFromMe) Arrangement.End else Arrangement.Start
+                    ) {
+                        if (!message.isFromMe) {
+                            RemoteMessageBubble(message = message, textScale = textScale)
+                        } else {
+                            MyMessageBubble(message = message, textScale = textScale)
+                        }
                     }
                 }
+            }
+        }
+
+        // 입력 블럭 바로 위 고정 AI 추천 답변
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(typingBodyBackground)
+                .padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lightbulb,
+                    contentDescription = "AI 추천",
+                    tint = Color(0xFFFFC107),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = if (isSendingAiSuggestion) "AI 추천 답변 전송 중.." else "AI 추천 답변",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                IconButton(
+                    enabled = !isRefreshingAiSuggestions && !isInlineKeypadVisible,
+                    onClick = { viewModel.refreshAiSuggestions(context) },
+                    modifier = Modifier.size(22.dp)
+                ) {
+                    if (!isRefreshingAiSuggestions) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "추천 새로고침",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+
+            sharedSuggestions.forEachIndexed { index, suggestion ->
+                SuggestionButton(
+                    text = suggestion,
+                    isLoading = isRefreshingAiSuggestions,
+                    controlsEnabled = !isInlineKeypadVisible,
+                    isSelected = inputText.text.trim() == suggestion,
+                    useGradientBorder = index == 0,
+                    modifier = Modifier.fillMaxWidth(0.62f),
+                    onClick = {
+                        if (isRefreshingAiSuggestions || suggestion == "...") return@SuggestionButton
+                        inputText = TextFieldValue(
+                            text = suggestion,
+                            selection = TextRange(suggestion.length)
+                        )
+                    }
+                )
             }
         }
 
@@ -271,62 +343,6 @@ fun CallTypingScreen(
                                             )
                                         }
                                     }
-                                }
-                            }
-
-                            // AI 추천 답변 섹션 (고정)
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Lightbulb,
-                                    contentDescription = "AI 추천",
-                                    tint = Color(0xFFFFC107),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (isSendingAiSuggestion) "AI 추천 답변 전송 중.." else "AI 추천 답변",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Spacer(modifier = Modifier.weight(1f))
-                                IconButton(
-                                    enabled = !isRefreshingAiSuggestions && !isInlineKeypadVisible,
-                                    onClick = { viewModel.refreshAiSuggestions(context) }
-                                ) {
-                                    if (!isRefreshingAiSuggestions) {
-                                        Icon(
-                                            imageVector = Icons.Default.Refresh,
-                                            contentDescription = "추천 새로고침",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-
-                            // 추천 답변 버튼들
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(6.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 12.dp)
-                            ) {
-                                sharedSuggestions.forEach { suggestion ->
-                                    SuggestionButton(
-                                        text = suggestion,
-                                        isLoading = isRefreshingAiSuggestions,
-                                        controlsEnabled = !isInlineKeypadVisible,
-                                        onClick = {
-                                            if (isRefreshingAiSuggestions || suggestion == "...") return@SuggestionButton
-                                            inputText = TextFieldValue(
-                                                text = suggestion,
-                                                selection = TextRange(suggestion.length)
-                                            )
-                                        }
-                                    )
                                 }
                             }
                         }
@@ -402,7 +418,10 @@ fun CallTypingScreen(
                                 val isAiSuggestionText = sharedSuggestions.contains(textToSend)
                                 isSendingMessage = true
                                 isSendingAiSuggestion = isAiSuggestionText
-                                viewModel.sendMessage(textToSend, origin = MessageOrigin.TEXT_MODE)
+                                viewModel.sendMessage(
+                                    textToSend,
+                                    origin = if (isAiSuggestionText) MessageOrigin.AI_SUGGESTION else MessageOrigin.TEXT_MODE
+                                )
                                 inputText = TextFieldValue()
                                 val markSendDone = {
                                     isSendingMessage = false
@@ -492,18 +511,29 @@ private fun SuggestionButton(
     text: String,
     isLoading: Boolean,
     controlsEnabled: Boolean = true,
+    isSelected: Boolean = false,
+    useGradientBorder: Boolean = false,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val shape = RoundedCornerShape(999.dp)
+    val gradientBrush = Brush.horizontalGradient(
+        colors = listOf(Color(0xFF8B7BFF), Color(0xFF66D1C5))
+    )
     OutlinedButton(
         onClick = onClick,
         enabled = controlsEnabled && !isLoading && text != "...",
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        modifier = if (!isLoading && useGradientBorder) {
+            modifier.border(width = 1.5.dp, brush = gradientBrush, shape = shape)
+        } else {
+            modifier
+        },
+        shape = shape,
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = if (isLoading) {
                 MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
             } else {
-                Color.Transparent
+                Color.White
             },
             contentColor = if (isLoading) {
                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -514,18 +544,23 @@ private fun SuggestionButton(
             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
         border = BorderStroke(
-            1.dp,
+            if (!isLoading && useGradientBorder) 0.dp else if (isSelected && !isLoading) 2.dp else 1.dp,
             if (isLoading) {
                 MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+            } else if (useGradientBorder) {
+                Color.Transparent
+            } else if (isSelected) {
+                Color(0xFF2F5BFF)
             } else {
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                MaterialTheme.colorScheme.outline
             }
         )
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Start,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.End,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 4.dp)
