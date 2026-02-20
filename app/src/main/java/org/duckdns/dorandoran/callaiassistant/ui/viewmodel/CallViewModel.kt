@@ -297,7 +297,7 @@ class CallViewModel : ViewModel() {
         _aiCorrectionRecording.value = true
         resetAiCorrectionDraftState()
         // 재시작 직후 이전 세션 잔여 이벤트가 도착하는 경우를 완화한다.
-        aiCorrectionIgnoreEventsUntilMs = System.currentTimeMillis() + 300L
+        aiCorrectionIgnoreEventsUntilMs = System.currentTimeMillis() + 700L
     }
 
     fun stopAiCorrectionRecording() {

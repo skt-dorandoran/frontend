@@ -243,12 +243,27 @@ fun WebRtcInCallScreen(
         }
     }
 
-    fun closeSpeakOverlay() {
+    fun closeSpeakOverlay(restoreDirectMode: Boolean = false) {
         isDirectSpeakOverlayOpen = false
-        if (isAiCorrectionMode) {
+        val wasAiCorrectionMode = selectedMode == CallMode.AI_CORRECTION
+        if (wasAiCorrectionMode) {
             viewModel.stopAiCorrectionRecording()
             onLocalAudioTransmissionToggle(true)
         }
+        if (restoreDirectMode && wasAiCorrectionMode) {
+            selectedMode = CallMode.DIRECT
+        }
+    }
+
+    fun enterAiCorrectionOverlayFresh() {
+        selectedMode = CallMode.AI_CORRECTION
+        isDirectSpeakOverlayOpen = true
+        aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
+        isAiCorrectionSending = false
+        viewModel.stopAiCorrectionRecording()
+        viewModel.clearAiCorrectionDraft()
+        viewModel.startAiCorrectionRecording()
+        onLocalAudioTransmissionToggle(false)
     }
 
     fun speakTextWithTts(
@@ -578,7 +593,7 @@ fun WebRtcInCallScreen(
                                     horizontalArrangement = Arrangement.End
                                 ) {
                                     IconButton(
-                                        onClick = { closeSpeakOverlay() }
+                                        onClick = { closeSpeakOverlay(restoreDirectMode = true) }
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Close,
@@ -642,11 +657,11 @@ fun WebRtcInCallScreen(
                                                     modifier = Modifier.fillMaxWidth(),
                                                     shape = RoundedCornerShape(12.dp),
                                                     colors = ButtonDefaults.buttonColors(
-                                                        containerColor = Color(0xFFD64545),
+                                                        containerColor = Color(0xFF7E57C2),
                                                         contentColor = Color.White
                                                     )
                                                 ) {
-                                                    Text("녹음 중지")
+                                                    Text("보정 시작")
                                                 }
                                             }
                                             AiCorrectionOverlayState.READY_TO_SEND -> {
@@ -881,7 +896,7 @@ fun WebRtcInCallScreen(
                             ) {
                                 Text(if (isSendingMessage) "AI 추천 답변 전송 중.." else "보내기")
                             }
-                        } else {
+                        } else if (!isAiCorrectionMode) {
                             // 모드 선택 버튼들
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -901,7 +916,9 @@ fun WebRtcInCallScreen(
                                 }
 
                                 Button(
-                                    onClick = { selectedMode = CallMode.AI_CORRECTION },
+                                    onClick = {
+                                        enterAiCorrectionOverlayFresh()
+                                    },
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(14.dp),
                                     colors = ButtonDefaults.buttonColors(
