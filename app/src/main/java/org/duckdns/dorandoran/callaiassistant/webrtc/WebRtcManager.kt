@@ -104,12 +104,12 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 callId = buildSttCallId("remote"),
                 onInterim = { payload ->
                     if (payload.text.isNotBlank()) {
-                        viewModel.updateRemoteSttMessage(payload.text)
+                        viewModel.updateRemoteSttMessage(payload, isFinal = false)
                     }
                 },
                 onFinal = { payload ->
                     if (payload.text.isNotBlank()) {
-                        viewModel.updateRemoteSttMessage(payload.text)
+                        viewModel.updateRemoteSttMessage(payload, isFinal = true)
                     }
                 },
                 onError = { err -> Log.e(TAG, "Remote STT error: $err") }
@@ -148,12 +148,12 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 callId = buildSttCallId("local"),
                 onInterim = { payload ->
                     if (payload.text.isNotBlank()) {
-                        viewModel.updateMySttMessage(payload.text)
+                        viewModel.updateMySttMessage(payload, isFinal = false)
                     }
                 },
                 onFinal = { payload ->
                     if (payload.text.isNotBlank()) {
-                        viewModel.updateMySttMessage(payload.text)
+                        viewModel.updateMySttMessage(payload, isFinal = true)
                     }
                 },
                 onSilenceDetected = { duration ->

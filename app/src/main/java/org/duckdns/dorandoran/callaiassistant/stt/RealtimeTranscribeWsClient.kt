@@ -16,7 +16,10 @@ import java.util.UUID
 data class RealtimeSttPayload(
     val text: String,
     val confidence: Double? = null,
-    val timestamp: String? = null
+    val timestamp: String? = null,
+    val start: Double? = null,
+    val duration: Double? = null,
+    val speechFinal: Boolean = false
 )
 
 data class RealtimeComprehensionPayload(
@@ -131,14 +134,20 @@ class RealtimeTranscribeWsClient(
                     RealtimeSttPayload(
                         text = data.optString("text"),
                         confidence = data.optDouble("confidence").takeIf { !it.isNaN() },
-                        timestamp = data.optString("timestamp")
+                        timestamp = data.optString("timestamp"),
+                        start = data.optDouble("start").takeIf { !it.isNaN() },
+                        duration = data.optDouble("duration").takeIf { !it.isNaN() },
+                        speechFinal = data.optBoolean("speech_final", false)
                     )
                 )
                 "final" -> onFinal(
                     RealtimeSttPayload(
                         text = data.optString("text"),
                         confidence = data.optDouble("confidence").takeIf { !it.isNaN() },
-                        timestamp = data.optString("timestamp")
+                        timestamp = data.optString("timestamp"),
+                        start = data.optDouble("start").takeIf { !it.isNaN() },
+                        duration = data.optDouble("duration").takeIf { !it.isNaN() },
+                        speechFinal = data.optBoolean("speech_final", false)
                     )
                 )
                 "silence_detected" -> onSilenceDetected(data.optDouble("silenceDuration", 0.0))
