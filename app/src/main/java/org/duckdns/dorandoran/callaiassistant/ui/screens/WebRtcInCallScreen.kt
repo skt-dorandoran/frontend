@@ -95,6 +95,19 @@ public fun MyMessageBubble(message: org.duckdns.dorandoran.callaiassistant.ui.vi
         modifier = Modifier
             .padding(horizontal = 8.dp, vertical = 2.dp)
             .then(
+                if (!isAiGeneratedMessage) {
+                    Modifier.shadow(
+                        elevation = 10.dp,
+                        shape = bubbleShape,
+                        ambientColor = Color.Black.copy(alpha = 0.40f),
+                        spotColor = Color.Black.copy(alpha = 0.40f),
+                        clip = false
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .then(
                 if (isAiGeneratedMessage) {
                     Modifier.border(width = 1.5.dp, brush = aiGradientBorder, shape = bubbleShape)
                 } else {
@@ -120,6 +133,13 @@ public fun RemoteMessageBubble(message: org.duckdns.dorandoran.callaiassistant.u
         shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
         modifier = Modifier
             .padding(horizontal = 8.dp, vertical = 2.dp)
+            .shadow(
+                elevation = 10.dp,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                ambientColor = Color.Black.copy(alpha = 0.50f),
+                spotColor = Color.Black.copy(alpha = 0.50f),
+                clip = false
+            )
     ) {
         Text(
             text = message.text,

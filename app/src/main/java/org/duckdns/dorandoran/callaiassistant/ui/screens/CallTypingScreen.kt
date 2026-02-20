@@ -559,7 +559,8 @@ private fun SuggestionButton(
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.End,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 4.dp)
