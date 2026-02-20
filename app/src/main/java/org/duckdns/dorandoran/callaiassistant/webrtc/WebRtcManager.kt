@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -32,6 +33,7 @@ import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
 import org.webrtc.RtpReceiver
 import org.webrtc.SessionDescription
+import java.util.UUID
 
 /** 전역 고정 방 ID - 사용자 변경 불가 */
 const val WEBRTC_ROOM_ID = "dorandoran-room"
@@ -60,17 +62,15 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    // 상대방 오디오 STT 상태는 WebRtcManager 인스턴스별로 분리한다.
-    private var remoteSttManager: org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager? = null
-    private var remoteSttStream: com.k2fsa.sherpa.onnx.OnlineStream? = null
+    // 상대방/내 오디오 STT 상태는 WebRtcManager 인스턴스별로 분리한다.
+    private var remoteSttWsClient: org.duckdns.dorandoran.callaiassistant.stt.RealtimeTranscribeWsClient? = null
     private var remoteAudioSink: AudioSink? = null
     private var remoteAudioSinkAttachedTrack: AudioTrack? = null
     private var remoteSttHpPrevIn: Float = 0f
     private var remoteSttHpPrevOut: Float = 0f
     private var remoteSttAgcGain: Float = 1f
     private var remoteSttStartJob: Job? = null
-    private var localSttManager: org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager? = null
-    private var localSttStream: com.k2fsa.sherpa.onnx.OnlineStream? = null
+    private var localSttWsClient: org.duckdns.dorandoran.callaiassistant.stt.RealtimeTranscribeWsClient? = null
     private var localSttHpPrevIn: Float = 0f
     private var localSttHpPrevOut: Float = 0f
     private var localSttAgcGain: Float = 1f
@@ -91,36 +91,42 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
 
     private val _remoteAudioTrack = MutableStateFlow<org.webrtc.AudioTrack?>(null)
     val remoteAudioTrack: StateFlow<org.webrtc.AudioTrack?> = _remoteAudioTrack.asStateFlow()
+    private val _remoteAudioLevel = MutableStateFlow(0f)
+    val remoteAudioLevel: StateFlow<Float> = _remoteAudioLevel.asStateFlow()
+    @Volatile
+    private var remoteAudioLevelSmoothed = 0f
+    @Volatile
+    private var remoteAudioLevelLastEmitMs = 0L
     /**
      * 상대방 오디오 STT 연동 시작 (ViewModel 주입 필요)
      */
     fun startRemoteStt(context: Context, viewModel: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel) {
-        if (remoteSttStartJob?.isActive == true || remoteSttManager != null) return
+        if (remoteSttStartJob?.isActive == true || remoteSttWsClient != null) return
         remoteSttHpPrevIn = 0f
         remoteSttHpPrevOut = 0f
         remoteSttAgcGain = 1f
         remoteSttStartJob = scope.launch(Dispatchers.Default) {
-            val manager = org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager(
-                context = context,
-                onResult = { text ->
-                    viewModel.updateRemoteSttMessage(text)
+            val sttClient = org.duckdns.dorandoran.callaiassistant.stt.RealtimeTranscribeWsClient(
+                tag = "$TAG-RemoteStt",
+                callId = buildSttCallId("remote"),
+                onInterim = { payload ->
+                    if (payload.text.isNotBlank()) {
+                        viewModel.updateRemoteSttMessage(payload, isFinal = false)
+                    }
                 },
-                onError = { err -> Log.e(TAG, "Remote STT error: $err") },
-                streamLabel = "remote-track"
+                onFinal = { payload ->
+                    if (payload.text.isNotBlank()) {
+                        viewModel.updateRemoteSttMessage(payload, isFinal = true)
+                    }
+                },
+                onError = { err -> Log.e(TAG, "Remote STT error: $err") }
             )
-            val modelDir = java.io.File(context.filesDir, "sherpa-onnx/sherpa-onnx-streaming-zipformer-korean-2024-06-16")
-            manager.initialize(modelDir)
-            val stream = manager.createStream()
+            sttClient.connect()
             withContext(Dispatchers.Main.immediate) {
-                if (stream == null) {
-                    Log.e(TAG, "Remote STT stream 생성 실패")
-                    return@withContext
-                }
-                remoteSttManager = manager
-                remoteSttStream = stream
+                remoteSttWsClient = sttClient
                 remoteAudioSink = createRemoteAudioSink()
                 attachRemoteAudioSink(_remoteAudioTrack.value)
-                log("Remote STT initialized (background)")
+                log("Remote STT initialized (server ws)")
             }
         }
     }
@@ -130,39 +136,51 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         remoteSttStartJob = null
         detachRemoteAudioSink()
         remoteAudioSink = null
-        remoteSttStream = null
-        remoteSttManager = null
+        remoteSttWsClient?.disconnect()
+        remoteSttWsClient = null
         remoteSttHpPrevIn = 0f
         remoteSttHpPrevOut = 0f
         remoteSttAgcGain = 1f
+        remoteAudioLevelSmoothed = 0f
+        remoteAudioLevelLastEmitMs = 0L
+        _remoteAudioLevel.value = 0f
     }
 
     fun startLocalStt(context: Context, viewModel: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel) {
-        if (localSttStartJob?.isActive == true || localSttManager != null) return
+        if (localSttStartJob?.isActive == true || localSttWsClient != null) return
         localSttHpPrevIn = 0f
         localSttHpPrevOut = 0f
         localSttAgcGain = 1f
         localSttStartJob = scope.launch(Dispatchers.Default) {
-            val manager = org.duckdns.dorandoran.callaiassistant.stt.SherpaOnnxSttManager(
-                context = context,
-                onResult = { text ->
-                    viewModel.updateMySttMessage(text)
+            val sttClient = org.duckdns.dorandoran.callaiassistant.stt.RealtimeTranscribeWsClient(
+                tag = "$TAG-LocalStt",
+                silenceThresholdSeconds = 8.0,
+                callId = buildSttCallId("local"),
+                onInterim = { payload ->
+                    if (payload.text.isNotBlank()) {
+                        viewModel.updateMySttMessage(payload, isFinal = false)
+                    }
                 },
-                onError = { err -> Log.e(TAG, "Local STT error: $err") },
-                streamLabel = "local-webrtc-capture"
+                onFinal = { payload ->
+                    if (payload.text.isNotBlank()) {
+                        viewModel.updateMySttMessage(payload, isFinal = true)
+                    }
+                },
+                onSilenceDetected = { duration ->
+                    viewModel.onSilenceDetected(duration)
+                },
+                onComprehension = { payload ->
+                    if (payload.status.equals("alert", ignoreCase = true) || payload.enableAiCorrection) {
+                        viewModel.onComprehensionAlert()
+                    }
+                },
+                onError = { err -> Log.e(TAG, "Local STT error: $err") }
             )
-            val modelDir = java.io.File(context.filesDir, "sherpa-onnx/sherpa-onnx-streaming-zipformer-korean-2024-06-16")
-            manager.initialize(modelDir)
-            val stream = manager.createStream()
+            sttClient.connect()
             withContext(Dispatchers.Main.immediate) {
-                if (stream == null) {
-                    Log.e(TAG, "Local STT stream 생성 실패")
-                    return@withContext
-                }
-                localSttManager = manager
-                localSttStream = stream
+                localSttWsClient = sttClient
                 CustomAudioDeviceModule.setMicSamplesListener { audioData, sampleRate, numberOfChannels, bitsPerSample ->
-                    val localStream = localSttStream ?: return@setMicSamplesListener
+                    val client = localSttWsClient ?: return@setMicSamplesListener
                     if (bitsPerSample != 16 || numberOfChannels <= 0) return@setMicSamplesListener
                     val pcm = pcm16BytesToMonoFloat(audioData, numberOfChannels)
                     if (pcm.isEmpty()) return@setMicSamplesListener
@@ -174,10 +192,9 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     }
                     val preprocessed = preprocessLocalAudioForStt(sttPcm)
                     if (preprocessed.isEmpty()) return@setMicSamplesListener
-                    localStream.acceptWaveform(preprocessed, sttSampleRate)
-                    localSttManager?.processStream(localStream)
+                    client.sendPcm16Mono16k(floatToPcm16Bytes(preprocessed))
                 }
-                log("Local STT initialized (WebRTC capture)")
+                log("Local STT initialized (server ws)")
             }
         }
     }
@@ -186,21 +203,16 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         localSttStartJob?.cancel()
         localSttStartJob = null
         CustomAudioDeviceModule.setMicSamplesListener(null)
-        localSttStream = null
-        localSttManager = null
+        localSttWsClient?.disconnect()
+        localSttWsClient = null
         localSttHpPrevIn = 0f
         localSttHpPrevOut = 0f
         localSttAgcGain = 1f
     }
 
-    fun setLocalAudioTransmissionEnabled(enabled: Boolean) {
-        localAudioTrack?.setEnabled(enabled)
-        log("Local audio transmission ${if (enabled) "enabled" else "muted"}")
-    }
-
     private fun createRemoteAudioSink(): AudioSink {
         return AudioSink { audioData, bitsPerSample, sampleRate, numberOfChannels, _ ->
-            val stream = remoteSttStream ?: return@AudioSink
+            val client = remoteSttWsClient ?: return@AudioSink
             if (bitsPerSample != 16 || numberOfChannels <= 0) return@AudioSink
 
             val shortBuf = java.nio.ByteBuffer
@@ -231,18 +243,59 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
             val pcm = FloatArray(mono.size) { i ->
                 mono[i].toFloat() / Short.MAX_VALUE
             }
-            // sherpa-onnx model is configured for 16 kHz input.
             val sttSampleRate = 16000
             val sttPcm = if (sampleRate != sttSampleRate) {
                 resampleFloatPcm(pcm, sampleRate, sttSampleRate)
             } else {
                 pcm
             }
+            updateRemoteAudioLevel(sttPcm)
             val preprocessed = preprocessRemoteAudioForStt(sttPcm)
             if (preprocessed.isEmpty()) return@AudioSink
-            stream.acceptWaveform(preprocessed, sttSampleRate)
-            remoteSttManager?.processStream(stream)
+            client.sendPcm16Mono16k(floatToPcm16Bytes(preprocessed))
         }
+    }
+
+    private fun updateRemoteAudioLevel(pcm: FloatArray) {
+        if (pcm.isEmpty()) return
+        var energy = 0f
+        var peak = 0f
+        for (sample in pcm) {
+            val absSample = kotlin.math.abs(sample)
+            energy += sample * sample
+            if (absSample > peak) peak = absSample
+        }
+        val rms = kotlin.math.sqrt((energy / pcm.size).coerceAtLeast(1e-9f))
+        val normalized = (rms * 3.2f + peak * 0.22f).coerceIn(0f, 1f)
+        val previous = remoteAudioLevelSmoothed
+        val smoothed = if (normalized > previous) {
+            previous + (normalized - previous) * 0.45f
+        } else {
+            previous + (normalized - previous) * 0.12f
+        }.let { if (it < 0.015f) 0f else it }
+
+        val nowMs = System.currentTimeMillis()
+        if (nowMs - remoteAudioLevelLastEmitMs >= 33L || abs(smoothed - _remoteAudioLevel.value) >= 0.018f) {
+            remoteAudioLevelSmoothed = smoothed
+            remoteAudioLevelLastEmitMs = nowMs
+            _remoteAudioLevel.value = smoothed
+        } else {
+            remoteAudioLevelSmoothed = smoothed
+        }
+    }
+
+    private fun buildSttCallId(suffix: String): String {
+        val base = (currentCallId ?: lastKnownCallId)?.trim().orEmpty()
+        return if (base.isNotBlank()) {
+            "${base}_$suffix"
+        } else {
+            "call_${UUID.randomUUID().toString().replace("-", "").take(12)}_$suffix"
+        }
+    }
+
+    fun setLocalAudioTransmissionEnabled(enabled: Boolean) {
+        localAudioTrack?.setEnabled(enabled)
+        log("Local audio transmission ${if (enabled) "enabled" else "muted"}")
     }
 
     private fun preprocessRemoteAudioForStt(input: FloatArray): FloatArray {
@@ -394,6 +447,20 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
             }
         }
         return output
+    }
+
+    private fun floatToPcm16Bytes(input: FloatArray): ByteArray {
+        if (input.isEmpty()) return ByteArray(0)
+        val bytes = ByteArray(input.size * 2)
+        var idx = 0
+        input.forEach { sample ->
+            val clamped = sample.coerceIn(-1f, 1f)
+            val pcm = (clamped * Short.MAX_VALUE).toInt().toShort()
+            bytes[idx] = (pcm.toInt() and 0xFF).toByte()
+            bytes[idx + 1] = ((pcm.toInt() shr 8) and 0xFF).toByte()
+            idx += 2
+        }
+        return bytes
     }
 
     private fun attachRemoteAudioSink(track: AudioTrack?) {
@@ -1001,6 +1068,9 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         audioSource?.dispose()
         audioSource = null
         _remoteAudioTrack.value = null
+        remoteAudioLevelSmoothed = 0f
+        remoteAudioLevelLastEmitMs = 0L
+        _remoteAudioLevel.value = 0f
         _connectionState.value = WebRtcConnectionState.DISCONNECTED
         currentCallId = null
         lastKnownCallId = null

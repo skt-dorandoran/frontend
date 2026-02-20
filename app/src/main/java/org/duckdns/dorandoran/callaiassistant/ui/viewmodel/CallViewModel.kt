@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.ai.AiSuggestionApi
+import org.duckdns.dorandoran.callaiassistant.stt.RealtimeSttPayload
 import java.util.UUID
 
 data class CallInfo(
@@ -58,13 +59,26 @@ data class ConversationHistoryItem(
     val text: String
 )
 
+data class SilenceInterventionUiState(
+    val eventId: Long = 0L,
+    val silenceDurationSeconds: Double = 0.0,
+    val interventionText: String = "",
+    val visible: Boolean = false
+)
+
 class CallViewModel : ViewModel() {
     companion object {
         private const val TAG = "CallViewModel"
-        private const val STT_SEGMENT_SPLIT_GAP_MS = 1300L
         private val NOISE_ONLY_REGEX = Regex("^[\\p{Punct}\\s·…]+$")
-        private val SENTENCE_END_REGEX = Regex("[.!?…。？！]$")
     }
+
+    private data class SttSpeakerState(
+        val finalChunks: MutableMap<Long, String> = mutableMapOf(),
+        var currentStartKey: Long? = null,
+        var currentText: String = "",
+        var activeBubbleIndex: Int? = null,
+        var syntheticStartKey: Long = -1L
+    )
 
     private val _callInfo = MutableStateFlow(CallInfo())
     val callInfo: StateFlow<CallInfo> = _callInfo.asStateFlow()
@@ -88,6 +102,10 @@ class CallViewModel : ViewModel() {
     val aiSuggestionTop2: StateFlow<String> = _aiSuggestionTop2.asStateFlow()
     private val _isRefreshingAiSuggestions = MutableStateFlow(false)
     val isRefreshingAiSuggestions: StateFlow<Boolean> = _isRefreshingAiSuggestions.asStateFlow()
+    private val _silenceIntervention = MutableStateFlow(SilenceInterventionUiState())
+    val silenceIntervention: StateFlow<SilenceInterventionUiState> = _silenceIntervention.asStateFlow()
+    private val _aiCorrectionAlert = MutableStateFlow(false)
+    val aiCorrectionAlert: StateFlow<Boolean> = _aiCorrectionAlert.asStateFlow()
     private var activeSessionId: Long = 0L
     private var activeSessionKey: String = ""
 
@@ -95,27 +113,26 @@ class CallViewModel : ViewModel() {
         _messages.value = emptyList()
         _aiCorrectionDraftText.value = ""
         _aiCorrectionRecording.value = false
-        aiCorrectionCommittedText = ""
-        aiCorrectionActiveSegmentText = ""
+        resetAiCorrectionDraftState()
         _aiSuggestionTop1.value = "여보세요"
         _aiSuggestionTop2.value = "안녕하세요"
         _isRefreshingAiSuggestions.value = false
+        _silenceIntervention.value = SilenceInterventionUiState()
+        _aiCorrectionAlert.value = false
         refreshLastConversationBubbles()
         resetSttTracking()
         syncConversationHistory()
     }
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
-    private var activeSttSpeakerIsMe: Boolean? = null
-    private var activeSttMessageIndex: Int? = null
-    private var myConsumedRawText: String = ""
-    private var remoteConsumedRawText: String = ""
-    private var myLastRawText: String = ""
-    private var remoteLastRawText: String = ""
-    private var lastMySttUpdateAtMs: Long = 0L
-    private var lastRemoteSttUpdateAtMs: Long = 0L
-    private var aiCorrectionCommittedText: String = ""
-    private var aiCorrectionActiveSegmentText: String = ""
+    private val mySttState = SttSpeakerState()
+    private val remoteSttState = SttSpeakerState()
+    private var activeTurnSpeakerIsMe: Boolean? = null
+    private val aiCorrectionCommittedChunks: MutableMap<Long, String> = mutableMapOf()
+    private var aiCorrectionCurrentStartKey: Long? = null
+    private var aiCorrectionCurrentText: String = ""
+    private var aiCorrectionSyntheticStartKey: Long = -1L
+    private var aiCorrectionIgnoreEventsUntilMs: Long = 0L
     
     fun updateCallInfo(phoneNumber: String, hospitalName: String, callTime: String) {
         _callInfo.value = CallInfo(phoneNumber, hospitalName, callTime)
@@ -176,16 +193,19 @@ class CallViewModel : ViewModel() {
         syncConversationHistory()
     }
 
-    fun updateMySttMessage(rawText: String) {
+    fun updateMySttMessage(payload: RealtimeSttPayload, isFinal: Boolean) {
+        if (payload.text.trim().isNotBlank()) {
+            dismissSilenceIntervention()
+        }
         if (_aiCorrectionRecording.value) {
-            updateAiCorrectionDraft(rawText)
+            updateAiCorrectionDraft(payload, isFinal)
             return
         }
-        upsertSttMessage(rawText = rawText, isFromMe = true)
+        upsertSttMessage(payload = payload, isFromMe = true, isFinal = isFinal)
     }
 
-    fun updateRemoteSttMessage(rawText: String) {
-        upsertSttMessage(rawText = rawText, isFromMe = false)
+    fun updateRemoteSttMessage(payload: RealtimeSttPayload, isFinal: Boolean) {
+        upsertSttMessage(payload = payload, isFromMe = false, isFinal = isFinal)
     }
 
     fun markIntroPromptPlayed() {
@@ -194,6 +214,28 @@ class CallViewModel : ViewModel() {
 
     fun resetIntroPromptPlayed() {
         _introPromptPlayed.value = false
+    }
+
+    fun onSilenceDetected(silenceDurationSeconds: Double) {
+        _silenceIntervention.value = SilenceInterventionUiState(
+            eventId = System.currentTimeMillis(),
+            silenceDurationSeconds = silenceDurationSeconds,
+            interventionText = "잠시만요",
+            visible = true
+        )
+    }
+
+    fun dismissSilenceIntervention() {
+        if (!_silenceIntervention.value.visible) return
+        _silenceIntervention.value = _silenceIntervention.value.copy(visible = false)
+    }
+
+    fun onComprehensionAlert() {
+        _aiCorrectionAlert.value = true
+    }
+
+    fun consumeComprehensionAlert() {
+        _aiCorrectionAlert.value = false
     }
 
     fun refreshAiSuggestions(context: Context) {
@@ -252,8 +294,9 @@ class CallViewModel : ViewModel() {
         finalizeActiveSttSegment()
         _aiCorrectionDraftText.value = ""
         _aiCorrectionRecording.value = true
-        aiCorrectionCommittedText = ""
-        aiCorrectionActiveSegmentText = ""
+        resetAiCorrectionDraftState()
+        // 재시작 직후 이전 세션 잔여 이벤트가 도착하는 경우를 완화한다.
+        aiCorrectionIgnoreEventsUntilMs = System.currentTimeMillis() + 300L
     }
 
     fun stopAiCorrectionRecording() {
@@ -262,163 +305,260 @@ class CallViewModel : ViewModel() {
 
     fun clearAiCorrectionDraft() {
         _aiCorrectionDraftText.value = ""
-        aiCorrectionCommittedText = ""
-        aiCorrectionActiveSegmentText = ""
+        resetAiCorrectionDraftState()
     }
 
-    private fun upsertSttMessage(rawText: String, isFromMe: Boolean) {
-        val now = System.currentTimeMillis()
-        val normalizedRaw = rawText.trim()
-        if (normalizedRaw.isBlank()) return
-
-        val lastUpdateAtMs = if (isFromMe) lastMySttUpdateAtMs else lastRemoteSttUpdateAtMs
-        if (activeSttSpeakerIsMe == isFromMe && lastUpdateAtMs > 0L && now - lastUpdateAtMs > STT_SEGMENT_SPLIT_GAP_MS) {
-            finalizeActiveSttSegment()
-        }
-
-        if (activeSttSpeakerIsMe != null && activeSttSpeakerIsMe != isFromMe) {
-            finalizeActiveSttSegment()
-        }
-
-        if (activeSttSpeakerIsMe == null) {
-            activeSttSpeakerIsMe = isFromMe
-            activeSttMessageIndex = null
-        }
-
-        val consumed = if (isFromMe) myConsumedRawText else remoteConsumedRawText
-        val displayText = subtractConsumedPrefixSmart(normalizedRaw, consumed).trim()
-
-        if (isFromMe) {
-            myLastRawText = normalizedRaw
-        } else {
-            remoteLastRawText = normalizedRaw
-        }
-
+    private fun upsertSttMessage(payload: RealtimeSttPayload, isFromMe: Boolean, isFinal: Boolean) {
+        val displayText = sanitizeSttDisplayText(payload.text).trim()
         if (displayText.isBlank()) return
 
-        val updated = _messages.value.toMutableList()
-        var idx = activeSttMessageIndex
+        // 화자가 바뀌면 이전 화자의 현재 말풍선을 그 시점까지 확정하고,
+        // 새 화자는 다음 말풍선부터 시작한다.
+        if (activeTurnSpeakerIsMe != null && activeTurnSpeakerIsMe != isFromMe) {
+            finishSpeakerTurn(if (activeTurnSpeakerIsMe == true) mySttState else remoteSttState)
+            activeTurnSpeakerIsMe = isFromMe
+        } else if (activeTurnSpeakerIsMe == null) {
+            activeTurnSpeakerIsMe = isFromMe
+        }
 
-        val canUpdateCurrentBubble = idx != null &&
-            idx in updated.indices &&
-            updated[idx].isStt &&
-            updated[idx].isFromMe == isFromMe
+        val state = if (isFromMe) mySttState else remoteSttState
+        val startKey = resolveSpeakerStartKey(payload, state, isFinal)
 
-        if (canUpdateCurrentBubble) {
-            if (updated[idx].text != displayText) {
-                val prev = updated[idx]
-                updated[idx] = prev.copy(text = displayText)
-                _messages.value = updated
-                refreshLastConversationBubbles()
-                syncConversationHistory()
+        if (isFinal) {
+            state.finalChunks[startKey] = displayText
+            if (state.currentStartKey == startKey) {
+                state.currentStartKey = null
+                state.currentText = ""
             }
         } else {
-            updated += ChatMessage(
-                text = displayText,
-                isFromMe = isFromMe,
-                isStt = true
-            )
-            activeSttMessageIndex = updated.lastIndex
-            _messages.value = updated
-            refreshLastConversationBubbles()
-            syncConversationHistory()
+            state.currentStartKey = startKey
+            state.currentText = displayText
         }
 
-        if (isFromMe) {
-            lastMySttUpdateAtMs = now
+        val merged = buildSpeakerTurnText(state)
+        if (merged.isBlank()) return
+
+        val bubbleIndex = state.activeBubbleIndex
+        if (bubbleIndex != null && isValidSttBubbleIndex(bubbleIndex, isFromMe)) {
+            updateBubbleText(bubbleIndex, merged)
         } else {
-            lastRemoteSttUpdateAtMs = now
+            state.activeBubbleIndex = appendSttBubble(merged, isFromMe)
         }
 
-        // 문장 끝 표식이 잡히면 현재 STT 세그먼트를 닫아 다음 문장을 새 말풍선으로 시작한다.
-        if (SENTENCE_END_REGEX.containsMatchIn(displayText)) {
-            finalizeActiveSttSegment()
+        if (payload.speechFinal) {
+            finishSpeakerTurn(state)
+            if (activeTurnSpeakerIsMe == isFromMe) {
+                activeTurnSpeakerIsMe = null
+            }
         }
     }
 
-    private fun updateAiCorrectionDraft(rawText: String) {
-        val normalizedRaw = rawText.trim()
-        if (normalizedRaw.isBlank()) return
-        myLastRawText = normalizedRaw
+    private fun updateAiCorrectionDraft(payload: RealtimeSttPayload, isFinal: Boolean) {
+        if (System.currentTimeMillis() < aiCorrectionIgnoreEventsUntilMs) return
 
-        if (aiCorrectionActiveSegmentText.isBlank()) {
-            aiCorrectionActiveSegmentText = normalizedRaw
+        val normalizedText = sanitizeSttDisplayText(payload.text).trim()
+        if (normalizedText.isBlank()) return
+
+        val startKey = resolveAiCorrectionStartKey(payload, isFinal)
+        if (isFinal || payload.speechFinal) {
+            aiCorrectionCommittedChunks[startKey] = normalizedText
+            // HTML 테스트 페이지와 동일하게 final이 오면 interim 표시를 즉시 비운다.
+            aiCorrectionCurrentStartKey = null
+            aiCorrectionCurrentText = ""
         } else {
-            val sameSegment =
-                normalizedRaw.startsWith(aiCorrectionActiveSegmentText) ||
-                    aiCorrectionActiveSegmentText.startsWith(normalizedRaw)
-            if (sameSegment) {
-                aiCorrectionActiveSegmentText = normalizedRaw
-            } else {
-                aiCorrectionCommittedText = appendWithSpace(
-                    aiCorrectionCommittedText,
-                    aiCorrectionActiveSegmentText
-                )
-                aiCorrectionActiveSegmentText = normalizedRaw
-            }
+            aiCorrectionCurrentStartKey = startKey
+            aiCorrectionCurrentText = normalizedText
         }
 
-        _aiCorrectionDraftText.value = buildString {
-            if (aiCorrectionCommittedText.isNotBlank()) {
-                append(aiCorrectionCommittedText)
-            }
-            if (aiCorrectionActiveSegmentText.isNotBlank()) {
-                if (isNotEmpty()) append(' ')
-                append(aiCorrectionActiveSegmentText)
-            }
-        }.trim()
+        renderAiCorrectionDraftText()
     }
 
-    private fun appendWithSpace(base: String, added: String): String {
-        if (added.isBlank()) return base
-        if (base.isBlank()) return added.trim()
-        return "$base ${added.trim()}"
+    private fun resetAiCorrectionDraftState() {
+        aiCorrectionCommittedChunks.clear()
+        aiCorrectionCurrentStartKey = null
+        aiCorrectionCurrentText = ""
+        aiCorrectionSyntheticStartKey = -1L
+    }
+
+    private fun renderAiCorrectionDraftText() {
+        val committed = aiCorrectionCommittedChunks.keys
+            .sorted()
+            .mapNotNull { aiCorrectionCommittedChunks[it] }
+            .joinToString(" ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        val current = aiCorrectionCurrentText.trim()
+        _aiCorrectionDraftText.value = when {
+            current.isBlank() -> committed
+            committed.isBlank() -> current
+            else -> "$committed $current".replace(Regex("\\s+"), " ").trim()
+        }
+    }
+
+    private fun resolveAiCorrectionStartKey(payload: RealtimeSttPayload, isFinal: Boolean): Long {
+        val start = payload.start
+        if (start != null && !start.isNaN()) {
+            return kotlin.math.round(start * 1000.0).toLong()
+        }
+        if (aiCorrectionCurrentStartKey != null) {
+            return aiCorrectionCurrentStartKey!!
+        }
+        return aiCorrectionSyntheticStartKey--
     }
 
     private fun finalizeActiveSttSegment() {
-        when (activeSttSpeakerIsMe) {
-            true -> myConsumedRawText = myLastRawText
-            false -> remoteConsumedRawText = remoteLastRawText
-            null -> {}
-        }
-        activeSttSpeakerIsMe = null
-        activeSttMessageIndex = null
+        finishSpeakerTurn(mySttState)
+        finishSpeakerTurn(remoteSttState)
+        activeTurnSpeakerIsMe = null
     }
 
     private fun resetSttTracking() {
-        activeSttSpeakerIsMe = null
-        activeSttMessageIndex = null
-        myConsumedRawText = ""
-        remoteConsumedRawText = ""
-        myLastRawText = ""
-        remoteLastRawText = ""
-        lastMySttUpdateAtMs = 0L
-        lastRemoteSttUpdateAtMs = 0L
+        resetSpeakerState(mySttState)
+        resetSpeakerState(remoteSttState)
+        activeTurnSpeakerIsMe = null
     }
 
-    private fun subtractConsumedPrefix(raw: String, consumed: String): String {
-        if (consumed.isBlank()) return raw
-        if (raw.startsWith(consumed)) return raw.removePrefix(consumed)
-        return raw
+    private fun resolveSpeakerStartKey(
+        payload: RealtimeSttPayload,
+        state: SttSpeakerState,
+        isFinal: Boolean
+    ): Long {
+        val start = payload.start
+        if (start != null && !start.isNaN()) {
+            return kotlin.math.round(start * 1000.0).toLong()
+        }
+        if (state.currentStartKey != null) {
+            return state.currentStartKey!!
+        }
+        return state.syntheticStartKey--
     }
 
-    private fun subtractConsumedPrefixSmart(raw: String, consumed: String): String {
-        val direct = subtractConsumedPrefix(raw, consumed)
-        if (direct != raw) return direct
-        if (consumed.isBlank()) return raw
+    private fun buildSpeakerTurnText(state: SttSpeakerState): String {
+        val committed = state.finalChunks.keys
+            .sorted()
+            .mapNotNull { state.finalChunks[it] }
+            .joinToString(" ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        val current = state.currentText.trim()
+        return when {
+            current.isBlank() -> committed
+            committed.isBlank() -> current
+            else -> "$committed $current".replace(Regex("\\s+"), " ").trim()
+        }
+    }
 
-        val normalizedConsumed = consumed.trim()
-        val normalizedRaw = raw.trim()
-        if (normalizedConsumed.isBlank() || normalizedRaw.isBlank()) return raw
+    private fun finishSpeakerTurn(state: SttSpeakerState) {
+        state.finalChunks.clear()
+        state.currentStartKey = null
+        state.currentText = ""
+        state.activeBubbleIndex = null
+        state.syntheticStartKey = -1L
+    }
 
-        val maxOverlap = minOf(normalizedConsumed.length, normalizedRaw.length)
-        for (len in maxOverlap downTo 2) {
-            val suffix = normalizedConsumed.takeLast(len)
-            if (normalizedRaw.startsWith(suffix)) {
-                return normalizedRaw.removePrefix(suffix).trimStart()
+    private fun resetSpeakerState(state: SttSpeakerState) {
+        finishSpeakerTurn(state)
+    }
+
+    private fun isValidSttBubbleIndex(index: Int, isFromMe: Boolean): Boolean {
+        val current = _messages.value
+        if (index !in current.indices) return false
+        val message = current[index]
+        return message.isStt && message.isFromMe == isFromMe
+    }
+
+    private fun appendSttBubble(text: String, isFromMe: Boolean): Int {
+        val updated = _messages.value.toMutableList()
+        updated += ChatMessage(
+            text = text,
+            isFromMe = isFromMe,
+            isStt = true
+        )
+        _messages.value = updated
+        refreshLastConversationBubbles()
+        syncConversationHistory()
+        return updated.lastIndex
+    }
+
+    private fun updateBubbleText(index: Int, text: String) {
+        val updated = _messages.value.toMutableList()
+        if (index !in updated.indices) return
+        val previous = updated[index]
+        if (previous.text == text) return
+        updated[index] = previous.copy(text = text)
+        _messages.value = updated
+        refreshLastConversationBubbles()
+        syncConversationHistory()
+    }
+
+    /**
+     * Streaming STT 재작성 과정에서 생기는 근접 중복 구문을 완화한다.
+     * 예) "제 이름은 한 조용 제 이름은 한지용이라고 합니다"
+     *  -> "제 이름은 한지용이라고 합니다"
+     */
+    private fun sanitizeSttDisplayText(raw: String): String {
+        var compact = raw.replace(Regex("\\s+"), " ").trim()
+        if (compact.isBlank()) return compact
+
+        var tokens = compact.split(' ').toMutableList()
+        if (tokens.size < 4) return compact
+
+        // 1) 인접 반복 n-gram 제거: "안녕하세요 안녕하세요", "제 이름은 제 이름은"
+        var changed = true
+        while (changed && tokens.size >= 4) {
+            changed = false
+            loop@ for (n in 5 downTo 2) {
+                if (tokens.size < n * 2) continue
+                for (i in 0..(tokens.size - n * 2)) {
+                    val first = tokens.subList(i, i + n)
+                    val second = tokens.subList(i + n, i + n * 2)
+                    if (first == second) {
+                        repeat(n) { tokens.removeAt(i) } // 앞 반복 제거, 최신 가설 유지
+                        changed = true
+                        break@loop
+                    }
+                }
             }
         }
-        return raw
+
+        compact = tokens.joinToString(" ").trim()
+        if (compact.isBlank()) return compact
+        tokens = compact.split(' ').toMutableList()
+        if (tokens.size < 6) return compact
+
+        var bestStart = -1
+        var bestRepeatStart = -1
+        var bestLen = 0
+
+        for (start in 0 until tokens.size - 3) {
+            // 너무 멀리 떨어진 반복은 실제 재언급일 수 있어 제한한다.
+            val maxRepeatStart = minOf(tokens.lastIndex, start + 14)
+            for (repeatStart in (start + 2)..maxRepeatStart) {
+                for (len in 5 downTo 2) {
+                    if (start + len > tokens.size || repeatStart + len > tokens.size) continue
+                    val first = tokens.subList(start, start + len)
+                    val second = tokens.subList(repeatStart, repeatStart + len)
+                    if (first == second) {
+                        if (len > bestLen || (len == bestLen && repeatStart > bestRepeatStart)) {
+                            bestStart = start
+                            bestRepeatStart = repeatStart
+                            bestLen = len
+                        }
+                        break
+                    }
+                }
+            }
+        }
+
+        if (bestStart >= 0 && bestRepeatStart > bestStart) {
+            val deduped = buildList {
+                addAll(tokens.subList(0, bestStart))
+                addAll(tokens.subList(bestRepeatStart, tokens.size))
+            }.joinToString(" ")
+            return deduped.replace(Regex("\\s+"), " ").trim()
+        }
+
+        return compact
     }
 
     private fun syncConversationHistory() {

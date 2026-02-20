@@ -83,12 +83,15 @@ import org.duckdns.dorandoran.callaiassistant.webrtc.RingbackToneHelper
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
+import org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import org.duckdns.dorandoran.callaiassistant.ui.screens.OnboardingPermissionsScreen
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import androidx.compose.ui.text.font.Font
+import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore
+import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
 
 val Pretendard = FontFamily(
     Font(R.font.pretendard_bold, FontWeight.Bold)
@@ -720,26 +723,58 @@ private fun WebRtcCallContent(
             return@LaunchedEffect
         }
         val style = SettingsStore.getCallIntroPromptStyle(context)
-        val message = getIntroPromptMessage(style)
+        val message = getIntroPromptMessage(context, style)
         if (message.isBlank()) {
             return@LaunchedEffect
         }
         val useVoiceClone = SettingsStore.isVoiceCloneEnabled(context)
-        introTts = TtsManager.initializeForCall(
-            context = context,
-            onReady = { tts ->
-                introTts = tts
-                TtsManager.speak(
-                    tts = tts,
-                    text = message,
-                    audioManager = audioManager,
-                    onDone = {
-                        TtsManager.shutdown(introTts)
-                        introTts = null
+        val voiceId = VoiceCloneStore.getVoiceId(context)
+        if (useVoiceClone && !voiceId.isNullOrBlank()) {
+            val callIdStr = "call_${System.currentTimeMillis()}"
+            val contextSafe = context.applicationContext
+            val wavFile = VoiceCloneTtsApi.synthesizeVoiceClone(
+                callId = callIdStr,
+                text = message,
+                voiceId = voiceId,
+                sourceType = "ai_response",
+                context = contextSafe
+            )
+            if (wavFile != null && wavFile.exists()) {
+                SherpaOnnxTtsManager.playWavFile(wavFile, audioManager)
+            } else {
+                introTts = TtsManager.initializeForCall(
+                    context = context,
+                    onReady = { tts ->
+                        introTts = tts
+                        TtsManager.speak(
+                            tts = tts,
+                            text = message,
+                            audioManager = audioManager,
+                            onDone = {
+                                TtsManager.shutdown(introTts)
+                                introTts = null
+                            }
+                        )
                     }
                 )
             }
-        )
+        } else {
+            introTts = TtsManager.initializeForCall(
+                context = context,
+                onReady = { tts ->
+                    introTts = tts
+                    TtsManager.speak(
+                        tts = tts,
+                        text = message,
+                        audioManager = audioManager,
+                        onDone = {
+                            TtsManager.shutdown(introTts)
+                            introTts = null
+                        }
+                    )
+                }
+            )
+        }
     }
 
     LaunchedEffect(connectionState) {
@@ -787,6 +822,7 @@ private fun WebRtcCallContent(
         phoneNumber = phoneNumber,
         connectionState = connectionState,
         callDurationSeconds = callDuration,
+        webRtcManager = webRtcManager,
         logMessages = logMessages,
         onEndCall = handleEndCall,
         onSpeakerphoneToggle = { isOn ->
@@ -795,11 +831,12 @@ private fun WebRtcCallContent(
         onLocalAudioTransmissionToggle = { enabled ->
             webRtcManager.setLocalAudioTransmissionEnabled(enabled)
         },
+        enableIntroPromptPlayback = false,
         callViewModel = callViewModel
     )
 }
 
-private fun getIntroPromptMessage(style: String): String {
+private fun getIntroPromptMessage(context: Context, style: String): String {
     return when (style) {
         CallIntroPromptStyle.BASIC.value ->
             "안녕하세요, 원활한 소통을 위해 AI 음성 변환 서비스를 이용중입니다. 제 말이 조금 늦더라도 양해 부탁드립니다"
@@ -807,6 +844,9 @@ private fun getIntroPromptMessage(style: String): String {
             "안녕하세요. 청각/언어의 어려움으로 텍스트를 음성으로 변환하여 대화하고 있습니다. 천천히 말씀해 주시면 감사하겠습니다."
         CallIntroPromptStyle.ASSISTANT.value ->
             "안녕하세요. 지금은 AI 통화 비서가 대화를 돕고 있습니다. 문자로 입력한 내용을 음성으로 전달해 드릴게요."
+        CallIntroPromptStyle.CUSTOM.value ->
+            SettingsStore.getCallIntroPromptCustom(context)
+                .ifBlank { "안녕하세요. 문자로 입력한 내용을 음성으로 안내해 드릴게요." }
         else ->
             ""
     }

@@ -40,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
@@ -71,8 +72,10 @@ import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager
 import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
+import org.duckdns.dorandoran.callaiassistant.ui.components.RemoteVoiceWaveMini
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState
+import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
@@ -123,6 +126,8 @@ fun WebRtcInCallScreen(
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
     onLocalAudioTransmissionToggle: (Boolean) -> Unit = {},
+    webRtcManager: WebRtcManager,
+    enableIntroPromptPlayback: Boolean = true,
     navController: NavController? = null,
     modifier: Modifier = Modifier,
     viewModel: CallViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
@@ -142,6 +147,9 @@ fun WebRtcInCallScreen(
     val aiSuggestionTop1 by viewModel.aiSuggestionTop1.collectAsState()
     val aiSuggestionTop2 by viewModel.aiSuggestionTop2.collectAsState()
     val isRefreshingAiSuggestions by viewModel.isRefreshingAiSuggestions.collectAsState()
+    val remoteAudioLevel by webRtcManager.remoteAudioLevel.collectAsState()
+    val silenceIntervention by viewModel.silenceIntervention.collectAsState()
+    val aiCorrectionAlert by viewModel.aiCorrectionAlert.collectAsState()
     val isAiCorrectionMode = selectedMode == CallMode.AI_CORRECTION
     val isVoiceConversationMode = selectedMode == CallMode.DIRECT || selectedMode == CallMode.AI_CORRECTION
     val isKeypadActive = callScreenState == CallScreenState.KEYPAD
@@ -208,7 +216,11 @@ fun WebRtcInCallScreen(
         }
     }
 
-    fun speakTextWithTts(textToSend: String, onDone: () -> Unit) {
+    fun speakTextWithTts(
+        textToSend: String,
+        sourceType: String = "ai_response",
+        onDone: () -> Unit
+    ) {
         android.util.Log.e("VoiceCloneTTS", "[WebRtcInCallScreen] tts 분기: isVoiceCloneEnabled=$isVoiceCloneEnabled, voiceId=$voiceId, text=$textToSend")
 
         if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
@@ -221,7 +233,7 @@ fun WebRtcInCallScreen(
                     callId = callIdStr,
                     text = textToSend,
                     voiceId = voiceId,
-                    sourceType = "ai_response",
+                    sourceType = sourceType,
                     context = contextSafe
                 )
                 if (wavFile != null && wavFile.exists()) {
@@ -286,7 +298,12 @@ fun WebRtcInCallScreen(
             messageTts = null
             SherpaOnnxTtsManager.shutdown()
             viewModel.resetIntroPromptPlayed()
-        } else if (connectionState == WebRtcConnectionState.IN_CALL && !hasPlayedIntroPrompt && introPromptEnabled) {
+        } else if (
+            connectionState == WebRtcConnectionState.IN_CALL &&
+            !hasPlayedIntroPrompt &&
+            introPromptEnabled &&
+            enableIntroPromptPlayback
+        ) {
             viewModel.markIntroPromptPlayed()
             // 통화 시작 안내 멘트도 내 발화 말풍선으로 기록
             if (introPromptText.isNotBlank()) {
@@ -351,6 +368,28 @@ fun WebRtcInCallScreen(
         }
     }
 
+    LaunchedEffect(aiCorrectionAlert) {
+        if (aiCorrectionAlert) {
+            selectedMode = CallMode.AI_CORRECTION
+            viewModel.consumeComprehensionAlert()
+        }
+    }
+
+    LaunchedEffect(silenceIntervention.eventId) {
+        if (!silenceIntervention.visible || silenceIntervention.eventId <= 0L) return@LaunchedEffect
+        val text = silenceIntervention.interventionText.ifBlank { "잠시만요" }
+        viewModel.sendMessage(
+            text,
+            origin = org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin.TEXT_MODE
+        )
+        speakTextWithTts(
+            textToSend = text,
+            sourceType = "crisis_intervention"
+        ) { }
+        delay(8000)
+        viewModel.dismissSilenceIntervention()
+    }
+
     LaunchedEffect(selectedMode) {
         if (selectedMode != CallMode.AI_CORRECTION) {
             viewModel.stopAiCorrectionRecording()
@@ -409,16 +448,25 @@ fun WebRtcInCallScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                Text(
-                    text = displayNumber,
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontSize = MaterialTheme.typography.headlineMedium.fontSize * textScale
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RemoteVoiceWaveMini(
+                        level = remoteAudioLevel,
+                        modifier = Modifier.size(width = 20.dp, height = 18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = displayNumber,
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontSize = MaterialTheme.typography.headlineMedium.fontSize * textScale
+                        ),
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
 
             }
 
@@ -432,17 +480,24 @@ fun WebRtcInCallScreen(
                                 .padding(horizontal = 24.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = lastRemoteTypedMessageText,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    // 기존 2배에서 0.7배로 축소
-                                    fontSize = (MaterialTheme.typography.bodyMedium.fontSize.value * textScale * 1.4f).sp
-                                ),
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            if (silenceIntervention.visible) {
+                                CrisisInterventionPanel(
+                                    remoteText = lastRemoteTypedMessageText,
+                                    interventionText = silenceIntervention.interventionText.ifBlank { "잠시만요" },
+                                    textScale = textScale
+                                )
+                            } else {
+                                Text(
+                                    text = lastRemoteTypedMessageText,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = (MaterialTheme.typography.bodyMedium.fontSize.value * textScale * 1.4f).sp
+                                    ),
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     } else {
                         Spacer(modifier = Modifier.weight(1f))
@@ -566,6 +621,7 @@ fun WebRtcInCallScreen(
                                                 ) {
                                                     OutlinedButton(
                                                         onClick = {
+                                                            onLocalAudioTransmissionToggle(false)
                                                             viewModel.clearAiCorrectionDraft()
                                                             viewModel.startAiCorrectionRecording()
                                                             aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
@@ -580,6 +636,7 @@ fun WebRtcInCallScreen(
                                                             val textToSend = aiCorrectionDraftText.trim()
                                                             if (textToSend.isBlank() || isAiCorrectionSending) return@Button
                                                             isAiCorrectionSending = true
+                                                            onLocalAudioTransmissionToggle(true)
                                                             viewModel.sendMessage(
                                                                 textToSend,
                                                                 origin = org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin.TEXT_MODE
@@ -604,6 +661,7 @@ fun WebRtcInCallScreen(
                                             AiCorrectionOverlayState.SENT -> {
                                                 OutlinedButton(
                                                     onClick = {
+                                                        onLocalAudioTransmissionToggle(false)
                                                         viewModel.clearAiCorrectionDraft()
                                                         viewModel.startAiCorrectionRecording()
                                                         aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
@@ -759,9 +817,13 @@ fun WebRtcInCallScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        if (connectionState == WebRtcConnectionState.IN_CALL && 
-                            selectedMode == CallMode.DIRECT && 
-                            userInputText.isNotBlank()) {
+                        val canSendSuggestedMessage =
+                            connectionState == WebRtcConnectionState.IN_CALL &&
+                                (selectedMode == CallMode.DIRECT || selectedMode == CallMode.AI_CORRECTION) &&
+                                userInputText.isNotBlank() &&
+                                !isDirectSpeakOverlayOpen
+
+                        if (canSendSuggestedMessage) {
                             // 보내기 버튼 (텍스트 입력 시)
                             Button(
                                 onClick = {
@@ -978,6 +1040,79 @@ private enum class AiCorrectionOverlayState {
 }
 
 @Composable
+private fun CrisisInterventionPanel(
+    remoteText: String,
+    interventionText: String,
+    textScale: Float
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Surface(
+            color = Color.White.copy(alpha = 0.95f),
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier.fillMaxWidth(0.96f)
+        ) {
+            Text(
+                text = remoteText.ifBlank { "네, 무엇을 도와드릴까요?" },
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontSize = (MaterialTheme.typography.headlineSmall.fontSize.value * textScale).sp
+                ),
+                color = Color(0xFF1F1F23),
+                textAlign = TextAlign.Start
+            )
+        }
+
+        Surface(
+            color = Color(0xFFEAF0FB),
+            shape = RoundedCornerShape(999.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = "✧",
+                    color = Color(0xFFB071FF),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "AI가 \"$interventionText\"를 대신 전달했습니다",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF6B7280)
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            Surface(
+                color = Color(0xFFE3EBF8),
+                shape = RoundedCornerShape(28.dp),
+                border = BorderStroke(1.dp, Color(0xFF7E77F7)),
+                modifier = Modifier.fillMaxWidth(0.62f)
+            ) {
+                Text(
+                    text = interventionText,
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontSize = (MaterialTheme.typography.headlineSmall.fontSize.value * textScale).sp
+                    ),
+                    textAlign = TextAlign.Center,
+                    color = Color(0xFF1F1F23)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun KeypadScreenContent(
     modifier: Modifier = Modifier,
     onKeyPress: (Char) -> Unit
@@ -1133,10 +1268,13 @@ private fun formatDuration(seconds: Long): String {
 @Composable
 fun WebRtcInCallScreenConnectedPreview() {
     CallaiassistantTheme {
+        val context = LocalContext.current
+        val webRtcManager = remember { WebRtcManager(context.applicationContext) }
         WebRtcInCallScreen(
             phoneNumber = "01012345678",
             connectionState = WebRtcConnectionState.CONNECTED,
             callDurationSeconds = 0,
+            webRtcManager = webRtcManager,
             onEndCall = {}
         )
     }
@@ -1146,10 +1284,13 @@ fun WebRtcInCallScreenConnectedPreview() {
 @Composable
 fun WebRtcInCallScreenInCallPreview() {
     CallaiassistantTheme {
+        val context = LocalContext.current
+        val webRtcManager = remember { WebRtcManager(context.applicationContext) }
         WebRtcInCallScreen(
             phoneNumber = "01012345678",
             connectionState = WebRtcConnectionState.IN_CALL,
             callDurationSeconds = 125,
+            webRtcManager = webRtcManager,
             logMessages = listOf(
                 "Connecting to WebRTC server...",
                 "Offer sent.",

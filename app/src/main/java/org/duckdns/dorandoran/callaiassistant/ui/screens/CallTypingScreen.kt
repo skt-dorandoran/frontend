@@ -1,7 +1,9 @@
 package org.duckdns.dorandoran.callaiassistant.ui.screens
 
 import android.media.AudioManager
+import android.media.ToneGenerator
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -31,16 +33,19 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.imePadding
 import androidx.navigation.NavController
 import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
+import org.duckdns.dorandoran.callaiassistant.ui.components.RemoteVoiceWaveMini
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
+import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 import android.util.Log
 import kotlinx.coroutines.launch
 
@@ -59,6 +64,7 @@ private fun isMeaningfulConversationText(text: String): Boolean {
 fun CallTypingScreen(
     navController: NavController,
     viewModel: CallViewModel,
+    webRtcManager: WebRtcManager,
     onEndCall: () -> Unit
 ) {
     val callInfo by viewModel.callInfo.collectAsState()
@@ -75,8 +81,10 @@ fun CallTypingScreen(
     var isTtsReady by remember { mutableStateOf(false) }
     var isSendingMessage by remember { mutableStateOf(false) }
     var isSendingAiSuggestion by remember { mutableStateOf(false) }
+    var isInlineKeypadVisible by remember { mutableStateOf(false) }
     val voiceId = remember { VoiceCloneStore.getVoiceId(context) }
     val isVoiceCloneEnabled = remember { SettingsStore.isVoiceCloneEnabled(context) }
+    val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_DTMF, 80) }
     val coroutineScope = rememberCoroutineScope()
     val oneClickReplies = remember { SettingsStore.getOneClickReplies(context) }
     val oneClickScrollState = rememberScrollState()
@@ -87,6 +95,7 @@ fun CallTypingScreen(
     val aiSuggestionTop1 by viewModel.aiSuggestionTop1.collectAsState()
     val aiSuggestionTop2 by viewModel.aiSuggestionTop2.collectAsState()
     val isRefreshingAiSuggestions by viewModel.isRefreshingAiSuggestions.collectAsState()
+    val remoteAudioLevel by webRtcManager.remoteAudioLevel.collectAsState()
     val sharedSuggestions = if (isRefreshingAiSuggestions) {
         listOf("...", "...")
     } else {
@@ -113,6 +122,7 @@ fun CallTypingScreen(
             CustomAudioDeviceModule.clearTtsQueue()
             messageTts = null
             isTtsReady = false
+            toneGenerator.release()
         }
     }
 
@@ -143,6 +153,11 @@ fun CallTypingScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Start
                 ) {
+                    RemoteVoiceWaveMini(
+                        level = remoteAudioLevel,
+                        modifier = Modifier.size(width = 20.dp, height = 18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = callInfo.phoneNumber,
                         style = MaterialTheme.typography.titleMedium,
@@ -220,191 +235,250 @@ fun CallTypingScreen(
             color = MaterialTheme.colorScheme.surface,
             shadowElevation = 8.dp
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                if (visibleOneClickReplies.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(oneClickScrollState)
-                            .padding(bottom = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        visibleOneClickReplies.forEach { reply ->
-                            OutlinedButton(
-                                onClick = {
-                                    inputText = TextFieldValue(
-                                        text = reply,
-                                        selection = TextRange(reply.length)
-                                    )
-                                },
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = reply,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // AI 추천 답변 섹션 (고정)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Lightbulb,
-                        contentDescription = "AI 추천",
-                        tint = Color(0xFFFFC107),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = if (isSendingAiSuggestion) "AI 추천 답변 전송 중.." else "AI 추천 답변",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    IconButton(
-                        enabled = !isRefreshingAiSuggestions,
-                        onClick = { viewModel.refreshAiSuggestions(context) }
-                    ) {
-                        if (!isRefreshingAiSuggestions) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "추천 새로고침",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-                
-                // 추천 답변 버튼들
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    sharedSuggestions.forEach { suggestion ->
-                        SuggestionButton(
-                            text = suggestion,
-                            isLoading = isRefreshingAiSuggestions,
-                            onClick = {
-                                if (isRefreshingAiSuggestions || suggestion == "...") return@SuggestionButton
-                                inputText = TextFieldValue(
-                                    text = suggestion,
-                                    selection = TextRange(suggestion.length)
-                                )
-                            }
-                        )
-                    }
-                }
-                
-                // 입력창
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 8.dp),
-                        placeholder = {
-                            Text(
-                                text = "AI가 대신 말할 내용을 입력해주세요",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        },
-                        shape = RoundedCornerShape(24.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = primaryBlue,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                        ),
-                        maxLines = 3
-                    )
-                    IconButton(
-                        onClick = {
-                            val textToSend = inputText.text.trim()
-                            if (textToSend.isEmpty()) return@IconButton
-                            val isAiSuggestionText = sharedSuggestions.contains(textToSend)
-                            isSendingMessage = true
-                            isSendingAiSuggestion = isAiSuggestionText
-                            viewModel.sendMessage(textToSend, origin = MessageOrigin.TEXT_MODE)
-                            inputText = TextFieldValue()
-                            val markSendDone = {
-                                isSendingMessage = false
-                                isSendingAiSuggestion = false
-                            }
-                            // TTS로 메시지 재생
-                            if (isTtsReady) {
-                                if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
-                                    val callIdStr = "call_typing_${System.currentTimeMillis()}"
-                                    val contextSafe = context.applicationContext
-                                    coroutineScope.launch {
-                                        val wavFile = VoiceCloneTtsApi.synthesizeVoiceClone(
-                                            callId = callIdStr,
-                                            text = textToSend,
-                                            voiceId = voiceId,
-                                            sourceType = "ai_response",
-                                            context = contextSafe
-                                        )
-                                        if (wavFile != null && wavFile.exists()) {
-                                            org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager.playWavFile(
-                                                wavFile = wavFile,
-                                                audioManager = audioManager,
-                                                onDone = {
-                                                    Log.d("CallTypingScreen", "VoiceClone TTS playback completed for: $textToSend")
-                                                    markSendDone()
-                                                }
-                                            )
-                                        } else {
-                                            TtsManager.speak(
-                                                tts = messageTts,
-                                                text = textToSend,
-                                                audioManager = audioManager,
-                                                onDone = {
-                                                    Log.d("CallTypingScreen", "Fallback TTS playback completed for: $textToSend")
-                                                    markSendDone()
-                                                }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            if (visibleOneClickReplies.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(oneClickScrollState)
+                                        .padding(bottom = 12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    visibleOneClickReplies.forEach { reply ->
+                                        OutlinedButton(
+                                            enabled = !isInlineKeypadVisible,
+                                            onClick = {
+                                                inputText = TextFieldValue(
+                                                    text = reply,
+                                                    selection = TextRange(reply.length)
+                                                )
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                        ) {
+                                            Text(
+                                                text = reply,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                maxLines = 1
                                             )
                                         }
                                     }
-                                } else {
-                                    TtsManager.speak(
-                                        tts = messageTts,
-                                        text = textToSend,
-                                        audioManager = audioManager,
-                                        onDone = {
-                                            Log.d("CallTypingScreen", "TTS playback completed for: $textToSend")
-                                            markSendDone()
+                                }
+                            }
+
+                            // AI 추천 답변 섹션 (고정)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lightbulb,
+                                    contentDescription = "AI 추천",
+                                    tint = Color(0xFFFFC107),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (isSendingAiSuggestion) "AI 추천 답변 전송 중.." else "AI 추천 답변",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Spacer(modifier = Modifier.weight(1f))
+                                IconButton(
+                                    enabled = !isRefreshingAiSuggestions && !isInlineKeypadVisible,
+                                    onClick = { viewModel.refreshAiSuggestions(context) }
+                                ) {
+                                    if (!isRefreshingAiSuggestions) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = "추천 새로고침",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+
+                            // 추천 답변 버튼들
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp)
+                            ) {
+                                sharedSuggestions.forEach { suggestion ->
+                                    SuggestionButton(
+                                        text = suggestion,
+                                        isLoading = isRefreshingAiSuggestions,
+                                        controlsEnabled = !isInlineKeypadVisible,
+                                        onClick = {
+                                            if (isRefreshingAiSuggestions || suggestion == "...") return@SuggestionButton
+                                            inputText = TextFieldValue(
+                                                text = suggestion,
+                                                selection = TextRange(suggestion.length)
+                                            )
                                         }
                                     )
                                 }
-                            } else {
-                                markSendDone()
                             }
-                        },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(if (inputText.text.isNotBlank() && !isSendingMessage) primaryBlue else MaterialTheme.colorScheme.surfaceVariant),
-                        enabled = inputText.text.isNotBlank() && !isSendingMessage
+                        }
+
+                        if (isInlineKeypadVisible) {
+                            Surface(
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .fillMaxWidth()
+                                    .zIndex(1f),
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+                                tonalElevation = 6.dp,
+                                shadowElevation = 8.dp
+                            ) {
+                                TypingModeKeypadContent(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    onKeyPress = { key ->
+                                        playTypingModeDtmfTone(toneGenerator, key)
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // 입력창 (항상 보이도록 오버레이 밖으로 분리)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "전송",
-                            tint = if (inputText.text.isNotBlank() && !isSendingMessage) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                        IconButton(
+                            onClick = { isInlineKeypadVisible = !isInlineKeypadVisible },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isInlineKeypadVisible) primaryBlue.copy(alpha = 0.15f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                )
+                        ) {
+                            TypingKeypadDotsIcon(
+                                tint = if (isInlineKeypadVisible) primaryBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        OutlinedTextField(
+                            value = inputText,
+                            onValueChange = { inputText = it },
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp),
+                            placeholder = {
+                                Text(
+                                    text = "AI가 대신 말할 내용을 입력해주세요",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            },
+                            shape = RoundedCornerShape(24.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = primaryBlue,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                            ),
+                            maxLines = 3
                         )
+                        IconButton(
+                            onClick = {
+                                val textToSend = inputText.text.trim()
+                                if (textToSend.isEmpty()) return@IconButton
+                                val isAiSuggestionText = sharedSuggestions.contains(textToSend)
+                                isSendingMessage = true
+                                isSendingAiSuggestion = isAiSuggestionText
+                                viewModel.sendMessage(textToSend, origin = MessageOrigin.TEXT_MODE)
+                                inputText = TextFieldValue()
+                                val markSendDone = {
+                                    isSendingMessage = false
+                                    isSendingAiSuggestion = false
+                                }
+                                // TTS로 메시지 재생
+                                if (isTtsReady) {
+                                    if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
+                                        val callIdStr = "call_typing_${System.currentTimeMillis()}"
+                                        val contextSafe = context.applicationContext
+                                        coroutineScope.launch {
+                                            val wavFile = VoiceCloneTtsApi.synthesizeVoiceClone(
+                                                callId = callIdStr,
+                                                text = textToSend,
+                                                voiceId = voiceId,
+                                                sourceType = "ai_response",
+                                                context = contextSafe
+                                            )
+                                            if (wavFile != null && wavFile.exists()) {
+                                                org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager.playWavFile(
+                                                    wavFile = wavFile,
+                                                    audioManager = audioManager,
+                                                    onDone = {
+                                                        Log.d("CallTypingScreen", "VoiceClone TTS playback completed for: $textToSend")
+                                                        markSendDone()
+                                                    }
+                                                )
+                                            } else {
+                                                TtsManager.speak(
+                                                    tts = messageTts,
+                                                    text = textToSend,
+                                                    audioManager = audioManager,
+                                                    onDone = {
+                                                        Log.d("CallTypingScreen", "Fallback TTS playback completed for: $textToSend")
+                                                        markSendDone()
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        TtsManager.speak(
+                                            tts = messageTts,
+                                            text = textToSend,
+                                            audioManager = audioManager,
+                                            onDone = {
+                                                Log.d("CallTypingScreen", "TTS playback completed for: $textToSend")
+                                                markSendDone()
+                                            }
+                                        )
+                                    }
+                                } else {
+                                    markSendDone()
+                                }
+                            },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
+                                        primaryBlue
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                    }
+                                ),
+                            enabled = inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "전송",
+                                tint = if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
+                                    Color.White
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -417,11 +491,12 @@ fun CallTypingScreen(
 private fun SuggestionButton(
     text: String,
     isLoading: Boolean,
+    controlsEnabled: Boolean = true,
     onClick: () -> Unit
 ) {
     OutlinedButton(
         onClick = onClick,
-        enabled = !isLoading && text != "...",
+        enabled = controlsEnabled && !isLoading && text != "...",
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = ButtonDefaults.outlinedButtonColors(
@@ -456,4 +531,132 @@ private fun SuggestionButton(
                 .padding(vertical = 4.dp)
         )
     }
+}
+
+@Composable
+private fun TypingModeKeypadContent(
+    modifier: Modifier = Modifier,
+    onKeyPress: (Char) -> Unit
+) {
+    val dialPad = listOf(
+        listOf(TypingModeDialPadKey("1", "ㄱㅋ", ".QZ"), TypingModeDialPadKey("2", "ㄴ", "ABC"), TypingModeDialPadKey("3", "ㄷㅌ", "DEF")),
+        listOf(TypingModeDialPadKey("4", "ㄹ", "GHI"), TypingModeDialPadKey("5", "ㅁ", "JKL"), TypingModeDialPadKey("6", "ㅂㅍ", "NMO")),
+        listOf(TypingModeDialPadKey("7", "ㅅ", "PRS"), TypingModeDialPadKey("8", "ㅇ", "TUV"), TypingModeDialPadKey("9", "ㅈㅊ", "WXY")),
+        listOf(TypingModeDialPadKey("*", ",", ""), TypingModeDialPadKey("0", "ㅎ", "+"), TypingModeDialPadKey("#", ";", ""))
+    )
+
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        dialPad.forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                row.forEach { key ->
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        TypingModeDialPadButton(
+                            key = key,
+                            onClick = {
+                                key.digit.firstOrNull()?.let { onKeyPress(it) }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TypingModeDialPadButton(
+    key: TypingModeDialPadKey,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(72.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = key.digit,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (key.hangul.isNotBlank() || key.latin.isNotBlank()) {
+                Text(
+                    text = key.hangul,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = key.latin.ifBlank { " " },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (key.latin.isBlank()) Color.Transparent else MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+    }
+}
+
+private data class TypingModeDialPadKey(val digit: String, val hangul: String, val latin: String)
+
+@Composable
+private fun TypingKeypadDotsIcon(
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        repeat(3) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(3) {
+                    Box(
+                        modifier = Modifier
+                            .size(3.dp)
+                            .clip(CircleShape)
+                            .background(tint)
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun playTypingModeDtmfTone(toneGenerator: ToneGenerator, key: Char) {
+    val tone = when (key) {
+        '1' -> ToneGenerator.TONE_DTMF_1
+        '2' -> ToneGenerator.TONE_DTMF_2
+        '3' -> ToneGenerator.TONE_DTMF_3
+        '4' -> ToneGenerator.TONE_DTMF_4
+        '5' -> ToneGenerator.TONE_DTMF_5
+        '6' -> ToneGenerator.TONE_DTMF_6
+        '7' -> ToneGenerator.TONE_DTMF_7
+        '8' -> ToneGenerator.TONE_DTMF_8
+        '9' -> ToneGenerator.TONE_DTMF_9
+        '0' -> ToneGenerator.TONE_DTMF_0
+        '*' -> ToneGenerator.TONE_DTMF_S
+        '#' -> ToneGenerator.TONE_DTMF_P
+        else -> null
+    }
+    tone?.let { toneGenerator.startTone(it, 140) }
 }

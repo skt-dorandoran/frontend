@@ -363,6 +363,7 @@ private fun WebRtcCallContent(
         phoneNumber = phoneNumber,
         connectionState = connectionState,
         callDurationSeconds = callDuration,
+        webRtcManager = manager,
         logMessages = logMessages,
         onEndCall = onEndCall,
         onSpeakerphoneToggle = { isOn ->
