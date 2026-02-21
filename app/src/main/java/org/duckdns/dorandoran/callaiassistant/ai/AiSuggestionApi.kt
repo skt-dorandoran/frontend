@@ -10,17 +10,18 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ConversationHistoryItem
 import org.json.JSONArray
 import org.json.JSONObject
+import okio.Buffer
 
 data class AiSuggestedAnswer(
     val id: String,
     val text: String,
     val tone: String,
-    val priority: String
+    val priority: Int
 )
 
 data class AiSuggestionResponse(
     val callId: String,
-    val answers: List<AiSuggestedAnswer>
+    val responses: List<AiSuggestedAnswer>
 )
 
 object AiSuggestionApi {
@@ -31,7 +32,7 @@ object AiSuggestionApi {
         callId: String,
         userSpeech: String,
         conversationHistory: List<ConversationHistoryItem>,
-        phoneNumber: String
+        onPartialResponses: ((String?, String?) -> Unit)? = null
     ): AiSuggestionResponse? = withContext(Dispatchers.IO) {
         try {
             val client = OkHttpClient()
@@ -49,47 +50,103 @@ object AiSuggestionApi {
                 put("callId", callId)
                 put("userSpeech", userSpeech)
                 put("conversationHistory", historyJson)
-                put("phoneNumber", phoneNumber)
             }
             val body = payload.toString().toRequestBody("application/json".toMediaTypeOrNull())
             val request = Request.Builder()
                 .url("$BASE_URL/api/v1/ai/generate-response")
                 .post(body)
                 .build()
-            val response = client.newCall(request).execute()
-            val responseText = response.body?.string().orEmpty()
-            val detail = extractDetail(responseText)
+            val streamed = StringBuilder()
+            var responsesJson: JSONArray? = null
+            var streamedCallId: String? = null
+            var lastPartialTop1: String? = null
+            var lastPartialTop2: String? = null
 
-            if (!response.isSuccessful) {
-                Log.e(
-                    TAG,
-                    "generate-response failed: statusCode=${response.code}, detail=$detail"
-                )
-                return@withContext null
+            client.newCall(request).execute().use { response ->
+                val responseBody = response.body
+                if (responseBody == null) {
+                    Log.e(TAG, "generate-response failed: empty response body")
+                    return@withContext null
+                }
+
+                if (!response.isSuccessful) {
+                    val responseText = responseBody.string()
+                    val detail = extractDetail(responseText)
+                    Log.e(
+                        TAG,
+                        "generate-response failed: statusCode=${response.code}, detail=$detail"
+                    )
+                    return@withContext null
+                }
+
+                val source = responseBody.source()
+                val chunkBuffer = Buffer()
+
+                while (true) {
+                    val read = source.read(chunkBuffer, 1024L)
+                    if (read == -1L) break
+                    val chunk = chunkBuffer.readUtf8()
+                    if (chunk.isEmpty()) continue
+                    streamed.append(chunk)
+
+                    if (streamedCallId.isNullOrBlank()) {
+                        streamedCallId = extractStreamCallId(streamed.toString())
+                    }
+                    if (responsesJson == null) {
+                        responsesJson = extractResponsesArrayFromStream(streamed.toString())
+                    }
+
+                    val (partialTop1, partialTop2) = extractPartialResponseTexts(streamed.toString())
+                    if (partialTop1 != lastPartialTop1 || partialTop2 != lastPartialTop2) {
+                        lastPartialTop1 = partialTop1
+                        lastPartialTop2 = partialTop2
+                        onPartialResponses?.invoke(partialTop1, partialTop2)
+                    }
+
+                    // responses 배열이 완성되면 suffix(generatedAt/processingTime) 대기 없이 즉시 반환
+                    if (responsesJson != null) break
+                }
+
+                if (responsesJson == null) {
+                    val responseText = streamed.toString()
+                    Log.d(
+                        TAG,
+                        "generate-response stream fallback parse: statusCode=${response.code}"
+                    )
+                    val rootJson = JSONObject(responseText)
+                    val responseJson = resolvePayloadJson(rootJson)
+                    responsesJson = extractResponsesArray(responseJson)
+                    if (streamedCallId.isNullOrBlank()) {
+                        streamedCallId = responseJson.optString("callId", callId)
+                    }
+                } else {
+                    Log.d(
+                        TAG,
+                        "generate-response stream parsed incrementally: statusCode=${response.code}"
+                    )
+                }
             }
-            Log.d(
-                TAG,
-                "generate-response success: statusCode=${response.code}, detail=$detail"
-            )
 
-            val rootJson = JSONObject(responseText)
-            val responseJson = resolvePayloadJson(rootJson)
-            val answersJson = extractAnswersArray(responseJson)
-            val answers = buildList {
-                for (i in 0 until answersJson.length()) {
-                    val item = answersJson.optJSONObject(i) ?: continue
+            val finalizedResponsesJson = responsesJson ?: JSONArray()
+
+            val responses = buildList {
+                for (i in 0 until finalizedResponsesJson.length()) {
+                    val item = finalizedResponsesJson.optJSONObject(i) ?: continue
                     add(
                         AiSuggestedAnswer(
                             id = item.optString("id"),
                             text = item.optString("text"),
                             tone = item.optString("tone"),
-                            priority = item.optString("priority")
+                            priority = item.optInt("priority", i + 1)
                         )
                     )
                 }
             }
-            Log.d(TAG, "generate-response parsed answersCount=${answers.size}")
-            AiSuggestionResponse(callId = responseJson.optString("callId", callId), answers = answers)
+            Log.d(TAG, "generate-response parsed responsesCount=${responses.size}")
+            AiSuggestionResponse(
+                callId = streamedCallId ?: callId,
+                responses = responses
+            )
         } catch (e: Exception) {
             Log.e(TAG, "generate-response exception: ${e.message}", e)
             null
@@ -137,10 +194,135 @@ object AiSuggestionApi {
         return root
     }
 
-    private fun extractAnswersArray(payload: JSONObject): JSONArray {
-        return payload.optJSONArray("answers")
-            ?: payload.optJSONArray("responses")
-            ?: payload.optJSONArray("suggestions")
+    private fun extractResponsesArray(payload: JSONObject): JSONArray {
+        return payload.optJSONArray("responses")
+            ?: payload.optJSONArray("answers")
             ?: JSONArray()
+    }
+
+    private fun extractStreamCallId(streamed: String): String? {
+        val key = "\"callId\""
+        val keyIndex = streamed.indexOf(key)
+        if (keyIndex < 0) return null
+        val colonIndex = streamed.indexOf(':', keyIndex + key.length)
+        if (colonIndex < 0) return null
+        val firstQuote = streamed.indexOf('"', colonIndex + 1)
+        if (firstQuote < 0) return null
+        val secondQuote = streamed.indexOf('"', firstQuote + 1)
+        if (secondQuote < 0) return null
+        return streamed.substring(firstQuote + 1, secondQuote)
+    }
+
+    private fun extractResponsesArrayFromStream(streamed: String): JSONArray? {
+        val responsesKeyIndex = streamed.indexOf("\"responses\"")
+        if (responsesKeyIndex < 0) return null
+
+        val arrayStartIndex = streamed.indexOf('[', responsesKeyIndex)
+        if (arrayStartIndex < 0) return null
+
+        var inString = false
+        var escaped = false
+        var depth = 0
+        var arrayEndIndex = -1
+
+        for (i in arrayStartIndex until streamed.length) {
+            val ch = streamed[i]
+            if (inString) {
+                if (escaped) {
+                    escaped = false
+                } else if (ch == '\\') {
+                    escaped = true
+                } else if (ch == '"') {
+                    inString = false
+                }
+                continue
+            }
+
+            when (ch) {
+                '"' -> inString = true
+                '[' -> depth += 1
+                ']' -> {
+                    depth -= 1
+                    if (depth == 0) {
+                        arrayEndIndex = i
+                        break
+                    }
+                }
+            }
+        }
+
+        if (arrayEndIndex < 0) return null
+
+        val arrayJson = streamed.substring(arrayStartIndex, arrayEndIndex + 1)
+        return try {
+            JSONArray(arrayJson)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun extractPartialResponseTexts(streamed: String): Pair<String?, String?> {
+        val responsesKeyIndex = streamed.indexOf("\"responses\"")
+        if (responsesKeyIndex < 0) return null to null
+
+        val arrayStartIndex = streamed.indexOf('[', responsesKeyIndex)
+        if (arrayStartIndex < 0) return null to null
+
+        val texts = mutableListOf<String>()
+        var searchIndex = arrayStartIndex
+
+        while (texts.size < 2) {
+            val keyIndex = streamed.indexOf("\"text\"", searchIndex)
+            if (keyIndex < 0) break
+
+            val colonIndex = streamed.indexOf(':', keyIndex + 6)
+            if (colonIndex < 0) break
+
+            val valueStartQuote = streamed.indexOf('"', colonIndex + 1)
+            if (valueStartQuote < 0) break
+
+            val sb = StringBuilder()
+            var i = valueStartQuote + 1
+            var escaped = false
+            var closed = false
+
+            while (i < streamed.length) {
+                val ch = streamed[i]
+                if (escaped) {
+                    sb.append(ch)
+                    escaped = false
+                } else if (ch == '\\') {
+                    escaped = true
+                } else if (ch == '"') {
+                    closed = true
+                    break
+                } else {
+                    sb.append(ch)
+                }
+                i += 1
+            }
+
+            val parsed = unescapeJsonString(sb.toString()).trim()
+            if (parsed.isNotEmpty()) {
+                texts.add(parsed)
+            }
+
+            if (!closed) break
+            searchIndex = i + 1
+        }
+
+        val top1 = texts.getOrNull(0)
+        val top2 = texts.getOrNull(1)
+        return top1 to top2
+    }
+
+    private fun unescapeJsonString(raw: String): String {
+        return raw
+            .replace("\\\\", "\\")
+            .replace("\\\"", "\"")
+            .replace("\\n", "\n")
+            .replace("\\t", "\t")
+            .replace("\\r", "\r")
+            .replace("\\/", "/")
     }
 }
