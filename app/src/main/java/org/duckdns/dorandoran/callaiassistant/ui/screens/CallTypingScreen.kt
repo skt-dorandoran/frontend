@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -511,7 +512,38 @@ fun CallTypingScreen(
             exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
         ) {
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .drawWithContent {
+                        drawContent()
+                        val shadowHeight = 18.dp.toPx()
+                        val radius = 24.dp.toPx()
+                        val shadowPath = androidx.compose.ui.graphics.Path().apply {
+                            addRoundRect(
+                                androidx.compose.ui.geometry.RoundRect(
+                                    left = 0f,
+                                    top = 0f,
+                                    right = size.width,
+                                    bottom = shadowHeight,
+                                    topLeftCornerRadius = androidx.compose.ui.geometry.CornerRadius(radius, radius),
+                                    topRightCornerRadius = androidx.compose.ui.geometry.CornerRadius(radius, radius),
+                                    bottomRightCornerRadius = androidx.compose.ui.geometry.CornerRadius(0f, 0f),
+                                    bottomLeftCornerRadius = androidx.compose.ui.geometry.CornerRadius(0f, 0f)
+                                )
+                            )
+                        }
+                        drawPath(
+                            path = shadowPath,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.035f),
+                                    Color.Transparent
+                                ),
+                                startY = 0f,
+                                endY = shadowHeight
+                            )
+                        )
+                    },
                 shape = RoundedCornerShape(
                     topStart = 24.dp,
                     topEnd = 24.dp,
