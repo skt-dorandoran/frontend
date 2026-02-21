@@ -9,6 +9,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -16,7 +17,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Refresh
@@ -25,10 +25,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextRange
@@ -38,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.imePadding
 import androidx.navigation.NavController
+import org.duckdns.dorandoran.callaiassistant.R
 import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
@@ -432,67 +435,80 @@ fun CallTypingScreen(
                         IconButton(
                             onClick = { isInlineKeypadVisible = !isInlineKeypadVisible },
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isInlineKeypadVisible) primaryBlue.copy(alpha = 0.15f)
-                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                                )
+                                .height(52.dp)
+                                .width(36.dp)
+                                .align(Alignment.CenterVertically)
+                                .offset(y = 1.dp)
                         ) {
                             TypingKeypadDotsIcon(
                                 tint = if (isInlineKeypadVisible) primaryBlue else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(36.dp)
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        OutlinedTextField(
-                            value = inputText,
-                            onValueChange = { inputText = it },
+                        Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(end = 8.dp),
-                            placeholder = {
-                                Text(
-                                    text = "AI가 대신 말할 내용을 입력해주세요",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            },
-                            shape = RoundedCornerShape(24.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = primaryBlue,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                            ),
-                            maxLines = 3
-                        )
-                        IconButton(
-                            onClick = {
-                                val textToSend = inputText.text.trim()
-                                if (textToSend.isEmpty()) return@IconButton
-                                inputText = TextFieldValue()
-                                sendMessageNow(textToSend)
-                            },
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
-                                        primaryBlue
-                                    } else {
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                    }
-                                ),
-                            enabled = inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible
+                                .padding(end = 8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = "전송",
-                                tint = if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
-                                    Color.White
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
+                            val fieldShape = RoundedCornerShape(24.dp)
+                            val borderColor = Color(0xFFE8E8E8)
+                            val inputEnabled = inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible
+
+                            BasicTextField(
+                                value = inputText,
+                                onValueChange = { inputText = it },
+                                maxLines = 3,
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 52.dp)
+                                    .clip(fieldShape)
+                                    .border(1.dp, borderColor, fieldShape)
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .padding(start = 16.dp, end = 58.dp)
+                            ) { innerTextField ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 52.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                if (inputText.text.isEmpty()) {
+                                    Text(
+                                        text = "AI가 대신 말할 내용을 입력해주세요",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
-                            )
+                                innerTextField()
+                                }
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    val textToSend = inputText.text.trim()
+                                    if (textToSend.isEmpty()) return@IconButton
+                                    inputText = TextFieldValue()
+                                    sendMessageNow(textToSend)
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .size(43.2.dp),
+                                enabled = inputEnabled
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_send_blue),
+                                    contentDescription = "전송",
+                                    tint = Color.Unspecified,
+                                    modifier = Modifier
+                                        .size(32.4.dp)
+                                        .alpha(if (inputEnabled) 1f else 0.4f)
+                                )
+                            }
                         }
                     }
                 }
@@ -545,7 +561,7 @@ private fun SuggestionButton(
             } else if (useGradientBorder) {
                 Color.Transparent
             } else {
-                MaterialTheme.colorScheme.outline
+                Color(0xFFCCCCCC)
             }
         )
     ) {
@@ -556,7 +572,7 @@ private fun SuggestionButton(
             textAlign = TextAlign.End,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
+                .padding(vertical = 2.5.dp)
         )
     }
 }
@@ -647,23 +663,27 @@ private fun TypingKeypadDotsIcon(
     tint: Color,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Box(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.Center
     ) {
-        repeat(3) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                repeat(3) {
-                    Box(
-                        modifier = Modifier
-                            .size(3.dp)
-                            .clip(CircleShape)
-                            .background(tint)
-                    )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            repeat(3) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(3) {
+                        Box(
+                            modifier = Modifier
+                                .size(3.dp)
+                                .clip(CircleShape)
+                                .background(tint)
+                        )
+                    }
                 }
             }
         }
