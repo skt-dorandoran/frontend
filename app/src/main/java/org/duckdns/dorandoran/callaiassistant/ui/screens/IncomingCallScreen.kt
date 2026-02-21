@@ -24,7 +24,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -99,6 +103,7 @@ fun IncomingCallScreen(
                 Box(
                     modifier = Modifier
                         .size(73.dp)
+                        .incomingButtonShadow()
                         .clip(CircleShape)
                         .background(rejectColor)
                         .clickable(onClick = onReject),
@@ -123,6 +128,7 @@ fun IncomingCallScreen(
                 Box(
                     modifier = Modifier
                         .size(73.dp)
+                        .incomingButtonShadow()
                         .clip(CircleShape)
                         .background(acceptColor)
                         .clickable(onClick = onAccept),
@@ -143,6 +149,28 @@ fun IncomingCallScreen(
                 )
             }
         }
+    }
+}
+
+private fun Modifier.incomingButtonShadow() = this.drawBehind {
+    val shadowColor = Color(0x4D959DA5).toArgb()
+    val transparentColor = Color.Transparent.toArgb()
+
+    drawIntoCanvas { canvas ->
+        val paint = Paint()
+        val frameworkPaint = paint.asFrameworkPaint()
+        frameworkPaint.color = transparentColor
+        frameworkPaint.setShadowLayer(
+            24.dp.toPx(),
+            0.dp.toPx(),
+            8.dp.toPx(),
+            shadowColor
+        )
+        canvas.drawCircle(
+            center = center,
+            radius = size.minDimension / 2f,
+            paint = paint
+        )
     }
 }
 
