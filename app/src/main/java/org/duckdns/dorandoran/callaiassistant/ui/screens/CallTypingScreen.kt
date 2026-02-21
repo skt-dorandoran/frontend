@@ -371,7 +371,7 @@ fun CallTypingScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .imePadding(),
-            color = MaterialTheme.colorScheme.surface,
+            color = Color(0xFFFFFFFF),
             shadowElevation = 0.dp
         ) {
             Box(
@@ -452,7 +452,7 @@ fun CallTypingScreen(
                                     .heightIn(min = 52.dp)
                                     .clip(fieldShape)
                                     .border(1.dp, borderColor, fieldShape)
-                                    .background(MaterialTheme.colorScheme.surface)
+                                    .background(Color(0xFFFFFFFF))
                                     .padding(start = 16.dp, end = 58.dp)
                             ) { innerTextField ->
                                 Box(
@@ -512,8 +512,13 @@ fun CallTypingScreen(
         ) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+                shape = RoundedCornerShape(
+                    topStart = 24.dp,
+                    topEnd = 24.dp,
+                    bottomStart = 0.dp,
+                    bottomEnd = 0.dp
+                ),
+                color = Color(0xFFFFFFFF).copy(alpha = 0.88f),
                 tonalElevation = 0.dp,
                 shadowElevation = 0.dp
             ) {
