@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.duckdns.dorandoran.callaiassistant.SettingsStore
+import org.duckdns.dorandoran.callaiassistant.ai.AiSpeechCorrectionApi
 import org.duckdns.dorandoran.callaiassistant.ai.AiSuggestionApi
 import org.duckdns.dorandoran.callaiassistant.stt.RealtimeSttPayload
 import java.util.UUID
@@ -94,6 +95,8 @@ class CallViewModel : ViewModel() {
     val aiCorrectionDraftText: StateFlow<String> = _aiCorrectionDraftText.asStateFlow()
     private val _aiCorrectionRecording = MutableStateFlow(false)
     val aiCorrectionRecording: StateFlow<Boolean> = _aiCorrectionRecording.asStateFlow()
+    private val _isAiCorrectionProcessing = MutableStateFlow(false)
+    val isAiCorrectionProcessing: StateFlow<Boolean> = _isAiCorrectionProcessing.asStateFlow()
     private val _conversationHistory = MutableStateFlow(ConversationHistory())
     val conversationHistory: StateFlow<ConversationHistory> = _conversationHistory.asStateFlow()
     private val _aiSuggestionTop1 = MutableStateFlow("여보세요")
@@ -113,6 +116,7 @@ class CallViewModel : ViewModel() {
         _messages.value = emptyList()
         _aiCorrectionDraftText.value = ""
         _aiCorrectionRecording.value = false
+        _isAiCorrectionProcessing.value = false
         resetAiCorrectionDraftState()
         _aiSuggestionTop1.value = "여보세요"
         _aiSuggestionTop2.value = "안녕하세요"
@@ -309,6 +313,65 @@ class CallViewModel : ViewModel() {
     fun clearAiCorrectionDraft() {
         _aiCorrectionDraftText.value = ""
         resetAiCorrectionDraftState()
+    }
+
+    fun requestAiCorrection(
+        rawText: String,
+        phoneNumber: String,
+        onCompleted: ((Boolean) -> Unit)? = null
+    ) {
+        if (_isAiCorrectionProcessing.value) return
+        val raw = rawText.trim()
+        if (raw.isBlank()) {
+            onCompleted?.invoke(false)
+            return
+        }
+        _isAiCorrectionProcessing.value = true
+        viewModelScope.launch {
+            try {
+                val recentOtherHistory = getRecentUtterances(limit = 20)
+                    .filter { it.speaker == ConversationSpeaker.REMOTE && isMeaningfulText(it.text) }
+                    .takeLast(3)
+                    .map {
+                        ConversationHistoryItem(
+                            role = "other",
+                            text = it.text.trim()
+                        )
+                    }
+                val callId = buildAiCorrectionCallId()
+                val response = AiSpeechCorrectionApi.correctSpeech(
+                    callId = callId,
+                    rawText = raw,
+                    conversationHistory = recentOtherHistory,
+                    phoneNumber = phoneNumber.filter { it.isDigit() }
+                )
+                val corrected = response?.correctedText?.trim().orEmpty()
+                if (corrected.isNotBlank()) {
+                    _aiCorrectionDraftText.value = corrected
+                    onCompleted?.invoke(true)
+                } else {
+                    onCompleted?.invoke(false)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "requestAiCorrection failed: ${e.message}", e)
+                onCompleted?.invoke(false)
+            } finally {
+                _isAiCorrectionProcessing.value = false
+            }
+        }
+    }
+
+    private fun buildAiCorrectionCallId(): String {
+        val sessionKey = _conversationHistory.value.sessionKey.trim()
+        if (sessionKey.isNotBlank()) {
+            val normalized = sessionKey
+                .replace(Regex("[^A-Za-z0-9_-]"), "")
+                .take(36)
+            if (normalized.isNotBlank()) {
+                return "call_$normalized"
+            }
+        }
+        return "call_${UUID.randomUUID().toString().replace("-", "").take(12)}"
     }
 
     private fun upsertSttMessage(payload: RealtimeSttPayload, isFromMe: Boolean, isFinal: Boolean) {

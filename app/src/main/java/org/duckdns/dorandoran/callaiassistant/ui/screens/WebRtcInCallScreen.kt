@@ -177,6 +177,7 @@ fun WebRtcInCallScreen(
     val textModeLastMyBubble by viewModel.textModeLastMyBubble.collectAsState()
     val textModeLastRemoteBubble by viewModel.textModeLastRemoteBubble.collectAsState()
     val aiCorrectionDraftText by viewModel.aiCorrectionDraftText.collectAsState()
+    val isAiCorrectionProcessing by viewModel.isAiCorrectionProcessing.collectAsState()
     val aiSuggestionTop1 by viewModel.aiSuggestionTop1.collectAsState()
     val aiSuggestionTop2 by viewModel.aiSuggestionTop2.collectAsState()
     val isRefreshingAiSuggestions by viewModel.isRefreshingAiSuggestions.collectAsState()
@@ -215,6 +216,9 @@ fun WebRtcInCallScreen(
     val lastRemoteTypedMessageText = textModeLastRemoteBubble.ifBlank { "상대방 대화가 없습니다" }
     val directSpeakPlaceholderText = "직접 말하거나\n위의 추천 답변을 선택하세요"
     val textScale = remember { SettingsStore.getCallTextScale(context) }
+    val settingPhoneNumber = remember {
+        SettingsStore.getMyPhoneNumber(context).ifBlank { SettingsStore.DEFAULT_MY_PHONE_NUMBER }
+    }
     val isDark = isSystemInDarkTheme()
     val backgroundColor = if (isDark) Color(0xFF0B0B0C) else Color(0xFFF6F6F9)
     val cardColor = if (isDark) Color(0xFF16161A) else Color(0xFFFFFFFF)
@@ -651,17 +655,31 @@ fun WebRtcInCallScreen(
                                         AiCorrectionOverlayState.RECORDING -> {
                                             Button(
                                                 onClick = {
+                                                    val rawText = aiCorrectionDraftText
+                                                    if (rawText.isBlank() || isAiCorrectionProcessing) return@Button
                                                     viewModel.stopAiCorrectionRecording()
-                                                    aiCorrectionOverlayState = AiCorrectionOverlayState.READY_TO_SEND
+                                                    viewModel.requestAiCorrection(
+                                                        rawText = rawText,
+                                                        phoneNumber = settingPhoneNumber
+                                                    ) { _ ->
+                                                        aiCorrectionOverlayState = AiCorrectionOverlayState.READY_TO_SEND
+                                                    }
                                                 },
                                                 modifier = Modifier.fillMaxWidth(),
                                                 shape = RoundedCornerShape(12.dp),
                                                 colors = ButtonDefaults.buttonColors(
-                                                    containerColor = Color(0xFF7E57C2),
-                                                    contentColor = Color.White
-                                                )
+                                                    containerColor = if (isAiCorrectionProcessing) {
+                                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
+                                                    } else {
+                                                        Color(0xFF7E57C2)
+                                                    },
+                                                    contentColor = Color.White,
+                                                    disabledContainerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f),
+                                                    disabledContentColor = Color.White
+                                                ),
+                                                enabled = aiCorrectionDraftText.isNotBlank() && !isAiCorrectionProcessing
                                             ) {
-                                                Text("보정 시작")
+                                                Text(if (isAiCorrectionProcessing) "AI 보정 중..." else "보정 시작")
                                             }
                                         }
                                         AiCorrectionOverlayState.READY_TO_SEND -> {
