@@ -367,7 +367,7 @@ fun CallTypingScreen(
                 .fillMaxWidth()
                 .imePadding(),
             color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 8.dp
+            shadowElevation = 0.dp
         ) {
             Box(
                 modifier = Modifier
@@ -500,7 +500,7 @@ fun CallTypingScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(start = 8.dp, end = 8.dp, bottom = 84.dp)
+                    .padding(start = 8.dp, end = 8.dp, bottom = 76.dp)
                     .zIndex(3f),
                 shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
