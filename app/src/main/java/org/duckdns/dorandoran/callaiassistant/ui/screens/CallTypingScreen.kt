@@ -435,16 +435,14 @@ fun CallTypingScreen(
                         IconButton(
                             onClick = { isInlineKeypadVisible = !isInlineKeypadVisible },
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isInlineKeypadVisible) primaryBlue.copy(alpha = 0.15f)
-                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                                )
+                                .height(52.dp)
+                                .width(36.dp)
+                                .align(Alignment.CenterVertically)
+                                .offset(y = 1.dp)
                         ) {
                             TypingKeypadDotsIcon(
                                 tint = if (isInlineKeypadVisible) primaryBlue else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(36.dp)
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
@@ -666,23 +664,27 @@ private fun TypingKeypadDotsIcon(
     tint: Color,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Box(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.Center
     ) {
-        repeat(3) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                repeat(3) {
-                    Box(
-                        modifier = Modifier
-                            .size(3.dp)
-                            .clip(CircleShape)
-                            .background(tint)
-                    )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            repeat(3) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(3) {
+                        Box(
+                            modifier = Modifier
+                                .size(3.dp)
+                                .clip(CircleShape)
+                                .background(tint)
+                        )
+                    }
                 }
             }
         }
