@@ -15,6 +15,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CallEnd
@@ -27,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -204,11 +210,16 @@ fun CallTypingScreen(
         }
     }
     
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(typingBodyBackground)
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(typingBodyBackground)
+        ) {
         // TopBar (고정)
         TopAppBar(
             title = {
@@ -361,8 +372,8 @@ fun CallTypingScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .imePadding(),
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 8.dp
+            color = Color(0xFFFFFFFF),
+            shadowElevation = 0.dp
         ) {
             Box(
                 modifier = Modifier
@@ -372,57 +383,31 @@ fun CallTypingScreen(
                 Column(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            if (visibleOneClickReplies.isNotEmpty()) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(oneClickScrollState)
-                                        .padding(bottom = 12.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    if (visibleOneClickReplies.isNotEmpty() && !isInlineKeypadVisible) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(oneClickScrollState)
+                                .padding(bottom = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            visibleOneClickReplies.forEach { reply ->
+                                OutlinedButton(
+                                    enabled = !isInlineKeypadVisible,
+                                    onClick = {
+                                        inputText = TextFieldValue(
+                                            text = reply,
+                                            selection = TextRange(reply.length)
+                                        )
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
-                                    visibleOneClickReplies.forEach { reply ->
-                                        OutlinedButton(
-                                            enabled = !isInlineKeypadVisible,
-                                            onClick = {
-                                                inputText = TextFieldValue(
-                                                    text = reply,
-                                                    selection = TextRange(reply.length)
-                                                )
-                                            },
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                        ) {
-                                            Text(
-                                                text = reply,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                maxLines = 1
-                                            )
-                                        }
-                                    }
+                                    Text(
+                                        text = reply,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1
+                                    )
                                 }
-                            }
-                        }
-
-                        if (isInlineKeypadVisible) {
-                            Surface(
-                                modifier = Modifier
-                                    .align(Alignment.TopCenter)
-                                    .fillMaxWidth()
-                                    .zIndex(1f),
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
-                                tonalElevation = 6.dp,
-                                shadowElevation = 8.dp
-                            ) {
-                                TypingModeKeypadContent(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 8.dp),
-                                    onKeyPress = { key ->
-                                        playTypingModeDtmfTone(toneGenerator, key)
-                                    }
-                                )
                             }
                         }
                     }
@@ -468,7 +453,7 @@ fun CallTypingScreen(
                                     .heightIn(min = 52.dp)
                                     .clip(fieldShape)
                                     .border(1.dp, borderColor, fieldShape)
-                                    .background(MaterialTheme.colorScheme.surface)
+                                    .background(Color(0xFFFFFFFF))
                                     .padding(start = 16.dp, end = 58.dp)
                             ) { innerTextField ->
                                 Box(
@@ -512,6 +497,57 @@ fun CallTypingScreen(
                         }
                     }
                 }
+            }
+        }
+        }
+
+        AnimatedVisibility(
+            visible = isInlineKeypadVisible,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(start = 0.dp, end = 0.dp, bottom = 76.dp)
+                .zIndex(3f),
+            enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
+        ) {
+            val keypadShape = RoundedCornerShape(
+                topStart = 40.dp,
+                topEnd = 40.dp,
+                bottomStart = 0.dp,
+                bottomEnd = 0.dp
+            )
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(keypadShape)
+                    .drawWithContent {
+                        drawContent()
+                        val shadowHeight = 18.dp.toPx()
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.03f),
+                                    Color.Transparent
+                                ),
+                                startY = 0f,
+                                endY = shadowHeight
+                            )
+                        )
+                    },
+                shape = keypadShape,
+                color = Color(0xFFFFFFFF).copy(alpha = 0.88f),
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp
+            ) {
+                TypingModeKeypadContent(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 10.dp, end = 10.dp, top = 40.dp, bottom = 14.dp),
+                    onKeyPress = { key ->
+                        playTypingModeDtmfTone(toneGenerator, key)
+                    }
+                )
             }
         }
     }
@@ -625,8 +661,6 @@ private fun TypingModeDialPadButton(
     Box(
         modifier = Modifier
             .size(72.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
