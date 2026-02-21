@@ -9,6 +9,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -448,50 +449,69 @@ fun CallTypingScreen(
                         }
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        OutlinedTextField(
-                            value = inputText,
-                            onValueChange = { inputText = it },
+                        Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(end = 8.dp),
-                            placeholder = {
-                                Text(
-                                    text = "AI가 대신 말할 내용을 입력해주세요",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            },
-                            shape = RoundedCornerShape(24.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = primaryBlue,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                            ),
-                            maxLines = 3
-                        )
-                        IconButton(
-                            onClick = {
-                                val textToSend = inputText.text.trim()
-                                if (textToSend.isEmpty()) return@IconButton
-                                inputText = TextFieldValue()
-                                sendMessageNow(textToSend)
-                            },
-                            modifier = Modifier
-                                .size(52.dp),
-                            enabled = inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible
+                                .padding(end = 8.dp)
                         ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_send_blue),
-                                contentDescription = "전송",
-                                tint = Color.Unspecified,
+                            val fieldShape = RoundedCornerShape(24.dp)
+                            val borderColor = Color(0xFFE8E8E8)
+                            val inputEnabled = inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible
+
+                            BasicTextField(
+                                value = inputText,
+                                onValueChange = { inputText = it },
+                                maxLines = 3,
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
                                 modifier = Modifier
-                                    .size(44.dp)
-                                    .alpha(
-                                        if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
-                                            1f
-                                        } else {
-                                            0.4f
-                                        }
+                                    .fillMaxWidth()
+                                    .heightIn(min = 52.dp)
+                                    .clip(fieldShape)
+                                    .border(1.dp, borderColor, fieldShape)
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .padding(start = 16.dp, end = 58.dp)
+                            ) { innerTextField ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 52.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                if (inputText.text.isEmpty()) {
+                                    Text(
+                                        text = "AI가 대신 말할 내용을 입력해주세요",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                            )
+                                }
+                                innerTextField()
+                                }
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    val textToSend = inputText.text.trim()
+                                    if (textToSend.isEmpty()) return@IconButton
+                                    inputText = TextFieldValue()
+                                    sendMessageNow(textToSend)
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .offset(y = (-2).dp)
+                                    .size(48.dp),
+                                enabled = inputEnabled
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_send_blue),
+                                    contentDescription = "전송",
+                                    tint = Color.Unspecified,
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .alpha(if (inputEnabled) 1f else 0.4f)
+                                )
+                            }
                         }
                     }
                 }
