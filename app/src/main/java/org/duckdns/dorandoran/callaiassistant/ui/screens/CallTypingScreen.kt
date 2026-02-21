@@ -99,13 +99,71 @@ fun CallTypingScreen(
     val aiSuggestionTop2 by viewModel.aiSuggestionTop2.collectAsState()
     val isRefreshingAiSuggestions by viewModel.isRefreshingAiSuggestions.collectAsState()
     val remoteAudioLevel by webRtcManager.remoteAudioLevel.collectAsState()
-    val sharedSuggestions = if (isRefreshingAiSuggestions) {
-        listOf("...", "...")
-    } else {
-        listOf(aiSuggestionTop1, aiSuggestionTop2)
-    }
-    
+    val sharedSuggestions = listOf(aiSuggestionTop1, aiSuggestionTop2)
+
     val listState = rememberLazyListState()
+    fun sendMessageNow(rawText: String) {
+        val textToSend = rawText.trim()
+        if (textToSend.isEmpty() || isSendingMessage || isInlineKeypadVisible) return
+        val isAiSuggestionText = sharedSuggestions.contains(textToSend)
+        isSendingMessage = true
+        isSendingAiSuggestion = isAiSuggestionText
+        viewModel.sendMessage(
+            textToSend,
+            origin = if (isAiSuggestionText) MessageOrigin.AI_SUGGESTION else MessageOrigin.TEXT_MODE
+        )
+        val markSendDone = {
+            isSendingMessage = false
+            isSendingAiSuggestion = false
+        }
+        if (isTtsReady) {
+            if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
+                val callIdStr = "call_typing_${System.currentTimeMillis()}"
+                val contextSafe = context.applicationContext
+                coroutineScope.launch {
+                    val wavFile = VoiceCloneTtsApi.synthesizeVoiceClone(
+                        callId = callIdStr,
+                        text = textToSend,
+                        voiceId = voiceId,
+                        sourceType = "ai_response",
+                        context = contextSafe
+                    )
+                    if (wavFile != null && wavFile.exists()) {
+                        org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager.playWavFile(
+                            wavFile = wavFile,
+                            audioManager = audioManager,
+                            onDone = {
+                                Log.d("CallTypingScreen", "VoiceClone TTS playback completed for: $textToSend")
+                                markSendDone()
+                            }
+                        )
+                    } else {
+                        TtsManager.speak(
+                            tts = messageTts,
+                            text = textToSend,
+                            audioManager = audioManager,
+                            onDone = {
+                                Log.d("CallTypingScreen", "Fallback TTS playback completed for: $textToSend")
+                                markSendDone()
+                            }
+                        )
+                    }
+                }
+            } else {
+                TtsManager.speak(
+                    tts = messageTts,
+                    text = textToSend,
+                    audioManager = audioManager,
+                    onDone = {
+                        Log.d("CallTypingScreen", "TTS playback completed for: $textToSend")
+                        markSendDone()
+                    }
+                )
+            }
+        } else {
+            markSendDone()
+        }
+    }
 
     // TTS 초기화 - 통화 시작 시 1회만
     LaunchedEffect(Unit) {
@@ -266,7 +324,7 @@ fun CallTypingScreen(
                 Spacer(modifier = Modifier.width(6.dp))
                 IconButton(
                     enabled = !isRefreshingAiSuggestions && !isInlineKeypadVisible,
-                    onClick = { viewModel.refreshAiSuggestions(context) },
+                    onClick = { viewModel.refreshAiSuggestions() },
                     modifier = Modifier.size(22.dp)
                 ) {
                     if (!isRefreshingAiSuggestions) {
@@ -280,20 +338,16 @@ fun CallTypingScreen(
                 }
             }
 
-            sharedSuggestions.forEachIndexed { index, suggestion ->
+            sharedSuggestions.forEach { suggestion ->
                 SuggestionButton(
                     text = suggestion,
                     isLoading = isRefreshingAiSuggestions,
                     controlsEnabled = !isInlineKeypadVisible,
-                    isSelected = inputText.text.trim() == suggestion,
-                    useGradientBorder = index == 0,
+                    useGradientBorder = false,
                     modifier = Modifier.fillMaxWidth(0.62f),
                     onClick = {
-                        if (isRefreshingAiSuggestions || suggestion == "...") return@SuggestionButton
-                        inputText = TextFieldValue(
-                            text = suggestion,
-                            selection = TextRange(suggestion.length)
-                        )
+                        if (isRefreshingAiSuggestions || suggestion.isBlank()) return@SuggestionButton
+                        sendMessageNow(suggestion)
                     }
                 )
             }
@@ -415,66 +469,8 @@ fun CallTypingScreen(
                             onClick = {
                                 val textToSend = inputText.text.trim()
                                 if (textToSend.isEmpty()) return@IconButton
-                                val isAiSuggestionText = sharedSuggestions.contains(textToSend)
-                                isSendingMessage = true
-                                isSendingAiSuggestion = isAiSuggestionText
-                                viewModel.sendMessage(
-                                    textToSend,
-                                    origin = if (isAiSuggestionText) MessageOrigin.AI_SUGGESTION else MessageOrigin.TEXT_MODE
-                                )
                                 inputText = TextFieldValue()
-                                val markSendDone = {
-                                    isSendingMessage = false
-                                    isSendingAiSuggestion = false
-                                }
-                                // TTS로 메시지 재생
-                                if (isTtsReady) {
-                                    if (isVoiceCloneEnabled && !voiceId.isNullOrBlank()) {
-                                        val callIdStr = "call_typing_${System.currentTimeMillis()}"
-                                        val contextSafe = context.applicationContext
-                                        coroutineScope.launch {
-                                            val wavFile = VoiceCloneTtsApi.synthesizeVoiceClone(
-                                                callId = callIdStr,
-                                                text = textToSend,
-                                                voiceId = voiceId,
-                                                sourceType = "ai_response",
-                                                context = contextSafe
-                                            )
-                                            if (wavFile != null && wavFile.exists()) {
-                                                org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager.playWavFile(
-                                                    wavFile = wavFile,
-                                                    audioManager = audioManager,
-                                                    onDone = {
-                                                        Log.d("CallTypingScreen", "VoiceClone TTS playback completed for: $textToSend")
-                                                        markSendDone()
-                                                    }
-                                                )
-                                            } else {
-                                                TtsManager.speak(
-                                                    tts = messageTts,
-                                                    text = textToSend,
-                                                    audioManager = audioManager,
-                                                    onDone = {
-                                                        Log.d("CallTypingScreen", "Fallback TTS playback completed for: $textToSend")
-                                                        markSendDone()
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    } else {
-                                        TtsManager.speak(
-                                            tts = messageTts,
-                                            text = textToSend,
-                                            audioManager = audioManager,
-                                            onDone = {
-                                                Log.d("CallTypingScreen", "TTS playback completed for: $textToSend")
-                                                markSendDone()
-                                            }
-                                        )
-                                    }
-                                } else {
-                                    markSendDone()
-                                }
+                                sendMessageNow(textToSend)
                             },
                             modifier = Modifier
                                 .size(48.dp)
@@ -511,7 +507,6 @@ private fun SuggestionButton(
     text: String,
     isLoading: Boolean,
     controlsEnabled: Boolean = true,
-    isSelected: Boolean = false,
     useGradientBorder: Boolean = false,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
@@ -522,7 +517,7 @@ private fun SuggestionButton(
     )
     OutlinedButton(
         onClick = onClick,
-        enabled = controlsEnabled && !isLoading && text != "...",
+        enabled = controlsEnabled && !isLoading && text.isNotBlank(),
         modifier = if (!isLoading && useGradientBorder) {
             modifier.border(width = 1.5.dp, brush = gradientBrush, shape = shape)
         } else {
@@ -544,13 +539,11 @@ private fun SuggestionButton(
             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
         border = BorderStroke(
-            if (!isLoading && useGradientBorder) 0.dp else if (isSelected && !isLoading) 2.dp else 1.dp,
+            if (!isLoading && useGradientBorder) 0.dp else 1.dp,
             if (isLoading) {
                 MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
             } else if (useGradientBorder) {
                 Color.Transparent
-            } else if (isSelected) {
-                Color(0xFF2F5BFF)
             } else {
                 MaterialTheme.colorScheme.outline
             }

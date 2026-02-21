@@ -1,6 +1,5 @@
 package org.duckdns.dorandoran.callaiassistant.ui.viewmodel
 
-import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -239,10 +238,11 @@ class CallViewModel : ViewModel() {
         _aiCorrectionAlert.value = false
     }
 
-    fun refreshAiSuggestions(context: Context) {
+    fun refreshAiSuggestions() {
         if (_isRefreshingAiSuggestions.value) return
         _isRefreshingAiSuggestions.value = true
-        val appContext = context.applicationContext
+        _aiSuggestionTop1.value = ""
+        _aiSuggestionTop2.value = ""
 
         viewModelScope.launch {
             try {
@@ -259,18 +259,20 @@ class CallViewModel : ViewModel() {
                     ?.text
                     ?.trim()
                     ?: recent.lastOrNull()?.text?.trim().orEmpty()
-                val phoneNumber = SettingsStore.getMyPhoneNumber(appContext).ifBlank {
-                    _callInfo.value.phoneNumber
-                }
 
                 val callId = "call_${UUID.randomUUID().toString().replace("-", "").take(12)}"
                 val result = AiSuggestionApi.generateResponse(
                     callId = callId,
                     userSpeech = userSpeech,
                     conversationHistory = history,
-                    phoneNumber = phoneNumber
+                    onPartialResponses = { partialTop1, partialTop2 ->
+                        val top1 = partialTop1?.trim().orEmpty()
+                        val top2 = partialTop2?.trim().orEmpty()
+                        if (top1.isNotBlank()) _aiSuggestionTop1.value = top1
+                        if (top2.isNotBlank()) _aiSuggestionTop2.value = top2
+                    }
                 )
-                val top2 = result?.answers
+                val top2 = result?.responses
                     ?.map { it.text.trim() }
                     ?.filter { it.isNotBlank() }
                     ?.take(2)
