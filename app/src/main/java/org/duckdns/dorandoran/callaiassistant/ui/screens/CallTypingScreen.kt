@@ -1,4 +1,4 @@
-package org.duckdns.dorandoran.callaiassistant.ui.screens
+﻿package org.duckdns.dorandoran.callaiassistant.ui.screens
 
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -17,7 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.BorderStroke
@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.imePadding
 import androidx.navigation.NavController
+import org.duckdns.dorandoran.callaiassistant.R
 import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
@@ -51,7 +52,7 @@ import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 import android.util.Log
 import kotlinx.coroutines.launch
 
-private val NOISE_ONLY_REGEX = Regex("^[\\p{Punct}\\s·…]+$")
+private val NOISE_ONLY_REGEX = Regex("^[\\p{Punct}\\s쨌??+$")
 
 private fun isMeaningfulConversationText(text: String): Boolean {
     val normalized = text.trim()
@@ -165,7 +166,7 @@ fun CallTypingScreen(
         }
     }
 
-    // TTS 초기화 - 통화 시작 시 1회만
+    // TTS 珥덇린??- ?듯솕 ?쒖옉 ??1?뚮쭔
     LaunchedEffect(Unit) {
         TtsManager.initializeForCall(
             context = context,
@@ -179,7 +180,7 @@ fun CallTypingScreen(
 
     DisposableEffect(Unit) {
         onDispose {
-            // TTS 종료하지 말고 (다른 화면에서 사용할 수 있음) 큐만 정리
+            // TTS 醫낅즺?섏? 留먭퀬 (?ㅻⅨ ?붾㈃?먯꽌 ?ъ슜?????덉쓬) ?먮쭔 ?뺣━
             CustomAudioDeviceModule.clearTtsQueue()
             messageTts = null
             isTtsReady = false
@@ -187,14 +188,14 @@ fun CallTypingScreen(
         }
     }
 
-    // 메시지가 추가되면 스크롤을 가장 아래로 즉시 이동
+    // 硫붿떆吏媛 異붽??섎㈃ ?ㅽ겕濡ㅼ쓣 媛???꾨옒濡?利됱떆 ?대룞
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.scrollToItem(index = 0)
         }
     }
     
-    // 입력 필드 포커스 시에도 스크롤 유지
+    // ?낅젰 ?꾨뱶 ?ъ빱???쒖뿉???ㅽ겕濡??좎?
     LaunchedEffect(inputText.text) {
         if (messages.isNotEmpty()) {
             listState.scrollToItem(index = 0)
@@ -206,7 +207,7 @@ fun CallTypingScreen(
             .fillMaxSize()
             .background(typingBodyBackground)
     ) {
-        // TopBar (고정)
+        // TopBar (怨좎젙)
         TopAppBar(
             title = {
                 Row(
@@ -252,10 +253,10 @@ fun CallTypingScreen(
                         .padding(4.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CallEnd,
-                        contentDescription = "통화 종료",
+                        painter = painterResource(id = R.drawable.ic_call_end_solar),
+                        contentDescription = "?듯솕 醫낅즺",
                         tint = MaterialTheme.colorScheme.onError,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.fillMaxSize(0.7f)
                     )
                 }
             },
@@ -264,7 +265,7 @@ fun CallTypingScreen(
             )
         )
 
-        // 메시지 영역 (스크롤 가능)
+        // 硫붿떆吏 ?곸뿭 (?ㅽ겕濡?媛??
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -279,7 +280,7 @@ fun CallTypingScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 reverseLayout = true
             ) {
-                // 메시지를 역순으로 표시 (최신 메시지가 맨 아래)
+                // 硫붿떆吏瑜???닚?쇰줈 ?쒖떆 (理쒖떊 硫붿떆吏媛 留??꾨옒)
                 items(displayMessages.size) { index ->
                     val message = displayMessages[displayMessages.size - 1 - index]
                     Row(
@@ -296,7 +297,7 @@ fun CallTypingScreen(
             }
         }
 
-        // 입력 블럭 바로 위 고정 AI 추천 답변
+        // ?낅젰 釉붾윮 諛붾줈 ??怨좎젙 AI 異붿쿇 ?듬?
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -310,13 +311,13 @@ fun CallTypingScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.Lightbulb,
-                    contentDescription = "AI 추천",
+                    contentDescription = "AI 異붿쿇",
                     tint = Color(0xFFFFC107),
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = if (isSendingAiSuggestion) "AI 추천 답변 전송 중.." else "AI 추천 답변",
+                    text = if (isSendingAiSuggestion) "AI 異붿쿇 ?듬? ?꾩넚 以?." else "AI 異붿쿇 ?듬?",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold
@@ -330,7 +331,7 @@ fun CallTypingScreen(
                     if (!isRefreshingAiSuggestions) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = "추천 새로고침",
+                            contentDescription = "異붿쿇 ?덈줈怨좎묠",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(14.dp)
                         )
@@ -353,7 +354,7 @@ fun CallTypingScreen(
             }
         }
 
-        // BottomBar (고정)
+        // BottomBar (怨좎젙)
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -424,7 +425,7 @@ fun CallTypingScreen(
                         }
                     }
 
-                    // 입력창 (항상 보이도록 오버레이 밖으로 분리)
+                    // ?낅젰李?(??긽 蹂댁씠?꾨줉 ?ㅻ쾭?덉씠 諛뽰쑝濡?遺꾨━)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -454,7 +455,7 @@ fun CallTypingScreen(
                                 .padding(end = 8.dp),
                             placeholder = {
                                 Text(
-                                    text = "AI가 대신 말할 내용을 입력해주세요",
+                                    text = "AI媛 ???留먰븷 ?댁슜???낅젰?댁＜?몄슂",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             },
@@ -486,7 +487,7 @@ fun CallTypingScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = "전송",
+                                contentDescription = "?꾩넚",
                                 tint = if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
                                     Color.White
                                 } else {
@@ -688,3 +689,4 @@ private fun playTypingModeDtmfTone(toneGenerator: ToneGenerator, key: Char) {
     }
     tone?.let { toneGenerator.startTone(it, 140) }
 }
+
