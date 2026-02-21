@@ -15,6 +15,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CallEnd
@@ -495,13 +500,18 @@ fun CallTypingScreen(
         }
         }
 
-        if (isInlineKeypadVisible) {
+        AnimatedVisibility(
+            visible = isInlineKeypadVisible,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(start = 8.dp, end = 8.dp, bottom = 76.dp)
+                .zIndex(3f),
+            enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
+        ) {
             Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(start = 8.dp, end = 8.dp, bottom = 76.dp)
-                    .zIndex(3f),
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
                 tonalElevation = 0.dp,
