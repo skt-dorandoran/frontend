@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Refresh
@@ -25,10 +24,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextRange
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.imePadding
 import androidx.navigation.NavController
+import org.duckdns.dorandoran.callaiassistant.R
 import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
@@ -473,25 +475,22 @@ fun CallTypingScreen(
                                 sendMessageNow(textToSend)
                             },
                             modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
-                                        primaryBlue
-                                    } else {
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                    }
-                                ),
+                                .size(52.dp),
                             enabled = inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                painter = painterResource(id = R.drawable.ic_send_blue),
                                 contentDescription = "전송",
-                                tint = if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
-                                    Color.White
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
+                                tint = Color.Unspecified,
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .alpha(
+                                        if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
+                                            1f
+                                        } else {
+                                            0.4f
+                                        }
+                                    )
                             )
                         }
                     }
