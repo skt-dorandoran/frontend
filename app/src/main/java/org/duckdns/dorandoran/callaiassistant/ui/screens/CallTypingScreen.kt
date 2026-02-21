@@ -496,9 +496,8 @@ fun CallTypingScreen(
                                     sendMessageNow(textToSend)
                                 },
                                 modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .offset(y = (-2).dp)
-                                    .size(48.dp),
+                                    .align(Alignment.CenterEnd)
+                                    .size(43.2.dp),
                                 enabled = inputEnabled
                             ) {
                                 Icon(
@@ -506,7 +505,7 @@ fun CallTypingScreen(
                                     contentDescription = "전송",
                                     tint = Color.Unspecified,
                                     modifier = Modifier
-                                        .size(36.dp)
+                                        .size(32.4.dp)
                                         .alpha(if (inputEnabled) 1f else 0.4f)
                                 )
                             }
