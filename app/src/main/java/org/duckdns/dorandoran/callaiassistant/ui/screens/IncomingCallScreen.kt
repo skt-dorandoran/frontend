@@ -1,4 +1,4 @@
-package org.duckdns.dorandoran.callaiassistant.ui.screens
+﻿package org.duckdns.dorandoran.callaiassistant.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,9 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,14 +32,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.duckdns.dorandoran.callaiassistant.R
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 
 @Composable
 fun IncomingCallScreen(
+    modifier: Modifier = Modifier,
     callerName: String = "상대방",
     onAccept: () -> Unit,
-    onReject: () -> Unit,
-    modifier: Modifier = Modifier
+    onReject: () -> Unit
 ) {
     val backgroundColor = Color(0xFFF8FBFF)
     val primaryTextColor = Color.Black
@@ -110,9 +109,9 @@ fun IncomingCallScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CallEnd,
+                        painter = painterResource(id = R.drawable.ic_call_end_solar),
                         contentDescription = "거절",
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.fillMaxSize(0.7f),
                         tint = Color.White
                     )
                 }
@@ -135,9 +134,9 @@ fun IncomingCallScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Call,
+                        painter = painterResource(id = R.drawable.ic_call_accept_solar),
                         contentDescription = "응답",
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.fillMaxSize(0.56f),
                         tint = Color.White
                     )
                 }
@@ -179,13 +178,13 @@ private fun formatIncomingDisplay(raw: String): String {
     if (digits.isBlank()) return raw
     return when {
         digits.startsWith("02") && digits.length == 9 ->
-            "${digits.substring(0, 2)}-${digits.substring(2, 5)}-${digits.substring(5)}"
+            "${digits.take(2)}-${digits.drop(2).take(3)}-${digits.drop(5)}"
         digits.startsWith("02") && digits.length == 10 ->
-            "${digits.substring(0, 2)}-${digits.substring(2, 6)}-${digits.substring(6)}"
+            "${digits.take(2)}-${digits.drop(2).take(4)}-${digits.drop(6)}"
         digits.length == 10 ->
-            "${digits.substring(0, 3)}-${digits.substring(3, 6)}-${digits.substring(6)}"
+            "${digits.take(3)}-${digits.drop(3).take(3)}-${digits.drop(6)}"
         digits.length == 11 ->
-            "${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7)}"
+            "${digits.take(3)}-${digits.drop(3).take(4)}-${digits.drop(7)}"
         else -> raw
     }
 }
@@ -201,3 +200,4 @@ fun IncomingCallScreenPreview() {
         )
     }
 }
+
