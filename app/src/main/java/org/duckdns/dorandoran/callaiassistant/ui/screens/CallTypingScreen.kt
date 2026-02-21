@@ -557,7 +557,7 @@ fun CallTypingScreen(
                 TypingModeKeypadContent(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 14.dp),
+                        .padding(start = 10.dp, end = 10.dp, top = 40.dp, bottom = 14.dp),
                     onKeyPress = { key ->
                         playTypingModeDtmfTone(toneGenerator, key)
                     }
