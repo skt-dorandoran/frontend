@@ -204,11 +204,16 @@ fun CallTypingScreen(
         }
     }
     
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(typingBodyBackground)
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(typingBodyBackground)
+        ) {
         // TopBar (고정)
         TopAppBar(
             title = {
@@ -372,57 +377,31 @@ fun CallTypingScreen(
                 Column(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            if (visibleOneClickReplies.isNotEmpty()) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(oneClickScrollState)
-                                        .padding(bottom = 12.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    if (visibleOneClickReplies.isNotEmpty() && !isInlineKeypadVisible) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(oneClickScrollState)
+                                .padding(bottom = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            visibleOneClickReplies.forEach { reply ->
+                                OutlinedButton(
+                                    enabled = !isInlineKeypadVisible,
+                                    onClick = {
+                                        inputText = TextFieldValue(
+                                            text = reply,
+                                            selection = TextRange(reply.length)
+                                        )
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
-                                    visibleOneClickReplies.forEach { reply ->
-                                        OutlinedButton(
-                                            enabled = !isInlineKeypadVisible,
-                                            onClick = {
-                                                inputText = TextFieldValue(
-                                                    text = reply,
-                                                    selection = TextRange(reply.length)
-                                                )
-                                            },
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                        ) {
-                                            Text(
-                                                text = reply,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                maxLines = 1
-                                            )
-                                        }
-                                    }
+                                    Text(
+                                        text = reply,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1
+                                    )
                                 }
-                            }
-                        }
-
-                        if (isInlineKeypadVisible) {
-                            Surface(
-                                modifier = Modifier
-                                    .align(Alignment.TopCenter)
-                                    .fillMaxWidth()
-                                    .zIndex(1f),
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
-                                tonalElevation = 6.dp,
-                                shadowElevation = 8.dp
-                            ) {
-                                TypingModeKeypadContent(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 8.dp),
-                                    onKeyPress = { key ->
-                                        playTypingModeDtmfTone(toneGenerator, key)
-                                    }
-                                )
                             }
                         }
                     }
@@ -512,6 +491,30 @@ fun CallTypingScreen(
                         }
                     }
                 }
+            }
+        }
+        }
+
+        if (isInlineKeypadVisible) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, end = 8.dp, bottom = 84.dp)
+                    .zIndex(3f),
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp
+            ) {
+                TypingModeKeypadContent(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 14.dp),
+                    onKeyPress = { key ->
+                        playTypingModeDtmfTone(toneGenerator, key)
+                    }
+                )
             }
         }
     }
@@ -625,8 +628,6 @@ private fun TypingModeDialPadButton(
     Box(
         modifier = Modifier
             .size(72.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
