@@ -561,7 +561,7 @@ private fun SuggestionButton(
             } else if (useGradientBorder) {
                 Color.Transparent
             } else {
-                MaterialTheme.colorScheme.outline
+                Color(0xFFCCCCCC)
             }
         )
     ) {
@@ -572,7 +572,7 @@ private fun SuggestionButton(
             textAlign = TextAlign.End,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
+                .padding(vertical = 2.5.dp)
         )
     }
 }
