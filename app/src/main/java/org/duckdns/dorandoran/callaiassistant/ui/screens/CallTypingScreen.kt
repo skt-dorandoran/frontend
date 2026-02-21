@@ -505,7 +505,7 @@ fun CallTypingScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(start = 8.dp, end = 8.dp, bottom = 76.dp)
+                .padding(start = 0.dp, end = 0.dp, bottom = 76.dp)
                 .zIndex(3f),
             enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
             exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
