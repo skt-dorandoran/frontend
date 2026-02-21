@@ -511,32 +511,23 @@ fun CallTypingScreen(
             enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
             exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
         ) {
+            val keypadShape = RoundedCornerShape(
+                topStart = 40.dp,
+                topEnd = 40.dp,
+                bottomStart = 0.dp,
+                bottomEnd = 0.dp
+            )
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clip(keypadShape)
                     .drawWithContent {
                         drawContent()
                         val shadowHeight = 18.dp.toPx()
-                        val radius = 24.dp.toPx()
-                        val shadowPath = androidx.compose.ui.graphics.Path().apply {
-                            addRoundRect(
-                                androidx.compose.ui.geometry.RoundRect(
-                                    left = 0f,
-                                    top = 0f,
-                                    right = size.width,
-                                    bottom = shadowHeight,
-                                    topLeftCornerRadius = androidx.compose.ui.geometry.CornerRadius(radius, radius),
-                                    topRightCornerRadius = androidx.compose.ui.geometry.CornerRadius(radius, radius),
-                                    bottomRightCornerRadius = androidx.compose.ui.geometry.CornerRadius(0f, 0f),
-                                    bottomLeftCornerRadius = androidx.compose.ui.geometry.CornerRadius(0f, 0f)
-                                )
-                            )
-                        }
-                        drawPath(
-                            path = shadowPath,
+                        drawRect(
                             brush = Brush.verticalGradient(
                                 colors = listOf(
-                                    Color.Black.copy(alpha = 0.035f),
+                                    Color.Black.copy(alpha = 0.03f),
                                     Color.Transparent
                                 ),
                                 startY = 0f,
@@ -544,12 +535,7 @@ fun CallTypingScreen(
                             )
                         )
                     },
-                shape = RoundedCornerShape(
-                    topStart = 24.dp,
-                    topEnd = 24.dp,
-                    bottomStart = 0.dp,
-                    bottomEnd = 0.dp
-                ),
+                shape = keypadShape,
                 color = Color(0xFFFFFFFF).copy(alpha = 0.88f),
                 tonalElevation = 0.dp,
                 shadowElevation = 0.dp
