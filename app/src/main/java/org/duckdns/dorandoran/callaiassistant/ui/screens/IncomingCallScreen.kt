@@ -10,23 +10,26 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 
 @Composable
@@ -36,101 +39,107 @@ fun IncomingCallScreen(
     onReject: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val backgroundColor = Color(0xFFF8FBFF)
+    val primaryTextColor = Color.Black
+    val subtitleColor = Color(0xFF777B83)
+    val phoneNumberColor = Color(0xFF73777F)
+    val rejectColor = Color(0xFFEF3D3D)
+    val acceptColor = Color(0xFF11C56F)
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(32.dp),
+            .background(backgroundColor)
+            .navigationBarsPadding()
+            .padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Spacer(modifier = Modifier.weight(0.5f))
-
-        Box(
+        Column(
             modifier = Modifier
-                .size(120.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(top = 83.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                imageVector = Icons.Default.Call,
-                contentDescription = null,
-                modifier = Modifier.size(56.dp),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer
+            Text(
+                text = "T.mate 수신 중",
+                color = subtitleColor,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            Text(
+                text = formatIncomingDisplay(callerName),
+                color = primaryTextColor,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(9.dp))
+
+            Text(
+                text = "02-1233-2342",
+                color = phoneNumberColor,
+                fontSize = 15.sp,
+                textAlign = TextAlign.Center
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(
-            text = "전화가 왔어요",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = formatIncomingDisplay(callerName),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.weight(1f))
-
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            modifier = Modifier
+                .width(296.dp)
+                .padding(bottom = 32.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     modifier = Modifier
-                        .size(72.dp)
+                        .size(73.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.error)
+                        .background(rejectColor)
                         .clickable(onClick = onReject),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.CallEnd,
                         contentDescription = "거절",
-                        modifier = Modifier.size(36.dp),
-                        tint = MaterialTheme.colorScheme.onError
+                        modifier = Modifier.size(32.dp),
+                        tint = Color.White
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(11.dp))
                 Text(
                     text = "거절",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = primaryTextColor,
+                    fontSize = 12.sp
                 )
             }
+
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     modifier = Modifier
-                        .size(72.dp)
+                        .size(73.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
+                        .background(acceptColor)
                         .clickable(onClick = onAccept),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Call,
                         contentDescription = "응답",
-                        modifier = Modifier.size(36.dp),
-                        tint = MaterialTheme.colorScheme.onPrimary
+                        modifier = Modifier.size(32.dp),
+                        tint = Color.White
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(11.dp))
                 Text(
                     text = "응답",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = primaryTextColor,
+                    fontSize = 12.sp
                 )
             }
         }
@@ -158,7 +167,7 @@ private fun formatIncomingDisplay(raw: String): String {
 fun IncomingCallScreenPreview() {
     CallaiassistantTheme {
         IncomingCallScreen(
-            callerName = "홍길동",
+            callerName = "보라매 병원",
             onAccept = {},
             onReject = {}
         )
