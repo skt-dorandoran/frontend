@@ -86,22 +86,33 @@ fun DialerScreen(
 
     // 화면 크기에 따라 키패드/폰트/패딩 크기 조정
     val isSmallScreen = screenWidthDp <= 400 || screenHeightDp <= 720
-    val dialPadWidth = if (isSmallScreen) 210.dp else 271.dp
-    val dialPadButtonHeight = if (isSmallScreen) 48.dp else 66.dp
-    val dialPadButtonFontSize = if (isSmallScreen) 22.sp else 32.sp
-    val dialPadHangulFontSize = if (isSmallScreen) 10.sp else 12.sp
-    val dialPadLatinFontSize = if (isSmallScreen) 9.sp else 11.sp
-    val dialPadRowSpacing = if (isSmallScreen) 10.dp else 19.dp
+    val dialPadWidth = if (isSmallScreen) 236.dp else 286.dp
+    val dialPadButtonHeight = if (isSmallScreen) 62.dp else 80.dp
+    val dialPadButtonFontSize = if (isSmallScreen) 28.sp else 36.sp
+    val dialPadHangulFontSize = if (isSmallScreen) 11.sp else 13.sp
+    val dialPadLatinFontSize = if (isSmallScreen) 10.sp else 12.sp
+    val dialPadRowSpacing = if (isSmallScreen) 12.dp else 20.dp
     val phoneNumberFontSize = if (isSmallScreen) 20.sp else 28.sp
     val phoneNumberHeight = if (isSmallScreen) 32.dp else 44.dp
     val topPadding = if (isSmallScreen) 16.dp else 40.dp
     val bottomPadding = if (isSmallScreen) 12.dp else 24.dp
     val keypadBottomSpacing = if (isSmallScreen) 10.dp else 24.dp
-    val callButtonSize = if (isSmallScreen) 54.dp else 73.dp
-    val callIconSize = if (isSmallScreen) 22.dp else 32.dp
+    val callButtonSize = if (isSmallScreen) 60.dp else 82.dp
+    val callIconSize = if (isSmallScreen) 26.dp else 36.dp
     val backspaceSize = if (isSmallScreen) 48.dp else 72.dp
-    val headerWidth = if (isSmallScreen) 180.dp else 250.dp
-    val headerFontSize = if (isSmallScreen) 22.sp else 30.sp
+    val columnEdgeOffset = if (isSmallScreen) 21.dp else 25.dp
+    val headerWidth = dialPadWidth + (columnEdgeOffset * 2)
+    val headerHeight = if (isSmallScreen) 40.dp else 52.dp
+    val headerFontSize = if (isSmallScreen) 30.sp else 38.sp
+    val settingsButtonSize = if (isSmallScreen) 40.dp else 46.dp
+    val settingsIconSize = if (isSmallScreen) 28.dp else 34.dp
+    val headerOffsetY = 10.dp
+    val firstColumnOffsetX = -columnEdgeOffset
+    val thirdColumnOffsetX = columnEdgeOffset
+    val dialPadLiftY = (-22).dp
+    val callButtonLiftY = (-12).dp
+    val keypadToCallSpacing = if (isSmallScreen) 13.dp else 17.dp
+    val callToControlSpacing = (keypadToCallSpacing * 2) - 2.dp
 
     Column(
         modifier = modifier
@@ -110,11 +121,12 @@ fun DialerScreen(
             .padding(top = topPadding, bottom = bottomPadding),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 1. 헤더 (고정) - 피그마 치수인 289dp로 복구 완료
+        // 1. 헤더 (고정) - 피그마 치수인 289dp로
         Row(
             modifier = Modifier
                 .width(headerWidth)
-                .height(if (isSmallScreen) 32.dp else 43.dp),
+                .offset(y = headerOffsetY)
+                .height(headerHeight),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -130,16 +142,17 @@ fun DialerScreen(
             // IconButton의 기본 패딩이 레이아웃을 왜곡하는 것을 막기 위해 Box로 교체
             Box(
                 modifier = Modifier
-                    .size(34.dp)
+                    .width(settingsButtonSize)
+                    .height(settingsButtonSize)
                     .clip(CircleShape)
                     .clickable { onOpenSettings() },
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.CenterEnd
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.setting),
                     contentDescription = "설정",
-                    tint = Color.Unspecified,
-                    modifier = Modifier.size(24.dp)
+                    tint = Color(0xFF323683),
+                    modifier = Modifier.size(settingsIconSize)
                 )
             }
         }
@@ -225,6 +238,7 @@ fun DialerScreen(
         Column(
             modifier = Modifier
                 .width(dialPadWidth)
+                .offset(y = dialPadLiftY)
                 .wrapContentHeight(),
             verticalArrangement = Arrangement.spacedBy(dialPadRowSpacing),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -241,14 +255,21 @@ fun DialerScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    row.forEach { key ->
+                    row.forEachIndexed { index, key ->
                         DialPadButton(
                             digit = key.digit,
                             hangul = key.hangul,
                             latin = key.latin,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(dialPadButtonHeight),
+                                .offset(
+                                    x = when (index) {
+                                        0 -> firstColumnOffsetX
+                                        2 -> thirdColumnOffsetX
+                                        else -> 0.dp
+                                    }
+                                )
+                                .heightIn(min = dialPadButtonHeight),
                             digitFontSize = dialPadButtonFontSize,
                             hangulFontSize = dialPadHangulFontSize,
                             latinFontSize = dialPadLatinFontSize,
@@ -268,15 +289,17 @@ fun DialerScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(if (isSmallScreen) 8.dp else 18.dp))
+        Spacer(modifier = Modifier.height(keypadToCallSpacing))
 
         // 5. 하단 영역 (통화 버튼 + 토글 바)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+            verticalArrangement = Arrangement.spacedBy(callToControlSpacing)
         ) {
             Row(
-                modifier = Modifier.width(dialPadWidth),
+                modifier = Modifier
+                    .width(dialPadWidth)
+                    .offset(y = callButtonLiftY),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -428,7 +451,6 @@ private fun DialPadButton(
             verticalArrangement = Arrangement.Top
         ) {
             Box(
-                modifier = Modifier.height((digitFontSize.value * 1.2).dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -436,14 +458,13 @@ private fun DialPadButton(
                     style = TextStyle(
                         fontSize = digitFontSize,
                         fontFamily = pretendard,
-                        fontWeight = FontWeight(500),
+                        fontWeight = FontWeight.Bold,
                         color = digitColor,
                         textAlign = TextAlign.Center
                     )
                 )
             }
             Column(
-                modifier = Modifier.height((hangulFontSize.value + latinFontSize.value + 6).dp),
                 verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.Top),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -457,8 +478,7 @@ private fun DialPadButton(
                             color = digitColor,
                             textAlign = TextAlign.Center,
                             letterSpacing = 1.2.sp
-                        ),
-                        modifier = Modifier.height((hangulFontSize.value + 2).dp)
+                        )
                     )
                 }
                 Text(
@@ -469,8 +489,7 @@ private fun DialPadButton(
                         fontWeight = FontWeight(500),
                         color = if (latin.isBlank()) Color.Transparent else digitColor,
                         textAlign = TextAlign.Center
-                    ),
-                    modifier = Modifier.height((latinFontSize.value + 2).dp)
+                    )
                 )
             }
         }
