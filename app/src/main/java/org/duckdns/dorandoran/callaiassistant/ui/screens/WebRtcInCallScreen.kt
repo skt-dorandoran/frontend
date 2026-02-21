@@ -73,6 +73,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.duckdns.dorandoran.callaiassistant.tts.TtsManager
 import org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager
+import org.duckdns.dorandoran.callaiassistant.stt.RemoteSttApi
+import org.duckdns.dorandoran.callaiassistant.stt.TempWavFileFactory
 import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
 import org.duckdns.dorandoran.callaiassistant.ui.components.RemoteVoiceWaveMini
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
@@ -174,6 +176,8 @@ fun WebRtcInCallScreen(
     var isSendingMessage by remember { mutableStateOf(false) }
     var isAiCorrectionSending by remember { mutableStateOf(false) }
     var aiCorrectionOverlayState by remember { mutableStateOf(AiCorrectionOverlayState.RECORDING) }
+    var aiCorrectionProbeWavFile by remember { mutableStateOf<File?>(null) }
+    var isAiCorrectionTranscribing by remember { mutableStateOf(false) }
     val textModeLastMyBubble by viewModel.textModeLastMyBubble.collectAsState()
     val textModeLastRemoteBubble by viewModel.textModeLastRemoteBubble.collectAsState()
     val aiCorrectionDraftText by viewModel.aiCorrectionDraftText.collectAsState()
@@ -230,6 +234,27 @@ fun WebRtcInCallScreen(
         isSpeakerphoneOn = audioManager.isSpeakerphoneOn
     }
 
+    fun clearAiCorrectionProbeWav() {
+        aiCorrectionProbeWavFile?.let { file ->
+            if (file.exists() && !file.delete()) {
+                file.deleteOnExit()
+            }
+        }
+        aiCorrectionProbeWavFile = null
+    }
+
+    fun prepareAiCorrectionProbeWav() {
+        clearAiCorrectionProbeWav()
+        aiCorrectionProbeWavFile = try {
+            TempWavFileFactory.createToneWav(context.cacheDir).also {
+                Log.d("WebRtcInCallScreen", "AI correction probe wav prepared: ${it.absolutePath}")
+            }
+        } catch (e: Exception) {
+            Log.w("WebRtcInCallScreen", "AI correction probe wav prepare failed: ${e.message}")
+            null
+        }
+    }
+
     fun openSpeakOverlay() {
         isDirectSpeakOverlayOpen = true
         if (isAiCorrectionMode) {
@@ -238,6 +263,7 @@ fun WebRtcInCallScreen(
             viewModel.clearAiCorrectionDraft()
             viewModel.startAiCorrectionRecording()
             onLocalAudioTransmissionToggle(false)
+            prepareAiCorrectionProbeWav()
         }
     }
 
@@ -262,6 +288,7 @@ fun WebRtcInCallScreen(
         viewModel.clearAiCorrectionDraft()
         viewModel.startAiCorrectionRecording()
         onLocalAudioTransmissionToggle(false)
+        prepareAiCorrectionProbeWav()
     }
 
     fun speakTextWithTts(
@@ -454,6 +481,8 @@ fun WebRtcInCallScreen(
             viewModel.stopAiCorrectionRecording()
             aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
             isAiCorrectionSending = false
+            isAiCorrectionTranscribing = false
+            clearAiCorrectionProbeWav()
             if (isDirectSpeakOverlayOpen) {
                 isDirectSpeakOverlayOpen = false
             }
@@ -464,6 +493,7 @@ fun WebRtcInCallScreen(
     DisposableEffect(Unit) {
         onDispose {
             viewModel.stopAiCorrectionRecording()
+            clearAiCorrectionProbeWav()
             onLocalAudioTransmissionToggle(true)
         }
     }
@@ -656,19 +686,37 @@ fun WebRtcInCallScreen(
                                             Button(
                                                 onClick = {
                                                     val rawText = aiCorrectionDraftText
-                                                    if (rawText.isBlank() || isAiCorrectionProcessing) return@Button
+                                                    if (rawText.isBlank() || isAiCorrectionProcessing || isAiCorrectionTranscribing) return@Button
                                                     viewModel.stopAiCorrectionRecording()
-                                                    viewModel.requestAiCorrection(
-                                                        rawText = rawText,
-                                                        phoneNumber = settingPhoneNumber
-                                                    ) { _ ->
-                                                        aiCorrectionOverlayState = AiCorrectionOverlayState.READY_TO_SEND
+                                                    isAiCorrectionTranscribing = true
+                                                    coroutineScope.launch {
+                                                        val probeText = try {
+                                                            val probeFile = aiCorrectionProbeWavFile
+                                                            if (probeFile != null && probeFile.exists()) {
+                                                                RemoteSttApi.recognize(probeFile).orEmpty()
+                                                            } else {
+                                                                ""
+                                                            }
+                                                        } catch (e: Exception) {
+                                                            Log.w("WebRtcInCallScreen", "Whisper transcribe failed: ${e.message}")
+                                                            ""
+                                                        } finally {
+                                                            clearAiCorrectionProbeWav()
+                                                        }
+                                                        val textForCorrection = probeText.trim().ifBlank { rawText.trim() }
+                                                        viewModel.requestAiCorrection(
+                                                            rawText = textForCorrection,
+                                                            phoneNumber = settingPhoneNumber
+                                                        ) { _ ->
+                                                            isAiCorrectionTranscribing = false
+                                                            aiCorrectionOverlayState = AiCorrectionOverlayState.READY_TO_SEND
+                                                        }
                                                     }
                                                 },
                                                 modifier = Modifier.fillMaxWidth(),
                                                 shape = RoundedCornerShape(12.dp),
                                                 colors = ButtonDefaults.buttonColors(
-                                                    containerColor = if (isAiCorrectionProcessing) {
+                                                    containerColor = if (isAiCorrectionProcessing || isAiCorrectionTranscribing) {
                                                         MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
                                                     } else {
                                                         Color(0xFF7E57C2)
@@ -677,9 +725,15 @@ fun WebRtcInCallScreen(
                                                     disabledContainerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f),
                                                     disabledContentColor = Color.White
                                                 ),
-                                                enabled = aiCorrectionDraftText.isNotBlank() && !isAiCorrectionProcessing
+                                                enabled = aiCorrectionDraftText.isNotBlank() && !isAiCorrectionProcessing && !isAiCorrectionTranscribing
                                             ) {
-                                                Text(if (isAiCorrectionProcessing) "AI 보정 중..." else "보정 시작")
+                                                Text(
+                                                    when {
+                                                        isAiCorrectionTranscribing -> "음성 분석 중..."
+                                                        isAiCorrectionProcessing -> "AI 보정 중..."
+                                                        else -> "보정 시작"
+                                                    }
+                                                )
                                             }
                                         }
                                         AiCorrectionOverlayState.READY_TO_SEND -> {
@@ -692,6 +746,8 @@ fun WebRtcInCallScreen(
                                                         onLocalAudioTransmissionToggle(false)
                                                         viewModel.clearAiCorrectionDraft()
                                                         viewModel.startAiCorrectionRecording()
+                                                        isAiCorrectionTranscribing = false
+                                                        prepareAiCorrectionProbeWav()
                                                         aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
                                                     },
                                                     modifier = Modifier.weight(1f),
@@ -732,6 +788,8 @@ fun WebRtcInCallScreen(
                                                     onLocalAudioTransmissionToggle(false)
                                                     viewModel.clearAiCorrectionDraft()
                                                     viewModel.startAiCorrectionRecording()
+                                                    isAiCorrectionTranscribing = false
+                                                    prepareAiCorrectionProbeWav()
                                                     aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
                                                 },
                                                 modifier = Modifier.fillMaxWidth(),
