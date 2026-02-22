@@ -440,7 +440,14 @@ private fun PhoneAppContent(
     var webrtcPhoneNumber by remember { mutableStateOf("") }
     var bannerMessage by remember { mutableStateOf<String?>(null) }
     var bannerLocked by remember { mutableStateOf(false) }
-    var lastCalledPhoneNumber by remember { mutableStateOf<String?>(null) }
+    val prefs = remember { activity.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
+    var lastCalledPhoneNumber by remember {
+        mutableStateOf(
+            prefs.getString("last_called_phone_number", null)
+                ?.filter { it.isDigit() }
+                ?.ifBlank { null }
+        )
+    }
 
     val callSignalingManager = remember { (activity.applicationContext as CallApp).callSignalingManager }
     val webRtcManager = remember { WebRtcManager(activity.applicationContext, callSignalingManager) }
@@ -482,8 +489,15 @@ private fun PhoneAppContent(
         autoCallConsumed = false
     }
 
+    fun persistLastCalledNumber(number: String) {
+        val normalized = number.filter { it.isDigit() }
+        if (normalized.isBlank()) return
+        lastCalledPhoneNumber = normalized
+        prefs.edit().putString("last_called_phone_number", normalized).apply()
+    }
+
     fun startOutgoingCall(number: String) {
-        lastCalledPhoneNumber = number
+        persistLastCalledNumber(number)
         webrtcPhoneNumber = number.ifBlank { "상대방" }
         coroutineScope.launch {
             if (!callSignalingManager.isListening.value) {
