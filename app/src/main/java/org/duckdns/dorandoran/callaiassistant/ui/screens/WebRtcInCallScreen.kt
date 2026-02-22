@@ -509,6 +509,11 @@ fun WebRtcInCallScreen(
         callScreenState = CallScreenState.MODE_SELECT
     }
 
+    BackHandler(enabled = callScreenState == CallScreenState.MODE_SELECT && selectedMode == CallMode.TEXT) {
+        selectedMode = CallMode.DIRECT
+        navController?.popBackStack()
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -1496,4 +1501,3 @@ fun WebRtcInCallScreenInCallPreview() {
         )
     }
 }
-

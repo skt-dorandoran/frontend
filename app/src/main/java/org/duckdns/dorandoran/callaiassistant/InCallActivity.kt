@@ -41,6 +41,7 @@ import org.duckdns.dorandoran.callaiassistant.webrtc.CallAudioManager
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
+import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState
 
 class InCallActivity : ComponentActivity() {
     companion object {
@@ -115,10 +116,19 @@ class InCallActivity : ComponentActivity() {
                 var webrtcPhoneNumber by remember { mutableStateOf("") }
                 val incomingCallState = callSignalingManager?.incomingCall
                 val incomingCall by incomingCallState?.collectAsState() ?: remember { mutableStateOf(null) }
+                val webRtcConnectionState by (webRtcManager?.connectionState?.collectAsState()
+                    ?: remember { mutableStateOf(WebRtcConnectionState.DISCONNECTED) })
 
                 LaunchedEffect(incomingCall) {
                     if (incomingCall != null) {
                         webrtcPhoneNumber = incomingCall!!.callerNumber
+                    }
+                }
+
+                // 앱 복귀/재생성 시에도 WebRTC 연결 상태를 기준으로 통화 화면을 복원한다.
+                LaunchedEffect(webRtcConnectionState) {
+                    if (webRtcConnectionState != WebRtcConnectionState.DISCONNECTED && !isAccepted) {
+                        isAccepted = true
                     }
                 }
                 
@@ -141,8 +151,11 @@ class InCallActivity : ComponentActivity() {
                 }
 
                 // 원격에서 hangup을 받아 incomingCall이 null이 된 경우 액티비티 종료
-                LaunchedEffect(incomingCall, isAccepting, isAccepted) {
-                    if (incomingCall == null && !isAccepted) {
+                LaunchedEffect(incomingCall, isAccepting, isAccepted, webRtcConnectionState) {
+                    if (incomingCall == null &&
+                        !isAccepted &&
+                        webRtcConnectionState == WebRtcConnectionState.DISCONNECTED
+                    ) {
                         if (isAccepting) {
                             delay(1500)
                             val hasCall = InCallManager.getPrimaryCall() != null
@@ -158,7 +171,10 @@ class InCallActivity : ComponentActivity() {
                     }
                 }
 
-                if (incomingCall != null && !isAccepted) {
+                if (incomingCall != null &&
+                    !isAccepted &&
+                    webRtcConnectionState == WebRtcConnectionState.DISCONNECTED
+                ) {
                     val info = incomingCall!!
                     org.duckdns.dorandoran.callaiassistant.ui.screens.IncomingCallScreen(
                         callerName = formatDisplayNumber(info.callerNumber),
@@ -182,7 +198,7 @@ class InCallActivity : ComponentActivity() {
                             finish()
                         }
                     )
-                } else if (isAccepted) {
+                } else if (isAccepted || webRtcConnectionState != WebRtcConnectionState.DISCONNECTED) {
                     WebRtcCallContent(
                         phoneNumber = formatDisplayNumber(webrtcPhoneNumber),
                         webRtcManager = webRtcManager,
