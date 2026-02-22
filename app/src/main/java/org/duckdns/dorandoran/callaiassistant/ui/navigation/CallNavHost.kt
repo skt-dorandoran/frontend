@@ -18,6 +18,7 @@ import org.duckdns.dorandoran.callaiassistant.ui.screens.WebRtcInCallScreen
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
+import org.duckdns.dorandoran.callaiassistant.util.formatPhoneNumberByRule
 
 object CallRoutes {
     const val INTRO = "call_intro"
@@ -118,15 +119,5 @@ fun CallNavHost(
 }
 
 private fun formatPhoneNumber(phoneNumber: String): String {
-    return when {
-        phoneNumber.startsWith("02") && phoneNumber.length == 9 ->
-            "${phoneNumber.substring(0, 2)}-${phoneNumber.substring(2, 5)}-${phoneNumber.substring(5)}"
-        phoneNumber.startsWith("02") && phoneNumber.length == 10 ->
-            "${phoneNumber.substring(0, 2)}-${phoneNumber.substring(2, 6)}-${phoneNumber.substring(6)}"
-        phoneNumber.length == 10 ->
-            "${phoneNumber.substring(0, 3)}-${phoneNumber.substring(3, 6)}-${phoneNumber.substring(6)}"
-        phoneNumber.length == 11 ->
-            "${phoneNumber.substring(0, 3)}-${phoneNumber.substring(3, 7)}-${phoneNumber.substring(7)}"
-        else -> phoneNumber
-    }
+    return formatPhoneNumberByRule(phoneNumber)
 }

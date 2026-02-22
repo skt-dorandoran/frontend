@@ -91,6 +91,7 @@ import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin
 import org.duckdns.dorandoran.callaiassistant.util.ContactLookupUtil
+import org.duckdns.dorandoran.callaiassistant.util.formatPhoneNumberByRule
 import org.duckdns.dorandoran.callaiassistant.util.rememberContactsVersion
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.duckdns.dorandoran.callaiassistant.R
@@ -1559,13 +1560,7 @@ private fun playDtmfTone(toneGenerator: ToneGenerator, key: Char) {
 }
 
 private fun formatPhoneNumber(number: String): String {
-    val digits = number.filter { it.isDigit() }
-    return when {
-        digits.isEmpty() -> "상대방"
-        digits.length <= 3 -> digits
-        digits.length <= 7 -> "${digits.take(3)}-${digits.drop(3)}"
-        else -> "${digits.take(3)}-${digits.drop(3).take(4)}-${digits.drop(7)}"
-    }
+    return formatPhoneNumberByRule(number)
 }
 
 private fun formatDuration(seconds: Long): String {

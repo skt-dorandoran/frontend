@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import org.duckdns.dorandoran.callaiassistant.SettingsStore
+import org.duckdns.dorandoran.callaiassistant.util.formatPhoneNumberByRule
 
 enum class CallState {
     DIALING,    // 발신 연결 중
@@ -292,12 +293,7 @@ fun InCallScreen(
 }
 
 private fun formatPhoneNumber(number: String): String {
-    val digits = number.filter { it.isDigit() }
-    return when {
-        digits.length <= 3 -> digits
-        digits.length <= 7 -> "${digits.take(3)}-${digits.drop(3)}"
-        else -> "${digits.take(3)}-${digits.drop(3).take(4)}-${digits.drop(7)}"
-    }
+    return formatPhoneNumberByRule(number)
 }
 
 private fun formatDuration(seconds: Long): String {

@@ -40,6 +40,7 @@ import android.media.ToneGenerator
 import org.duckdns.dorandoran.callaiassistant.R
 import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository
 import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository.ContactMatch
+import org.duckdns.dorandoran.callaiassistant.util.formatPhoneNumberByRule
 import org.duckdns.dorandoran.callaiassistant.util.rememberContactsVersion
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -534,13 +535,7 @@ private fun CallButton(onClick: () -> Unit) {
 }
 
 private fun formatPhoneNumber(number: String): String {
-    if (number.any { !it.isDigit() }) return number
-    val digits = number.filter { it.isDigit() }
-    return when {
-        digits.length <= 3 -> digits
-        digits.length <= 7 -> "${digits.take(3)}-${digits.drop(3)}"
-        else -> "${digits.take(3)}-${digits.drop(3).take(4)}-${digits.drop(7)}"
-    }
+    return formatPhoneNumberByRule(number)
 }
 
 private fun buildHighlightedNumber(text: String, queryDigits: String): AnnotatedString {

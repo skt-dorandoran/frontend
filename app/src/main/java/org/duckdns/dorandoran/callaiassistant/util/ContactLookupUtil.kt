@@ -55,19 +55,7 @@ object ContactLookupUtil {
     }
 
     private fun formatPhoneNumber(raw: String): String {
-        val digits = raw.filter { it.isDigit() }
-        if (digits.isBlank()) return raw
-        return when {
-            digits.startsWith("02") && digits.length == 9 ->
-                "${digits.take(2)}-${digits.drop(2).take(3)}-${digits.drop(5)}"
-            digits.startsWith("02") && digits.length == 10 ->
-                "${digits.take(2)}-${digits.drop(2).take(4)}-${digits.drop(6)}"
-            digits.length == 10 ->
-                "${digits.take(3)}-${digits.drop(3).take(3)}-${digits.drop(6)}"
-            digits.length == 11 ->
-                "${digits.take(3)}-${digits.drop(3).take(4)}-${digits.drop(7)}"
-            else -> raw
-        }
+        return formatPhoneNumberByRule(raw)
     }
 }
 
