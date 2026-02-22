@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
@@ -863,15 +864,15 @@ fun WebRtcInCallScreen(
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Lightbulb,
+                                            painter = painterResource(id = R.drawable.ic_idea),
                                             contentDescription = "AI 추천",
-                                            tint = Color(0xFFFFC107),
+                                            tint = Color.Unspecified,
                                             modifier = Modifier.size(18.dp)
                                         )
                                         Text(
                                             text = "AI 추천 답변",
                                             style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.onBackground
+                                            color = Color(0xFF727272)
                                         )
                                     }
                                     IconButton(
@@ -890,7 +891,7 @@ fun WebRtcInCallScreen(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(12.dp))
+                                Spacer(modifier = Modifier.height(3.dp))
 
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
@@ -1041,6 +1042,7 @@ fun WebRtcInCallScreen(
                                         .weight(1f)
                                         .height(46.dp),
                                     shape = RoundedCornerShape(18.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = if (selectedMode == CallMode.DIRECT) primaryBlue else Color.White,
                                         contentColor = if (selectedMode == CallMode.DIRECT) Color.White else Color.Black
@@ -1051,7 +1053,12 @@ fun WebRtcInCallScreen(
                                     ),
                                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                                 ) {
-                                    Text("직접 말하기")
+                                    Text(
+                                        text = "직접 말하기",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
 
                                 Button(
@@ -1062,6 +1069,7 @@ fun WebRtcInCallScreen(
                                         .weight(1f)
                                         .height(46.dp),
                                     shape = RoundedCornerShape(18.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = if (selectedMode == CallMode.AI_CORRECTION) primaryBlue else Color.White,
                                         contentColor = if (selectedMode == CallMode.AI_CORRECTION) Color.White else Color.Black
@@ -1072,7 +1080,12 @@ fun WebRtcInCallScreen(
                                     ),
                                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                                 ) {
-                                    Text("AI 보정")
+                                    Text(
+                                        text = "AI 보정",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
 
                                 Button(
@@ -1084,6 +1097,7 @@ fun WebRtcInCallScreen(
                                         .weight(1f)
                                         .height(46.dp),
                                     shape = RoundedCornerShape(18.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = if (selectedMode == CallMode.TEXT) primaryBlue else Color.White,
                                         contentColor = if (selectedMode == CallMode.TEXT) Color.White else Color.Black
@@ -1094,7 +1108,12 @@ fun WebRtcInCallScreen(
                                     ),
                                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                                 ) {
-                                    Text("텍스트 통화")
+                                    Text(
+                                        text = "텍스트 통화",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
                             }
                         }
