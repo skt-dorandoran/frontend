@@ -709,7 +709,8 @@ fun WebRtcInCallScreen(
                                         Text(
                                             text = aiCorrectionDraftText.ifBlank { "말씀하시면 문장이 여기에 표시됩니다" },
                                             style = MaterialTheme.typography.bodyLarge.copy(
-                                                fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale * 1.2f
+                                                fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale * 1.4f,
+                                                fontWeight = FontWeight.SemiBold
                                             ),
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
