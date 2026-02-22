@@ -92,6 +92,7 @@ import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import androidx.compose.ui.text.font.Font
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
+import java.io.File
 
 val Pretendard = FontFamily(
     Font(R.font.pretendard_bold, FontWeight.Bold)
@@ -128,17 +129,18 @@ class MainActivity : ComponentActivity() {
         checkPermissions()
         val allGranted = permissionsState
         savePermissionsRequested()
+        onboardingCompleted = true
+        saveOnboardingCompleted()
         onboardingPermissionPending = false
         if (!allGranted) {
             showMissingPermissionsWarning = true
             saveMissingPermissionsWarning(true)
+            showAppWithoutDefaultDialer = false
             return@registerForActivityResult
         }
         showMissingPermissionsWarning = false
         saveMissingPermissionsWarning(false)
         showAppWithoutDefaultDialer = true
-        onboardingCompleted = true
-        saveOnboardingCompleted()
         initializeMyPhoneNumberDefault()
     }
 
@@ -158,23 +160,27 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
+        ensureFirstLaunchOnboardingGate()
         checkPermissions()
         hasRequestedPermissions = loadPermissionsRequested()
         onboardingCompleted = loadOnboardingCompleted()
         showMissingPermissionsWarning = loadMissingPermissionsWarning()
-        if (permissionsState) {
+        if (!hasRequestedPermissions) {
+            // 최초 실행에서는 반드시 온보딩을 먼저 거치도록 강제한다.
+            onboardingCompleted = false
+            showMissingPermissionsWarning = false
+            saveMissingPermissionsWarning(false)
+            showAppWithoutDefaultDialer = false
+        } else if (permissionsState) {
             showMissingPermissionsWarning = false
             saveMissingPermissionsWarning(false)
             showAppWithoutDefaultDialer = true
             initializeMyPhoneNumberDefault()
-        } else if (onboardingCompleted) {
+        } else if (onboardingCompleted && hasRequestedPermissions) {
             showMissingPermissionsWarning = true
             saveMissingPermissionsWarning(true)
             showAppWithoutDefaultDialer = false
         }
-
-        // 앱 시작 시 CallListeningService 시작 (백그라운드 청취용)
-        startCallListeningService()
 
         val initialPhoneNumber = intent?.data?.takeIf { it.scheme == "tel" }
             ?.schemeSpecificPart?.orEmpty()?.filter { c -> c.isDigit() || c == '+' } ?: ""
@@ -186,7 +192,7 @@ class MainActivity : ComponentActivity() {
             CallaiassistantTheme {
                 when {
                     // 1. 권한 거부 시 경고 화면
-                    showMissingPermissionsWarning -> MissingPermissionsWarningScreen(
+                    showMissingPermissionsWarning && onboardingCompleted && hasRequestedPermissions -> MissingPermissionsWarningScreen(
                         onOpenSettings = { openAppSettings() },
                         onCloseApp = { finish() }
                     )
@@ -244,6 +250,22 @@ class MainActivity : ComponentActivity() {
     private fun loadOnboardingCompleted(): Boolean {
         return getSharedPreferences("app_prefs", MODE_PRIVATE)
             .getBoolean("onboarding_completed", false)
+    }
+
+    private fun ensureFirstLaunchOnboardingGate() {
+        val marker = File(noBackupFilesDir, "onboarding_initialized_v1")
+        if (marker.exists()) return
+
+        getSharedPreferences("app_prefs", MODE_PRIVATE)
+            .edit()
+            .putBoolean("has_requested_permissions", false)
+            .putBoolean("onboarding_completed", false)
+            .putBoolean("show_missing_permissions_warning", false)
+            .apply()
+
+        runCatching {
+            marker.writeText("1")
+        }
     }
 
     private fun saveOnboardingCompleted() {
@@ -312,10 +334,13 @@ class MainActivity : ComponentActivity() {
             }
             initializeMyPhoneNumberDefault()
         }
-        if (!permissionsState && onboardingCompleted) {
+        if (!permissionsState && onboardingCompleted && hasRequestedPermissions) {
             showMissingPermissionsWarning = true
             saveMissingPermissionsWarning(true)
             showAppWithoutDefaultDialer = false
+        } else if (!permissionsState && !hasRequestedPermissions) {
+            showMissingPermissionsWarning = false
+            saveMissingPermissionsWarning(false)
         }
     }
 

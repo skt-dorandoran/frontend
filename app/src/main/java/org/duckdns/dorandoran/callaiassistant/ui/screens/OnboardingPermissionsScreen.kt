@@ -243,7 +243,7 @@ fun OnboardingPermissionsScreen(
         Button(
             onClick = onAgreeComplete,
             modifier = Modifier.fillMaxWidth().height(56.dp),
-            enabled = allChecked,
+            enabled = true,
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = FigmaStyle.Blue,
