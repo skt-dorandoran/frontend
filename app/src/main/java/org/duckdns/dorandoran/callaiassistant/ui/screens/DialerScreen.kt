@@ -20,6 +20,9 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -37,6 +40,7 @@ import android.media.ToneGenerator
 import org.duckdns.dorandoran.callaiassistant.R
 import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository
 import org.duckdns.dorandoran.callaiassistant.data.CallLogRepository.ContactMatch
+import org.duckdns.dorandoran.callaiassistant.util.rememberContactsVersion
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -52,6 +56,9 @@ fun DialerScreen(
     var phoneNumber by remember(initialPhoneNumber) { mutableStateOf(initialPhoneNumber) }
     var showLastCalledNumber by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val contactsVersion = rememberContactsVersion(context)
+    var resumeTick by remember { mutableLongStateOf(0L) }
 
     val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_DTMF, 80) }
     val repository = remember { CallLogRepository(context) }
@@ -71,7 +78,19 @@ fun DialerScreen(
         onDispose { toneGenerator.release() }
     }
 
-    LaunchedEffect(phoneNumber, showLastCalledNumber) {
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                resumeTick = System.currentTimeMillis()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(phoneNumber, showLastCalledNumber, contactsVersion, resumeTick) {
         if (showLastCalledNumber || phoneNumber.isBlank()) {
             contactMatches = emptyList()
             contactTotalCount = 0

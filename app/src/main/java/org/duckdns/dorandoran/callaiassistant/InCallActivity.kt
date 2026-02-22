@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.produceState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import android.content.Intent
 import androidx.compose.ui.Modifier
@@ -42,6 +43,8 @@ import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState
+import org.duckdns.dorandoran.callaiassistant.util.ContactLookupUtil
+import org.duckdns.dorandoran.callaiassistant.util.rememberContactsVersion
 
 class InCallActivity : ComponentActivity() {
     companion object {
@@ -106,6 +109,8 @@ class InCallActivity : ComponentActivity() {
         setContent {
             CallaiassistantTheme {
                 val callSignalingManager = (application as? CallApp)?.callSignalingManager
+                val localContext = LocalContext.current
+                val contactsVersion = rememberContactsVersion(localContext)
                 val callAudioManager = remember { CallAudioManager(applicationContext) }
                 val webRtcManager = remember {
                     callSignalingManager?.let { WebRtcManager(applicationContext, it) }
@@ -116,6 +121,13 @@ class InCallActivity : ComponentActivity() {
                 var webrtcPhoneNumber by remember { mutableStateOf("") }
                 val incomingCallState = callSignalingManager?.incomingCall
                 val incomingCall by incomingCallState?.collectAsState() ?: remember { mutableStateOf(null) }
+                val incomingDisplayInfo by produceState(
+                    initialValue = ContactLookupUtil.DisplayInfo(primary = "상대방", secondary = ""),
+                    key1 = incomingCall?.callerNumber,
+                    key2 = contactsVersion
+                ) {
+                    value = ContactLookupUtil.resolveDisplayInfo(localContext, incomingCall?.callerNumber.orEmpty())
+                }
                 val webRtcConnectionState by (webRtcManager?.connectionState?.collectAsState()
                     ?: remember { mutableStateOf(WebRtcConnectionState.DISCONNECTED) })
 
@@ -177,7 +189,8 @@ class InCallActivity : ComponentActivity() {
                 ) {
                     val info = incomingCall!!
                     org.duckdns.dorandoran.callaiassistant.ui.screens.IncomingCallScreen(
-                        callerName = formatDisplayNumber(info.callerNumber),
+                        callerName = incomingDisplayInfo.primary,
+                        callerNumber = incomingDisplayInfo.secondary,
                         onAccept = {
                             startService(Intent(this@InCallActivity, CallListeningService::class.java).apply {
                                 action = CallListeningService.ACTION_CALL_HANDLED
@@ -200,7 +213,7 @@ class InCallActivity : ComponentActivity() {
                     )
                 } else if (isAccepted || webRtcConnectionState != WebRtcConnectionState.DISCONNECTED) {
                     WebRtcCallContent(
-                        phoneNumber = formatDisplayNumber(webrtcPhoneNumber),
+                        phoneNumber = webrtcPhoneNumber,
                         webRtcManager = webRtcManager,
                         callAudioManager = callAudioManager,
                         onEndCall = {
@@ -407,6 +420,7 @@ private fun formatDisplayNumber(number: String): String {
 @Composable
 private fun InCallContent(onFinish: () -> Unit) {
     val context = LocalContext.current
+    val contactsVersion = rememberContactsVersion(context)
     val voiceId = VoiceCloneStore.getVoiceId(context)
     val isVoiceCloneEnabled = SettingsStore.isVoiceCloneEnabled(context)
     val coroutineScope = rememberCoroutineScope()
@@ -428,7 +442,7 @@ private fun InCallContent(onFinish: () -> Unit) {
 
     val number = InCallManager.getCallNumber(call)
 
-    LaunchedEffect(number) {
+    LaunchedEffect(number, contactsVersion) {
         contactName = repository.getContactName(number)
     }
 

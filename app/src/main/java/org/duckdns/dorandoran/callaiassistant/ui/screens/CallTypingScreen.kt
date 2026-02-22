@@ -57,6 +57,8 @@ import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
+import org.duckdns.dorandoran.callaiassistant.util.ContactLookupUtil
+import org.duckdns.dorandoran.callaiassistant.util.rememberContactsVersion
 import android.util.Log
 import kotlinx.coroutines.launch
 
@@ -85,6 +87,7 @@ fun CallTypingScreen(
     val primaryBlue = Color(0xFF2F5BFF)
     val typingBodyBackground = if (isDark) Color(0xFF111316) else Color(0xFFF8FBFF)
     val context = LocalContext.current
+    val contactsVersion = rememberContactsVersion(context)
     val textScale = SettingsStore.getCallTextScale(context)
     val audioManager = remember {
         context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
@@ -110,6 +113,13 @@ fun CallTypingScreen(
     val isRefreshingAiSuggestions by viewModel.isRefreshingAiSuggestions.collectAsState()
     val remoteAudioLevel by webRtcManager.remoteAudioLevel.collectAsState()
     val sharedSuggestions = listOf(aiSuggestionTop1, aiSuggestionTop2)
+    val typingHeaderDisplayInfo by produceState(
+        initialValue = ContactLookupUtil.DisplayInfo(primary = callInfo.phoneNumber.ifBlank { "상대방" }, secondary = ""),
+        key1 = callInfo.phoneNumber,
+        key2 = contactsVersion
+    ) {
+        value = ContactLookupUtil.resolveDisplayInfo(context, callInfo.phoneNumber)
+    }
 
     val listState = rememberLazyListState()
     fun sendMessageNow(rawText: String) {
@@ -237,7 +247,7 @@ fun CallTypingScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = callInfo.phoneNumber,
+                        text = typingHeaderDisplayInfo.primary,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )

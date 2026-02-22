@@ -39,6 +39,7 @@ import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 fun IncomingCallScreen(
     modifier: Modifier = Modifier,
     callerName: String = "상대방",
+    callerNumber: String = "",
     onAccept: () -> Unit,
     onReject: () -> Unit
 ) {
@@ -82,14 +83,16 @@ fun IncomingCallScreen(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(9.dp))
+            if (callerNumber.isNotBlank()) {
+                Spacer(modifier = Modifier.height(9.dp))
 
-            Text(
-                text = "02-1233-2342",
-                color = phoneNumberColor,
-                fontSize = 15.sp,
-                textAlign = TextAlign.Center
-            )
+                Text(
+                    text = formatIncomingDisplay(callerNumber),
+                    color = phoneNumberColor,
+                    fontSize = 15.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
 
         Row(
@@ -195,9 +198,9 @@ fun IncomingCallScreenPreview() {
     CallaiassistantTheme {
         IncomingCallScreen(
             callerName = "보라매 병원",
+            callerNumber = "02-1233-2342",
             onAccept = {},
             onReject = {}
         )
     }
 }
-

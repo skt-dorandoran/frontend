@@ -90,6 +90,8 @@ import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin
+import org.duckdns.dorandoran.callaiassistant.util.ContactLookupUtil
+import org.duckdns.dorandoran.callaiassistant.util.rememberContactsVersion
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.duckdns.dorandoran.callaiassistant.R
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
@@ -207,6 +209,7 @@ fun WebRtcInCallScreen(
     val coroutineScope = rememberCoroutineScope()
     var messageTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
     val context = LocalContext.current
+    val contactsVersion = rememberContactsVersion(context)
     val lifecycleOwner = LocalLifecycleOwner.current
     val audioManager = remember {
         context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
@@ -226,7 +229,17 @@ fun WebRtcInCallScreen(
         else -> "안녕하세요, 원활한 소통을 위해 AI 음성 변환 서비스를 이용중입니다. 제 말이 조금 늦더라도 양해 부탁드립니다."
     }
     val currentSuggestions = listOf(aiSuggestionTop1, aiSuggestionTop2)
-    val displayNumber = if (phoneNumber.isNotBlank()) formatPhoneNumber(phoneNumber) else "상대방"
+    val displayInfo by androidx.compose.runtime.produceState(
+        initialValue = ContactLookupUtil.DisplayInfo(
+            primary = if (phoneNumber.isNotBlank()) formatPhoneNumber(phoneNumber) else "상대방",
+            secondary = ""
+        ),
+        key1 = phoneNumber,
+        key2 = contactsVersion
+    ) {
+        value = ContactLookupUtil.resolveDisplayInfo(context, phoneNumber)
+    }
+    val displayNumber = displayInfo.primary
     val lastRemoteTypedMessageText = textModeLastRemoteBubble.ifBlank { "상대방 대화가 없습니다" }
     val directSpeakPlaceholderText = "직접 말씀하시거나\n위의 추천 답변을 선택하세요"
     val textScale = remember { SettingsStore.getCallTextScale(context) }
