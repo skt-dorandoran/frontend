@@ -181,6 +181,7 @@ fun WebRtcInCallScreen(
     var callScreenState by remember { mutableStateOf(CallScreenState.MODE_SELECT) }
     var isDirectSpeakOverlayOpen by remember { mutableStateOf(false) }
     var isSendingMessage by remember { mutableStateOf(false) }
+    var isTextModeNavigationInProgress by remember { mutableStateOf(false) }
     var isAiCorrectionSending by remember { mutableStateOf(false) }
     var aiCorrectionOverlayState by remember { mutableStateOf(AiCorrectionOverlayState.RECORDING) }
     var aiCorrectionProbeWavFile by remember { mutableStateOf<File?>(null) }
@@ -375,6 +376,11 @@ fun WebRtcInCallScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 syncSpeakerphoneUiState()
+                isTextModeNavigationInProgress = false
+                if (selectedMode == CallMode.TEXT) {
+                    // 텍스트 통화 화면에서 돌아오면 직접 말하기 모드로 복원
+                    selectedMode = CallMode.DIRECT
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -1151,8 +1157,14 @@ fun WebRtcInCallScreen(
 
                                 Button(
                                     onClick = {
+                                        if (isTextModeNavigationInProgress) return@Button
+                                        isTextModeNavigationInProgress = true
                                         selectedMode = CallMode.TEXT
                                         navController?.navigate("call_typing")
+                                            ?: run {
+                                                isTextModeNavigationInProgress = false
+                                                selectedMode = CallMode.DIRECT
+                                            }
                                     },
                                     modifier = Modifier
                                         .weight(1f)
