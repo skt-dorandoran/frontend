@@ -9,16 +9,20 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.ui.res.painterResource
-import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.*
@@ -26,9 +30,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextRange
@@ -202,301 +208,337 @@ fun CallTypingScreen(
         }
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(typingBodyBackground)
     ) {
-        // TopBar (고정)
-        TopAppBar(
-            title = {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 0.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Start
-                ) {
-                    RemoteVoiceWaveMini(
-                        level = remoteAudioLevel,
-                        modifier = Modifier.size(width = 20.dp, height = 18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = callInfo.phoneNumber,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = callInfo.callTime,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            },
-            navigationIcon = {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "뒤로가기"
-                    )
-                }
-            },
-            actions = {
-                IconButton(
-                    onClick = onEndCall,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.error)
-                        .padding(4.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_call_end_solar),
-                        contentDescription = "통화 종료",
-                        tint = MaterialTheme.colorScheme.onError,
-                        modifier = Modifier.fillMaxSize(0.7f)
-                    )
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            )
-        )
-
-        // 메시지 영역 (스크롤 가능)
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .background(typingBodyBackground)
-        ) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                reverseLayout = true
-            ) {
-                // 메시지를 역순으로 표시 (최신 메시지가 맨 아래)
-                items(displayMessages.size) { index ->
-                    val message = displayMessages[displayMessages.size - 1 - index]
+        Column(modifier = Modifier.fillMaxSize()) {
+            // TopBar (고정)
+            TopAppBar(
+                title = {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = if (message.isFromMe) Arrangement.End else Arrangement.Start
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 0.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Start
                     ) {
-                        if (!message.isFromMe) {
-                            RemoteMessageBubble(message = message, textScale = textScale)
-                        } else {
-                            MyMessageBubble(message = message, textScale = textScale)
-                        }
-                    }
-                }
-            }
-        }
-
-        // 입력 블럭 바로 위 고정 AI 추천 답변
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(typingBodyBackground)
-                .padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Lightbulb,
-                    contentDescription = "AI 추천",
-                    tint = Color(0xFFFFC107),
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = if (isSendingAiSuggestion) "AI 추천 답변 전송 중.." else "AI 추천 답변",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                IconButton(
-                    enabled = !isRefreshingAiSuggestions && !isInlineKeypadVisible,
-                    onClick = { viewModel.refreshAiSuggestions() },
-                    modifier = Modifier.size(22.dp)
-                ) {
-                    if (!isRefreshingAiSuggestions) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "추천 새로고침",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp)
+                        RemoteVoiceWaveMini(
+                            level = remoteAudioLevel,
+                            modifier = Modifier.size(width = 20.dp, height = 18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = callInfo.phoneNumber,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = callInfo.callTime,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-            }
-
-            sharedSuggestions.forEach { suggestion ->
-                SuggestionButton(
-                    text = suggestion,
-                    isLoading = isRefreshingAiSuggestions,
-                    controlsEnabled = !isInlineKeypadVisible,
-                    useGradientBorder = false,
-                    modifier = Modifier.fillMaxWidth(0.62f),
-                    onClick = {
-                        if (isRefreshingAiSuggestions || suggestion.isBlank()) return@SuggestionButton
-                        sendMessageNow(suggestion)
+                },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "뒤로가기"
+                        )
                     }
+                },
+                actions = {
+                    IconButton(
+                        onClick = onEndCall,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error)
+                            .padding(4.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_call_end_solar),
+                            contentDescription = "통화 종료",
+                            tint = MaterialTheme.colorScheme.onError,
+                            modifier = Modifier.fillMaxSize(0.7f)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
-            }
-        }
+            )
 
-        // BottomBar (고정)
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .imePadding(),
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 8.dp
-        ) {
+            // 메시지 영역 (스크롤 가능)
             Box(
                 modifier = Modifier
+                    .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .background(typingBodyBackground)
             ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth()
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    reverseLayout = true
                 ) {
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            if (visibleOneClickReplies.isNotEmpty()) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(oneClickScrollState)
-                                        .padding(bottom = 12.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    visibleOneClickReplies.forEach { reply ->
-                                        OutlinedButton(
-                                            enabled = !isInlineKeypadVisible,
-                                            onClick = {
-                                                inputText = TextFieldValue(
-                                                    text = reply,
-                                                    selection = TextRange(reply.length)
-                                                )
-                                            },
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                        ) {
-                                            Text(
-                                                text = reply,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                maxLines = 1
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        if (isInlineKeypadVisible) {
-                            Surface(
-                                modifier = Modifier
-                                    .align(Alignment.TopCenter)
-                                    .fillMaxWidth()
-                                    .zIndex(1f),
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
-                                tonalElevation = 6.dp,
-                                shadowElevation = 8.dp
-                            ) {
-                                TypingModeKeypadContent(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 8.dp),
-                                    onKeyPress = { key ->
-                                        playTypingModeDtmfTone(toneGenerator, key)
-                                    }
-                                )
+                    // 메시지를 역순으로 표시 (최신 메시지가 맨 아래)
+                    items(displayMessages.size) { index ->
+                        val message = displayMessages[displayMessages.size - 1 - index]
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = if (message.isFromMe) Arrangement.End else Arrangement.Start
+                        ) {
+                            if (!message.isFromMe) {
+                                RemoteMessageBubble(message = message, textScale = textScale)
+                            } else {
+                                MyMessageBubble(message = message, textScale = textScale)
                             }
                         }
                     }
+                }
+            }
 
-                    // 입력창 (항상 보이도록 오버레이 밖으로 분리)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+            // 입력 블럭 바로 위 고정 AI 추천 답변
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(typingBodyBackground)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_idea),
+                        contentDescription = "AI 추천",
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isSendingAiSuggestion) "AI 추천 답변 전송 중.." else "AI 추천 답변",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    IconButton(
+                        enabled = !isRefreshingAiSuggestions && !isInlineKeypadVisible,
+                        onClick = { viewModel.refreshAiSuggestions() },
+                        modifier = Modifier.size(22.dp)
                     ) {
-                        IconButton(
-                            onClick = { isInlineKeypadVisible = !isInlineKeypadVisible },
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isInlineKeypadVisible) primaryBlue.copy(alpha = 0.15f)
-                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                                )
-                        ) {
-                            TypingKeypadDotsIcon(
-                                tint = if (isInlineKeypadVisible) primaryBlue else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        OutlinedTextField(
-                            value = inputText,
-                            onValueChange = { inputText = it },
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(end = 8.dp),
-                            placeholder = {
-                                Text(
-                                    text = "AI가 대신 말할 내용을 입력해주세요",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            },
-                            shape = RoundedCornerShape(24.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = primaryBlue,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                            ),
-                            maxLines = 3
-                        )
-                        IconButton(
-                            onClick = {
-                                val textToSend = inputText.text.trim()
-                                if (textToSend.isEmpty()) return@IconButton
-                                inputText = TextFieldValue()
-                                sendMessageNow(textToSend)
-                            },
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
-                                        primaryBlue
-                                    } else {
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                    }
-                                ),
-                            enabled = inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible
-                        ) {
+                        if (!isRefreshingAiSuggestions) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = "전송",
-                                tint = if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
-                                    Color.White
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "추천 새로고침",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp)
                             )
                         }
                     }
                 }
+
+                sharedSuggestions.forEach { suggestion ->
+                    SuggestionButton(
+                        text = suggestion,
+                        isLoading = isRefreshingAiSuggestions,
+                        controlsEnabled = !isInlineKeypadVisible,
+                        useGradientBorder = false,
+                        modifier = Modifier.fillMaxWidth(0.62f),
+                        onClick = {
+                            if (isRefreshingAiSuggestions || suggestion.isBlank()) return@SuggestionButton
+                            sendMessageNow(suggestion)
+                        }
+                    )
+                }
+            }
+
+            // BottomBar (고정)
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding(),
+                color = Color(0xFFFFFFFF),
+                shadowElevation = 0.dp
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (visibleOneClickReplies.isNotEmpty() && !isInlineKeypadVisible) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(oneClickScrollState)
+                                    .padding(bottom = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                visibleOneClickReplies.forEach { reply ->
+                                    OutlinedButton(
+                                        enabled = !isInlineKeypadVisible,
+                                        onClick = {
+                                            inputText = TextFieldValue(
+                                                text = reply,
+                                                selection = TextRange(reply.length)
+                                            )
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = reply,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // 입력창 (항상 보이도록 오버레이 밖으로 분리)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = { isInlineKeypadVisible = !isInlineKeypadVisible },
+                                modifier = Modifier
+                                    .height(52.dp)
+                                    .width(36.dp)
+                                    .align(Alignment.CenterVertically)
+                                    .offset(y = 1.dp)
+                            ) {
+                                TypingKeypadDotsIcon(
+                                    tint = if (isInlineKeypadVisible) primaryBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            val inputEnabled =
+                                inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 8.dp)
+                                    .heightIn(min = 52.dp)
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .border(
+                                        width = 1.dp,
+                                        color = MaterialTheme.colorScheme.outline,
+                                        shape = RoundedCornerShape(24.dp)
+                                    )
+                                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                            ) {
+                                BasicTextField(
+                                    value = inputText,
+                                    onValueChange = { inputText = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = !isInlineKeypadVisible,
+                                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    maxLines = 3,
+                                    decorationBox = { innerTextField ->
+                                        if (inputText.text.isBlank()) {
+                                            Text(
+                                                text = "AI가 대신 말할 내용을 입력해주세요",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    val textToSend = inputText.text.trim()
+                                    if (textToSend.isEmpty()) return@IconButton
+                                    inputText = TextFieldValue()
+                                    sendMessageNow(textToSend)
+                                },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (inputEnabled) primaryBlue else MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                enabled = inputEnabled
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = "전송",
+                                    tint = if (inputEnabled) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = isInlineKeypadVisible,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(start = 0.dp, end = 0.dp, bottom = 76.dp)
+                .zIndex(3f),
+            enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
+        ) {
+            val keypadShape = RoundedCornerShape(
+                topStart = 40.dp,
+                topEnd = 40.dp,
+                bottomStart = 0.dp,
+                bottomEnd = 0.dp
+            )
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(keypadShape)
+                    .drawWithContent {
+                        drawContent()
+                        val shadowHeight = 18.dp.toPx()
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.03f),
+                                    Color.Transparent
+                                ),
+                                startY = 0f,
+                                endY = shadowHeight
+                            )
+                        )
+                    },
+                shape = keypadShape,
+                color = Color(0xFFFFFFFF).copy(alpha = 0.88f),
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp
+            ) {
+                TypingModeKeypadContent(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 10.dp, end = 10.dp, top = 50.dp, bottom = 24.dp),
+                    onKeyPress = { key ->
+                        playTypingModeDtmfTone(toneGenerator, key)
+                    }
+                )
             }
         }
     }
@@ -546,7 +588,7 @@ private fun SuggestionButton(
             } else if (useGradientBorder) {
                 Color.Transparent
             } else {
-                MaterialTheme.colorScheme.outline
+                Color(0xFFCCCCCC)
             }
         )
     ) {
@@ -557,7 +599,7 @@ private fun SuggestionButton(
             textAlign = TextAlign.End,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
+                .padding(vertical = 2.5.dp)
         )
     }
 }
@@ -574,19 +616,25 @@ private fun TypingModeKeypadContent(
         listOf(TypingModeDialPadKey("*", ",", ""), TypingModeDialPadKey("0", "ㅎ", "+"), TypingModeDialPadKey("#", ";", ""))
     )
 
+    val keypadVerticalRowSpacing = 10.dp
+    val keypadHorizontalKeySpacing = 7.dp
+
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(keypadVerticalRowSpacing)
     ) {
         dialPad.forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(
+                    keypadHorizontalKeySpacing,
+                    Alignment.CenterHorizontally
+                )
             ) {
                 row.forEach { key ->
                     Box(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier,
                         contentAlignment = Alignment.Center
                     ) {
                         TypingModeDialPadButton(
@@ -610,8 +658,6 @@ private fun TypingModeDialPadButton(
     Box(
         modifier = Modifier
             .size(72.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -648,23 +694,27 @@ private fun TypingKeypadDotsIcon(
     tint: Color,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Box(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.Center
     ) {
-        repeat(3) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                repeat(3) {
-                    Box(
-                        modifier = Modifier
-                            .size(3.dp)
-                            .clip(CircleShape)
-                            .background(tint)
-                    )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            repeat(3) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(3) {
+                        Box(
+                            modifier = Modifier
+                                .size(3.dp)
+                                .clip(CircleShape)
+                                .background(tint)
+                        )
+                    }
                 }
             }
         }
@@ -689,3 +739,4 @@ private fun playTypingModeDtmfTone(toneGenerator: ToneGenerator, key: Char) {
     }
     tone?.let { toneGenerator.startTone(it, 140) }
 }
+
