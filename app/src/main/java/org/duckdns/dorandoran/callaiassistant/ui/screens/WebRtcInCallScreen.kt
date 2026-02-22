@@ -696,7 +696,7 @@ fun WebRtcInCallScreen(
                                                 "지금 이렇게 말하고 있어요"
                                             },
                                             style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            color = Color(0xFF5D5D5D)
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(14.dp))
