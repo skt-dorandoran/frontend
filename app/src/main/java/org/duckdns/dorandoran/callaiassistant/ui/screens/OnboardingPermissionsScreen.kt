@@ -107,7 +107,7 @@ fun OnboardingPermissionsScreen(
             ),
             ConsentItem(
                 "(필수) 개인정보 제3자 제공 동의",
-                "AI 답변 생성 및 발음 교정 처리에 필요",
+                "AI 답변 생성 및 발음 보정 처리에 필요",
                 false,
                 detailActivity = PrivacyThirdPartyActivity::class.java // 연결
             ),
