@@ -23,15 +23,12 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.ui.res.painterResource
-import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
@@ -216,63 +213,64 @@ fun CallTypingScreen(
             .fillMaxSize()
             .background(typingBodyBackground)
     ) {
-        // TopBar (고정)
-        TopAppBar(
-            title = {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 0.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Start
-                ) {
-                    RemoteVoiceWaveMini(
-                        level = remoteAudioLevel,
-                        modifier = Modifier.size(width = 20.dp, height = 18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = callInfo.phoneNumber,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = callInfo.callTime,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            },
-            navigationIcon = {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "뒤로가기"
-                    )
-                }
-            },
-            actions = {
-                IconButton(
-                    onClick = onEndCall,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.error)
-                        .padding(4.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_call_end_solar),
-                        contentDescription = "통화 종료",
-                        tint = MaterialTheme.colorScheme.onError,
-                        modifier = Modifier.fillMaxSize(0.7f)
-                    )
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface
+        Column(modifier = Modifier.fillMaxSize()) {
+            // TopBar (고정)
+            TopAppBar(
+                title = {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 0.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        RemoteVoiceWaveMini(
+                            level = remoteAudioLevel,
+                            modifier = Modifier.size(width = 20.dp, height = 18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = callInfo.phoneNumber,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = callInfo.callTime,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "뒤로가기"
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = onEndCall,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error)
+                            .padding(4.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_call_end_solar),
+                            contentDescription = "통화 종료",
+                            tint = MaterialTheme.colorScheme.onError,
+                            modifier = Modifier.fillMaxSize(0.7f)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
-        )
 
         // 메시지 영역 (스크롤 가능)
         Box(
@@ -319,9 +317,9 @@ fun CallTypingScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Lightbulb,
+                    painter = painterResource(id = R.drawable.ic_idea),
                     contentDescription = "AI 추천",
-                    tint = Color(0xFFFFC107),
+                    tint = Color.Unspecified,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
@@ -428,23 +426,45 @@ fun CallTypingScreen(
                         }
                         Spacer(modifier = Modifier.width(8.dp))
 
+                        val inputEnabled =
+                            inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible
+
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(end = 8.dp),
-                            placeholder = {
-                                Text(
-                                    text = "AI가 대신 말할 내용을 입력해주세요",
-                                    style = MaterialTheme.typography.bodySmall
+                                .padding(end = 8.dp)
+                                .heightIn(min = 52.dp)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(MaterialTheme.colorScheme.surface)
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    shape = RoundedCornerShape(24.dp)
                                 )
-                            },
-                            shape = RoundedCornerShape(24.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = primaryBlue,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                            ),
-                            maxLines = 3
-                        )
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            BasicTextField(
+                                value = inputText,
+                                onValueChange = { inputText = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !isInlineKeypadVisible,
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                maxLines = 3,
+                                decorationBox = { innerTextField ->
+                                    if (inputText.text.isBlank()) {
+                                        Text(
+                                            text = "AI가 대신 말할 내용을 입력해주세요",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            )
+                        }
+
                         IconButton(
                             onClick = {
                                 val textToSend = inputText.text.trim()
@@ -456,47 +476,15 @@ fun CallTypingScreen(
                                 .size(48.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
-                                        primaryBlue
-                                    } else {
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                    }
+                                    if (inputEnabled) primaryBlue else MaterialTheme.colorScheme.surfaceVariant
                                 ),
-                            enabled = inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible
+                            enabled = inputEnabled
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.Send,
                                 contentDescription = "전송",
-                                tint = if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
-                                    Color.White
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                                innerTextField()
-                                }
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    val textToSend = inputText.text.trim()
-                                    if (textToSend.isEmpty()) return@IconButton
-                                    inputText = TextFieldValue()
-                                    sendMessageNow(textToSend)
-                                },
-                                modifier = Modifier
-                                    .align(Alignment.CenterEnd)
-                                    .size(43.2.dp),
-                                enabled = inputEnabled
-                            ) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_send_blue),
-                                    contentDescription = "전송",
-                                    tint = Color.Unspecified,
-                                    modifier = Modifier
-                                        .size(32.4.dp)
-                                        .alpha(if (inputEnabled) 1f else 0.4f)
-                                )
-                            }
+                                tint = if (inputEnabled) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
