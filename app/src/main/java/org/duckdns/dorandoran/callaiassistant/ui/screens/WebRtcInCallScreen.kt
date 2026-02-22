@@ -670,7 +670,12 @@ fun WebRtcInCallScreen(
                                         .fillMaxWidth()
                                         .height(260.dp)
                                         .clip(RoundedCornerShape(18.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                        .background(Color(0xFFFFFFFF))
+                                        .border(
+                                            width = 1.dp,
+                                            color = Color(0xFFEAEAEA),
+                                            shape = RoundedCornerShape(18.dp)
+                                        )
                                         .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalArrangement = Arrangement.Top
                                 ) {
