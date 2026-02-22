@@ -63,6 +63,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.produceState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -95,6 +96,8 @@ import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import androidx.compose.ui.text.font.Font
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
+import org.duckdns.dorandoran.callaiassistant.util.ContactLookupUtil
+import org.duckdns.dorandoran.callaiassistant.util.rememberContactsVersion
 import java.io.File
 
 val Pretendard = FontFamily(
@@ -446,6 +449,14 @@ private fun PhoneAppContent(
     val coroutineScope = rememberCoroutineScope()
 
     val incomingCall by callSignalingManager.incomingCall.collectAsState()
+    val contactsVersion = rememberContactsVersion(activity.applicationContext)
+    val incomingDisplayInfo by produceState(
+        initialValue = ContactLookupUtil.DisplayInfo(primary = "상대방", secondary = ""),
+        key1 = incomingCall?.callerNumber,
+        key2 = contactsVersion
+    ) {
+        value = ContactLookupUtil.resolveDisplayInfo(activity.applicationContext, incomingCall?.callerNumber.orEmpty())
+    }
 
     var autoCallConsumed by remember { mutableStateOf(false) }
 
@@ -474,7 +485,6 @@ private fun PhoneAppContent(
     fun startOutgoingCall(number: String) {
         lastCalledPhoneNumber = number
         webrtcPhoneNumber = number.ifBlank { "상대방" }
-        callSignalingManager.markAsCaller()
         coroutineScope.launch {
             if (!callSignalingManager.isListening.value) {
                 callSignalingManager.startListening()
@@ -482,14 +492,17 @@ private fun PhoneAppContent(
                     callSignalingManager.isListening.first { it }
                 }
                 if (ready != true) {
+                    callSignalingManager.clearCallerMode()
                     bannerMessage = "통화 연결을 준비 중입니다"
                     bannerLocked = true
                     return@launch
                 }
             }
             val callerNumber = getOwnPhoneNumber(activity.applicationContext)
+            callSignalingManager.markAsCaller()
             val callId = callSignalingManager.initiateCall(callerNumber, number)
             if (callId.isBlank()) {
+                callSignalingManager.clearCallerMode()
                 bannerMessage = "통화 연결을 준비 중입니다"
                 bannerLocked = true
                 return@launch
@@ -597,7 +610,8 @@ private fun PhoneAppContent(
         }
 
         IncomingCallScreen(
-            callerName = incomingCall?.callerNumber?.ifBlank { "상대방" } ?: "상대방",
+            callerName = incomingDisplayInfo.primary,
+            callerNumber = incomingDisplayInfo.secondary,
             onAccept = {
                 val info = incomingCall!!
                 val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager

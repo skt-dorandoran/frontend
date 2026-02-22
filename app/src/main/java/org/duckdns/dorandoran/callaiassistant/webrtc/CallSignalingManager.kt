@@ -5,6 +5,7 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +20,7 @@ import org.json.JSONObject
 import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * 통화 시그널링 전용 매니저 (수신 대기, incoming/accept/reject)
@@ -35,6 +37,9 @@ class CallSignalingManager(private val context: Context) {
     private val client = OkHttpClient.Builder().build()
     private val webSocketRef = AtomicReference<WebSocket?>(null)
     private val isStarting = AtomicBoolean(false)
+    private val keepListening = AtomicBoolean(false)
+    private val reconnectAttempt = AtomicInteger(0)
+    private val reconnectScheduled = AtomicBoolean(false)
 
     /** 수신 대기 중인지 */
     private val _isListening = MutableStateFlow(false)
@@ -73,6 +78,7 @@ class CallSignalingManager(private val context: Context) {
      * 앱 시작 시 호출 - room 구독하여 수신 대기
      */
     fun startListening() {
+        keepListening.set(true)
         if (webSocketRef.get() != null || _isListening.value) {
             return
         }
@@ -98,6 +104,8 @@ class CallSignalingManager(private val context: Context) {
                 Log.d(TAG, "WS connected (listening)")
                 _isListening.value = true
                 isStarting.set(false)
+                reconnectAttempt.set(0)
+                reconnectScheduled.set(false)
                 val subscribeMsg = JSONObject().apply {
                     put("type", "subscribe")
                     put("roomId", WEBRTC_ROOM_ID)
@@ -118,6 +126,7 @@ class CallSignalingManager(private val context: Context) {
                 _incomingCall.value = null
                 webSocketRef.set(null)
                 isStarting.set(false)
+                scheduleReconnect("failure")
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
@@ -129,9 +138,35 @@ class CallSignalingManager(private val context: Context) {
                 _incomingCall.value = null
                 webSocketRef.set(null)
                 isStarting.set(false)
+                scheduleReconnect("closed:$code")
             }
         })
         webSocketRef.set(ws)
+    }
+
+    private fun scheduleReconnect(reason: String) {
+        if (!keepListening.get()) {
+            return
+        }
+        if (!reconnectScheduled.compareAndSet(false, true)) {
+            return
+        }
+        val attempt = reconnectAttempt.incrementAndGet()
+        val delayMs = when {
+            attempt <= 1 -> 1_000L
+            attempt == 2 -> 2_000L
+            attempt == 3 -> 4_000L
+            attempt == 4 -> 8_000L
+            else -> 15_000L
+        }
+        Log.w(TAG, "Listening socket disconnected ($reason). Reconnect in ${delayMs}ms (attempt=$attempt)")
+        scope.launch {
+            delay(delayMs)
+            reconnectScheduled.set(false)
+            if (!keepListening.get()) return@launch
+            if (webSocketRef.get() != null || _isListening.value) return@launch
+            startListening()
+        }
     }
 
     private fun handleMessage(text: String) {
@@ -265,6 +300,9 @@ class CallSignalingManager(private val context: Context) {
      * 수신 대기 종료 (기존 WebSocket 닫기, WebRtcManager가 새로 연결할 때 사용)
      */
     fun stopListening() {
+        keepListening.set(false)
+        reconnectScheduled.set(false)
+        reconnectAttempt.set(0)
         webSocketRef.get()?.close(1000, "stop")
         webSocketRef.set(null)
         _isListening.value = false

@@ -34,11 +34,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.duckdns.dorandoran.callaiassistant.R
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
+import org.duckdns.dorandoran.callaiassistant.util.formatPhoneNumberByRule
 
 @Composable
 fun IncomingCallScreen(
     modifier: Modifier = Modifier,
     callerName: String = "상대방",
+    callerNumber: String = "",
     onAccept: () -> Unit,
     onReject: () -> Unit
 ) {
@@ -82,14 +84,16 @@ fun IncomingCallScreen(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(9.dp))
+            if (callerNumber.isNotBlank()) {
+                Spacer(modifier = Modifier.height(9.dp))
 
-            Text(
-                text = "02-1233-2342",
-                color = phoneNumberColor,
-                fontSize = 15.sp,
-                textAlign = TextAlign.Center
-            )
+                Text(
+                    text = formatIncomingDisplay(callerNumber),
+                    color = phoneNumberColor,
+                    fontSize = 15.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
 
         Row(
@@ -174,19 +178,7 @@ private fun Modifier.incomingButtonShadow() = this.drawBehind {
 }
 
 private fun formatIncomingDisplay(raw: String): String {
-    val digits = raw.filter { it.isDigit() }
-    if (digits.isBlank()) return raw
-    return when {
-        digits.startsWith("02") && digits.length == 9 ->
-            "${digits.take(2)}-${digits.drop(2).take(3)}-${digits.drop(5)}"
-        digits.startsWith("02") && digits.length == 10 ->
-            "${digits.take(2)}-${digits.drop(2).take(4)}-${digits.drop(6)}"
-        digits.length == 10 ->
-            "${digits.take(3)}-${digits.drop(3).take(3)}-${digits.drop(6)}"
-        digits.length == 11 ->
-            "${digits.take(3)}-${digits.drop(3).take(4)}-${digits.drop(7)}"
-        else -> raw
-    }
+    return formatPhoneNumberByRule(raw)
 }
 
 @Preview(showBackground = true)
@@ -195,9 +187,9 @@ fun IncomingCallScreenPreview() {
     CallaiassistantTheme {
         IncomingCallScreen(
             callerName = "보라매 병원",
+            callerNumber = "02-1233-2342",
             onAccept = {},
             onReject = {}
         )
     }
 }
-

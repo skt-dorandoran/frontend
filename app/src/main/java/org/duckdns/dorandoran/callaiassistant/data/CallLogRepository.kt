@@ -81,13 +81,20 @@ class CallLogRepository(private val context: Context) {
             val digitsOnly = trimmed.filter { it.isDigit() }
             val namePattern = "%$trimmed%"
             val numberPattern = if (digitsOnly.isNotEmpty()) "%$digitsOnly%" else namePattern
+            val altNumberPattern = when {
+                digitsOnly.startsWith("0") && digitsOnly.length > 1 -> "%82${digitsOnly.drop(1)}%"
+                digitsOnly.startsWith("82") && digitsOnly.length > 2 -> "%0${digitsOnly.drop(2)}%"
+                else -> numberPattern
+            }
 
             val projection = arrayOf(
                 ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
                 ContactsContract.CommonDataKinds.Phone.NUMBER
             )
-            val selection = "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ? OR ${ContactsContract.CommonDataKinds.Phone.NUMBER} LIKE ?"
-            val selectionArgs = arrayOf(namePattern, numberPattern)
+            val rawNumberColumn = ContactsContract.CommonDataKinds.Phone.NUMBER
+            val normalizedNumberExpr = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE($rawNumberColumn, '-', ''), ' ', ''), ')', ''), '(', ''), '+', '')"
+            val selection = "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ? OR $normalizedNumberExpr LIKE ? OR $normalizedNumberExpr LIKE ?"
+            val selectionArgs = arrayOf(namePattern, numberPattern, altNumberPattern)
 
             val map = LinkedHashMap<String, ContactMatch>()
             context.contentResolver.query(

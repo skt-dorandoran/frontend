@@ -55,8 +55,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,6 +90,9 @@ import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin
+import org.duckdns.dorandoran.callaiassistant.util.ContactLookupUtil
+import org.duckdns.dorandoran.callaiassistant.util.formatPhoneNumberByRule
+import org.duckdns.dorandoran.callaiassistant.util.rememberContactsVersion
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.duckdns.dorandoran.callaiassistant.R
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
@@ -181,6 +186,7 @@ fun WebRtcInCallScreen(
     var callScreenState by remember { mutableStateOf(CallScreenState.MODE_SELECT) }
     var isDirectSpeakOverlayOpen by remember { mutableStateOf(false) }
     var isSendingMessage by remember { mutableStateOf(false) }
+    var isTextModeNavigationInProgress by remember { mutableStateOf(false) }
     var isAiCorrectionSending by remember { mutableStateOf(false) }
     var aiCorrectionOverlayState by remember { mutableStateOf(AiCorrectionOverlayState.RECORDING) }
     var aiCorrectionProbeWavFile by remember { mutableStateOf<File?>(null) }
@@ -204,6 +210,7 @@ fun WebRtcInCallScreen(
     val coroutineScope = rememberCoroutineScope()
     var messageTts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
     val context = LocalContext.current
+    val contactsVersion = rememberContactsVersion(context)
     val lifecycleOwner = LocalLifecycleOwner.current
     val audioManager = remember {
         context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
@@ -223,7 +230,17 @@ fun WebRtcInCallScreen(
         else -> "안녕하세요, 원활한 소통을 위해 AI 음성 변환 서비스를 이용중입니다. 제 말이 조금 늦더라도 양해 부탁드립니다."
     }
     val currentSuggestions = listOf(aiSuggestionTop1, aiSuggestionTop2)
-    val displayNumber = if (phoneNumber.isNotBlank()) formatPhoneNumber(phoneNumber) else "상대방"
+    val displayInfo by androidx.compose.runtime.produceState(
+        initialValue = ContactLookupUtil.DisplayInfo(
+            primary = if (phoneNumber.isNotBlank()) formatPhoneNumber(phoneNumber) else "상대방",
+            secondary = ""
+        ),
+        key1 = phoneNumber,
+        key2 = contactsVersion
+    ) {
+        value = ContactLookupUtil.resolveDisplayInfo(context, phoneNumber)
+    }
+    val displayNumber = displayInfo.primary
     val lastRemoteTypedMessageText = textModeLastRemoteBubble.ifBlank { "상대방 대화가 없습니다" }
     val directSpeakPlaceholderText = "직접 말씀하시거나\n위의 추천 답변을 선택하세요"
     val textScale = remember { SettingsStore.getCallTextScale(context) }
@@ -375,6 +392,11 @@ fun WebRtcInCallScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 syncSpeakerphoneUiState()
+                isTextModeNavigationInProgress = false
+                if (selectedMode == CallMode.TEXT) {
+                    // 텍스트 통화 화면에서 돌아오면 직접 말하기 모드로 복원
+                    selectedMode = CallMode.DIRECT
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -469,8 +491,13 @@ fun WebRtcInCallScreen(
         }
     }
 
-    LaunchedEffect(silenceIntervention.eventId) {
+    LaunchedEffect(silenceIntervention.eventId, connectionState) {
         if (!silenceIntervention.visible || silenceIntervention.eventId <= 0L) return@LaunchedEffect
+        if (connectionState != WebRtcConnectionState.IN_CALL) {
+            // 통화 시작 전(또는 종료 후)에는 개입 TTS를 재생하지 않는다.
+            viewModel.dismissSilenceIntervention()
+            return@LaunchedEffect
+        }
         val text = silenceIntervention.interventionText.ifBlank { "잠시만요" }
         try {
             viewModel.sendMessage(
@@ -1151,8 +1178,36 @@ fun WebRtcInCallScreen(
 
                                 Button(
                                     onClick = {
+                                        if (isTextModeNavigationInProgress) return@Button
+                                        isTextModeNavigationInProgress = true
                                         selectedMode = CallMode.TEXT
-                                        navController?.navigate("call_typing")
+                                        val controller = navController
+                                        if (controller == null) {
+                                            isTextModeNavigationInProgress = false
+                                            selectedMode = CallMode.DIRECT
+                                            return@Button
+                                        }
+                                        coroutineScope.launch {
+                                            // 상태 변경 리컴포지션 1프레임 이후에 navigate를 호출해
+                                            // 실기기에서 간헐적으로 전환이 누락되는 타이밍을 회피한다.
+                                            withFrameNanos { }
+                                            yield()
+                                            runCatching {
+                                                controller.navigate("call_typing") {
+                                                    launchSingleTop = true
+                                                }
+                                            }.onFailure {
+                                                Log.w("WebRtcInCallScreen", "Failed to navigate to text mode: ${it.message}")
+                                            }
+
+                                            // 화면 전환이 실제로 일어나지 않았을 때만 상태 잠금을 복구.
+                                            delay(350)
+                                            val currentRoute = controller.currentBackStackEntry?.destination?.route
+                                            if (currentRoute != "call_typing") {
+                                                isTextModeNavigationInProgress = false
+                                                selectedMode = CallMode.DIRECT
+                                            }
+                                        }
                                     },
                                     modifier = Modifier
                                         .weight(1f)
@@ -1505,13 +1560,7 @@ private fun playDtmfTone(toneGenerator: ToneGenerator, key: Char) {
 }
 
 private fun formatPhoneNumber(number: String): String {
-    val digits = number.filter { it.isDigit() }
-    return when {
-        digits.isEmpty() -> "상대방"
-        digits.length <= 3 -> digits
-        digits.length <= 7 -> "${digits.take(3)}-${digits.drop(3)}"
-        else -> "${digits.take(3)}-${digits.drop(3).take(4)}-${digits.drop(7)}"
-    }
+    return formatPhoneNumberByRule(number)
 }
 
 private fun formatDuration(seconds: Long): String {
