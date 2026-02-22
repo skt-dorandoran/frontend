@@ -13,7 +13,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -76,6 +75,7 @@ import org.duckdns.dorandoran.callaiassistant.tts.SherpaOnnxTtsManager
 import org.duckdns.dorandoran.callaiassistant.stt.RemoteSttApi
 import org.duckdns.dorandoran.callaiassistant.stt.TempWavFileFactory
 import org.duckdns.dorandoran.callaiassistant.webrtc.CustomAudioDeviceModule
+import org.duckdns.dorandoran.callaiassistant.ui.components.RemoteVoiceWaveMini
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcConnectionState
 import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
@@ -180,6 +180,7 @@ fun WebRtcInCallScreen(
     var isAiCorrectionTranscribing by remember { mutableStateOf(false) }
     val textModeLastMyBubble by viewModel.textModeLastMyBubble.collectAsState()
     val textModeLastRemoteBubble by viewModel.textModeLastRemoteBubble.collectAsState()
+    val remoteAudioLevel by webRtcManager.remoteAudioLevel.collectAsState()
     val aiCorrectionDraftText by viewModel.aiCorrectionDraftText.collectAsState()
     val isAiCorrectionProcessing by viewModel.isAiCorrectionProcessing.collectAsState()
     val aiSuggestionTop1 by viewModel.aiSuggestionTop1.collectAsState()
@@ -464,16 +465,21 @@ fun WebRtcInCallScreen(
     LaunchedEffect(silenceIntervention.eventId) {
         if (!silenceIntervention.visible || silenceIntervention.eventId <= 0L) return@LaunchedEffect
         val text = silenceIntervention.interventionText.ifBlank { "잠시만요" }
-        viewModel.sendMessage(
-            text,
-            origin = org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin.TEXT_MODE
-        )
-        speakTextWithTts(
-            textToSend = text,
-            sourceType = "crisis_intervention"
-        ) { }
-        delay(8000)
-        viewModel.dismissSilenceIntervention()
+        try {
+            viewModel.sendMessage(
+                text,
+                origin = org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin.TEXT_MODE
+            )
+            speakTextWithTts(
+                textToSend = text,
+                sourceType = "crisis_intervention"
+            ) { }
+            delay(8000)
+        } finally {
+            // Ensure stale intervention UI does not remain when this effect is cancelled
+            // (e.g., screen navigation / recomposition lifecycle changes).
+            viewModel.dismissSilenceIntervention()
+        }
     }
 
     LaunchedEffect(selectedMode) {
@@ -495,6 +501,7 @@ fun WebRtcInCallScreen(
             viewModel.stopAiCorrectionRecording()
             clearAiCorrectionProbeWav()
             onLocalAudioTransmissionToggle(true)
+            viewModel.dismissSilenceIntervention()
         }
     }
 
@@ -538,16 +545,26 @@ fun WebRtcInCallScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                Text(
-                    text = displayNumber,
-                    style = MaterialTheme.typography.headlineLarge.copy(
-                        fontSize = 30.sp * textScale,
-                        fontWeight = FontWeight.SemiBold
-                    ),
-                    color = MaterialTheme.colorScheme.onBackground,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    RemoteVoiceWaveMini(
+                        level = remoteAudioLevel,
+                        modifier = Modifier.size(width = 20.dp, height = 18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = displayNumber,
+                        style = MaterialTheme.typography.headlineLarge.copy(
+                            fontSize = 30.sp * textScale,
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = MaterialTheme.colorScheme.onBackground,
+                        textAlign = TextAlign.Center
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -622,7 +639,7 @@ fun WebRtcInCallScreen(
                     )
                     .clip(RoundedCornerShape(topStart = 43.dp, topEnd = 43.dp))
                     .background(cardColor)
-                    .padding(start = 20.dp, end = 20.dp, top = 28.dp, bottom = 34.dp),
+                    .padding(horizontal = 20.dp, vertical = 22.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
@@ -848,24 +865,28 @@ fun WebRtcInCallScreen(
 
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
+                                    val suggestionBorderBrush = Brush.horizontalGradient(
+                                        colors = listOf(
+                                            Color(0xCCA371FE),
+                                            Color(0xCC74A5FA)
+                                        )
+                                    )
                                     currentSuggestions.forEach { suggestion ->
                                         OutlinedButton(
                                             onClick = {
                                                 if (isRefreshingAiSuggestions || suggestion.isBlank()) return@OutlinedButton
                                                 sendDirectSuggestionNow(suggestion)
                                             },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            shape = RoundedCornerShape(999.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(48.dp),
+                                            shape = RoundedCornerShape(20.dp),
                                             enabled = !isRefreshingAiSuggestions && suggestion.isNotBlank(),
                                             border = BorderStroke(
-                                                width = 1.dp,
-                                                color = if (isRefreshingAiSuggestions) {
-                                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-                                                } else {
-                                                    MaterialTheme.colorScheme.outline
-                                                }
+                                                width = 2.dp,
+                                                brush = suggestionBorderBrush
                                             ),
                                             colors = ButtonDefaults.outlinedButtonColors(
                                                 containerColor = if (isRefreshingAiSuggestions) {
@@ -891,7 +912,7 @@ fun WebRtcInCallScreen(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(12.dp))
+                                Spacer(modifier = Modifier.height(24.dp))
 
                                 if (textModeLastMyBubble.isNotBlank() && !isAiCorrectionMode) {
                                     Column(
@@ -942,10 +963,7 @@ fun WebRtcInCallScreen(
                                             disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                                             disabledContentColor = MaterialTheme.colorScheme.onSurface
                                         ),
-                                        border = BorderStroke(
-                                            1.dp,
-                                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                                        )
+                                        border = BorderStroke(0.dp, Color.Transparent)
                                     ) {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
@@ -972,100 +990,87 @@ fun WebRtcInCallScreen(
                             Text(
                                 text = "전화 모드를 선택해주세요",
                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontSize = 15.sp
+                                    fontSize = 13.sp
                                 ),
                                 color = Color(0xFF5D5D5D),
-                                modifier = Modifier.fillMaxWidth().padding(start = 8.dp),
+                                modifier = Modifier.fillMaxWidth().padding(start = 2.dp),
                                 textAlign = TextAlign.Start
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
-                        // 모드 선택 버튼들
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Button(
-                                onClick = { selectedMode = CallMode.DIRECT },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(50.dp),
-                                shape = RoundedCornerShape(18.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (selectedMode == CallMode.DIRECT) primaryBlue else Color.White,
-                                    contentColor = if (selectedMode == CallMode.DIRECT) Color.White else Color.Black
-                                ),
-                                border = if (selectedMode == CallMode.DIRECT) null else BorderStroke(
-                                    width = 1.dp,
-                                    color = if (isDark) Color(0xFF3C3F48) else Color(0xFFEAEAEA)
-                                ),
-                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                        if (!isAiCorrectionMode) {
+                            // 모드 선택 버튼들
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
-                                Text(
-                                    text = "직접 말하기",
-                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
-                                    maxLines = 1
-                                )
-                            }
+                                Button(
+                                    onClick = { selectedMode = CallMode.DIRECT },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(46.dp),
+                                    shape = RoundedCornerShape(18.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (selectedMode == CallMode.DIRECT) primaryBlue else Color.White,
+                                        contentColor = if (selectedMode == CallMode.DIRECT) Color.White else Color.Black
+                                    ),
+                                    border = if (selectedMode == CallMode.DIRECT) null else BorderStroke(
+                                        width = 1.dp,
+                                        color = if (isDark) Color(0xFF3C3F48) else Color(0xFFEAEAEA)
+                                    ),
+                                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                                ) {
+                                    Text("직접 말하기")
+                                }
 
-                            Button(
-                                onClick = {
-                                    enterAiCorrectionOverlayFresh()
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(50.dp),
-                                shape = RoundedCornerShape(18.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (selectedMode == CallMode.AI_CORRECTION) primaryBlue else Color.White,
-                                    contentColor = if (selectedMode == CallMode.AI_CORRECTION) Color.White else Color.Black
-                                ),
-                                border = if (selectedMode == CallMode.AI_CORRECTION) null else BorderStroke(
-                                    width = 1.dp,
-                                    color = if (isDark) Color(0xFF3C3F48) else Color(0xFFEAEAEA)
-                                ),
-                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                            ) {
-                                Text(
-                                    text = "AI 보정",
-                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
-                                    maxLines = 1
-                                )
-                            }
+                                Button(
+                                    onClick = {
+                                        enterAiCorrectionOverlayFresh()
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(46.dp),
+                                    shape = RoundedCornerShape(18.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (selectedMode == CallMode.AI_CORRECTION) primaryBlue else Color.White,
+                                        contentColor = if (selectedMode == CallMode.AI_CORRECTION) Color.White else Color.Black
+                                    ),
+                                    border = if (selectedMode == CallMode.AI_CORRECTION) null else BorderStroke(
+                                        width = 1.dp,
+                                        color = if (isDark) Color(0xFF3C3F48) else Color(0xFFEAEAEA)
+                                    ),
+                                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                                ) {
+                                    Text("AI 보정")
+                                }
 
-                            Button(
-                                onClick = {
-                                    selectedMode = CallMode.TEXT
-                                    navController?.navigate("call_typing")
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(50.dp),
-                                shape = RoundedCornerShape(18.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (selectedMode == CallMode.TEXT) primaryBlue else Color.White,
-                                    contentColor = if (selectedMode == CallMode.TEXT) Color.White else Color.Black
-                                ),
-                                border = if (selectedMode == CallMode.TEXT) null else BorderStroke(
-                                    width = 1.dp,
-                                    color = if (isDark) Color(0xFF3C3F48) else Color(0xFFEAEAEA)
-                                ),
-                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                            ) {
-                                Text(
-                                    text = "텍스트 통화",
-                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
-                                    maxLines = 1
-                                )
+                                Button(
+                                    onClick = {
+                                        selectedMode = CallMode.TEXT
+                                        navController?.navigate("call_typing")
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(46.dp),
+                                    shape = RoundedCornerShape(18.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (selectedMode == CallMode.TEXT) primaryBlue else Color.White,
+                                        contentColor = if (selectedMode == CallMode.TEXT) Color.White else Color.Black
+                                    ),
+                                    border = if (selectedMode == CallMode.TEXT) null else BorderStroke(
+                                        width = 1.dp,
+                                        color = if (isDark) Color(0xFF3C3F48) else Color(0xFFEAEAEA)
+                                    ),
+                                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                                ) {
+                                    Text("텍스트 통화")
+                                }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(22.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                     } else {
                         Box(
                             modifier = Modifier
@@ -1136,7 +1141,7 @@ fun WebRtcInCallScreen(
                             modifier = Modifier
                                 .size(60.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFEB3C3D))
+                                .background(Color(0xFFFF6B6B))
                                 .clickable(onClick = onEndCall),
                             contentAlignment = Alignment.Center
                         ) {
@@ -1144,7 +1149,7 @@ fun WebRtcInCallScreen(
                                 painter = painterResource(id = R.drawable.ic_call_end_solar),
                                 contentDescription = "통화 종료",
                                 tint = MaterialTheme.colorScheme.onError,
-                                modifier = Modifier.fillMaxSize(0.7f)
+                                modifier = Modifier.size(39.2.dp)
                             )
                         }
                     }
@@ -1213,64 +1218,41 @@ private fun CrisisInterventionPanel(
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Surface(
-            color = Color.White.copy(alpha = 0.95f),
-            shape = RoundedCornerShape(20.dp),
-            modifier = Modifier.fillMaxWidth(0.96f)
-        ) {
-            Text(
-                text = remoteText.ifBlank { "네, 무엇을 도와드릴까요?" },
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
-                style = MaterialTheme.typography.headlineSmall.copy(
-                    fontSize = (MaterialTheme.typography.headlineSmall.fontSize.value * textScale).sp
-                ),
-                color = Color(0xFF1F1F23),
-                textAlign = TextAlign.Start
-            )
-        }
+        Text(
+            text = remoteText.ifBlank { "네, 무엇을 도와드릴까요?" },
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = (MaterialTheme.typography.bodyMedium.fontSize.value * textScale * 1.4f).sp
+            ),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
 
         Surface(
-            color = Color(0xFFEAF0FB),
-            shape = RoundedCornerShape(999.dp)
+            color = Color(0xFFEEF5FF),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.height(32.dp)
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                modifier = Modifier
+                    .height(32.dp)
+                    .padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(
-                    text = "✧",
-                    color = Color(0xFFB071FF),
-                    style = MaterialTheme.typography.bodyMedium
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_shining_ai),
+                    contentDescription = null,
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(15.dp)
                 )
                 Text(
                     text = "AI가 \"$interventionText\"를 대신 전달했습니다",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF6B7280)
-                )
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
-        ) {
-            Surface(
-                color = Color(0xFFE3EBF8),
-                shape = RoundedCornerShape(28.dp),
-                border = BorderStroke(1.dp, Color(0xFF7E77F7)),
-                modifier = Modifier.fillMaxWidth(0.62f)
-            ) {
-                Text(
-                    text = interventionText,
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontSize = (MaterialTheme.typography.headlineSmall.fontSize.value * textScale).sp
-                    ),
-                    textAlign = TextAlign.Center,
-                    color = Color(0xFF1F1F23)
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
+                    color = Color(0xFF73777F)
                 )
             }
         }
