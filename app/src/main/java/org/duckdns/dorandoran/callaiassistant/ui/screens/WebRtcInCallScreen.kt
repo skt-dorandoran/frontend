@@ -700,13 +700,20 @@ fun WebRtcInCallScreen(
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(14.dp))
-                                    Text(
-                                        text = aiCorrectionDraftText.ifBlank { "말씀하시면 문장이 여기에 표시됩니다" },
-                                        style = MaterialTheme.typography.bodyLarge.copy(
-                                            fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        Text(
+                                            text = aiCorrectionDraftText.ifBlank { "말씀하시면 문장이 여기에 표시됩니다" },
+                                            style = MaterialTheme.typography.bodyLarge.copy(
+                                                fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale * 1.2f
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
                                 }
 
                                 Spacer(modifier = Modifier.height(12.dp))
