@@ -55,8 +55,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -1160,11 +1162,33 @@ fun WebRtcInCallScreen(
                                         if (isTextModeNavigationInProgress) return@Button
                                         isTextModeNavigationInProgress = true
                                         selectedMode = CallMode.TEXT
-                                        navController?.navigate("call_typing")
-                                            ?: run {
+                                        val controller = navController
+                                        if (controller == null) {
+                                            isTextModeNavigationInProgress = false
+                                            selectedMode = CallMode.DIRECT
+                                            return@Button
+                                        }
+                                        coroutineScope.launch {
+                                            // 상태 변경 리컴포지션 1프레임 이후에 navigate를 호출해
+                                            // 실기기에서 간헐적으로 전환이 누락되는 타이밍을 회피한다.
+                                            withFrameNanos { }
+                                            yield()
+                                            runCatching {
+                                                controller.navigate("call_typing") {
+                                                    launchSingleTop = true
+                                                }
+                                            }.onFailure {
+                                                Log.w("WebRtcInCallScreen", "Failed to navigate to text mode: ${it.message}")
+                                            }
+
+                                            // 화면 전환이 실제로 일어나지 않았을 때만 상태 잠금을 복구.
+                                            delay(350)
+                                            val currentRoute = controller.currentBackStackEntry?.destination?.route
+                                            if (currentRoute != "call_typing") {
                                                 isTextModeNavigationInProgress = false
                                                 selectedMode = CallMode.DIRECT
                                             }
+                                        }
                                     },
                                     modifier = Modifier
                                         .weight(1f)
