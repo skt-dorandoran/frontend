@@ -242,6 +242,21 @@ private fun getDevicePhoneNumber(context: android.content.Context): String {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
             val subscriptionManager = context.getSystemService(android.content.Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val modernNumber = subscriptionManager?.activeSubscriptionInfoList
+                    ?.asSequence()
+                    ?.mapNotNull { info ->
+                        subscriptionManager.getPhoneNumber(info.subscriptionId)
+                            ?.filter { it.isDigit() }
+                            ?.takeIf { it.isNotBlank() }
+                    }
+                    ?.firstOrNull()
+                    .orEmpty()
+                if (modernNumber.isNotBlank()) {
+                    return modernNumber
+                }
+            }
+
             val subscriptionNumber = subscriptionManager?.activeSubscriptionInfoList
                 ?.firstOrNull { !it.number.isNullOrBlank() }
                 ?.number

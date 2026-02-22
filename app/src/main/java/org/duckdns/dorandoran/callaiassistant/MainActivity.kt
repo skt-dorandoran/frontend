@@ -10,8 +10,11 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -92,6 +95,7 @@ import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
 import androidx.compose.ui.text.font.Font
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore
 import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
+import java.io.File
 
 val Pretendard = FontFamily(
     Font(R.font.pretendard_bold, FontWeight.Bold)
@@ -103,32 +107,44 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_AUTO_CALL = "extra_auto_call"
     }
 
-    private val requiredPermissions = arrayOf(
-        Manifest.permission.CALL_PHONE,
-        Manifest.permission.READ_CALL_LOG,
-        Manifest.permission.READ_CONTACTS,
-        Manifest.permission.READ_PHONE_STATE,
-        Manifest.permission.RECORD_AUDIO,
-        Manifest.permission.POST_NOTIFICATIONS
-    )
+    private val corePermissions: Array<String>
+        get() = buildList {
+            add(Manifest.permission.CALL_PHONE)
+            add(Manifest.permission.READ_CALL_LOG)
+            add(Manifest.permission.READ_CONTACTS)
+            add(Manifest.permission.READ_PHONE_STATE)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                add(Manifest.permission.READ_PHONE_NUMBERS)
+            }
+            add(Manifest.permission.RECORD_AUDIO)
+        }.toTypedArray()
+
+    private val optionalPermissions: Array<String>
+        get() = buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }.toTypedArray()
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val allGranted = permissions.values.all { it }
-        permissionsState = allGranted
+    ) { _ ->
+        checkPermissions()
+        val allGranted = permissionsState
         savePermissionsRequested()
+        onboardingCompleted = true
+        saveOnboardingCompleted()
         onboardingPermissionPending = false
         if (!allGranted) {
             showMissingPermissionsWarning = true
             saveMissingPermissionsWarning(true)
+            showAppWithoutDefaultDialer = false
             return@registerForActivityResult
         }
         showMissingPermissionsWarning = false
         saveMissingPermissionsWarning(false)
         showAppWithoutDefaultDialer = true
-        onboardingCompleted = true
-        saveOnboardingCompleted()
+        initializeMyPhoneNumberDefault()
     }
 
     private val defaultDialerLauncher = registerForActivityResult(
@@ -147,22 +163,27 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
+        ensureFirstLaunchOnboardingGate()
         checkPermissions()
         hasRequestedPermissions = loadPermissionsRequested()
         onboardingCompleted = loadOnboardingCompleted()
         showMissingPermissionsWarning = loadMissingPermissionsWarning()
-        if (permissionsState) {
+        if (!hasRequestedPermissions) {
+            // 최초 실행에서는 반드시 온보딩을 먼저 거치도록 강제한다.
+            onboardingCompleted = false
+            showMissingPermissionsWarning = false
+            saveMissingPermissionsWarning(false)
+            showAppWithoutDefaultDialer = false
+        } else if (permissionsState) {
             showMissingPermissionsWarning = false
             saveMissingPermissionsWarning(false)
             showAppWithoutDefaultDialer = true
-        } else if (onboardingCompleted) {
+            initializeMyPhoneNumberDefault()
+        } else if (onboardingCompleted && hasRequestedPermissions) {
             showMissingPermissionsWarning = true
             saveMissingPermissionsWarning(true)
             showAppWithoutDefaultDialer = false
         }
-
-        // 앱 시작 시 CallListeningService 시작 (백그라운드 청취용)
-        startCallListeningService()
 
         val initialPhoneNumber = intent?.data?.takeIf { it.scheme == "tel" }
             ?.schemeSpecificPart?.orEmpty()?.filter { c -> c.isDigit() || c == '+' } ?: ""
@@ -174,7 +195,7 @@ class MainActivity : ComponentActivity() {
             CallaiassistantTheme {
                 when {
                     // 1. 권한 거부 시 경고 화면
-                    showMissingPermissionsWarning -> MissingPermissionsWarningScreen(
+                    showMissingPermissionsWarning && onboardingCompleted && hasRequestedPermissions -> MissingPermissionsWarningScreen(
                         onOpenSettings = { openAppSettings() },
                         onCloseApp = { finish() }
                     )
@@ -223,7 +244,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkPermissions() {
-        val allGranted = requiredPermissions.all {
+        val allGranted = corePermissions.all {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         }
         permissionsState = allGranted
@@ -232,6 +253,22 @@ class MainActivity : ComponentActivity() {
     private fun loadOnboardingCompleted(): Boolean {
         return getSharedPreferences("app_prefs", MODE_PRIVATE)
             .getBoolean("onboarding_completed", false)
+    }
+
+    private fun ensureFirstLaunchOnboardingGate() {
+        val marker = File(noBackupFilesDir, "onboarding_initialized_v1")
+        if (marker.exists()) return
+
+        getSharedPreferences("app_prefs", MODE_PRIVATE)
+            .edit()
+            .putBoolean("has_requested_permissions", false)
+            .putBoolean("onboarding_completed", false)
+            .putBoolean("show_missing_permissions_warning", false)
+            .apply()
+
+        runCatching {
+            marker.writeText("1")
+        }
     }
 
     private fun saveOnboardingCompleted() {
@@ -274,7 +311,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestPermissions() {
-        permissionLauncher.launch(requiredPermissions)
+        permissionLauncher.launch(corePermissions + optionalPermissions)
     }
 
 
@@ -288,10 +325,71 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         checkPermissions()
-        if (!permissionsState && onboardingCompleted) {
+        if (permissionsState) {
+            showMissingPermissionsWarning = false
+            saveMissingPermissionsWarning(false)
+            if (hasRequestedPermissions && !onboardingCompleted) {
+                onboardingCompleted = true
+                saveOnboardingCompleted()
+            }
+            if (onboardingCompleted) {
+                showAppWithoutDefaultDialer = true
+            }
+            initializeMyPhoneNumberDefault()
+            if (onboardingCompleted && hasRequestedPermissions) {
+                ensureUnrestrictedBatteryUsage()
+            }
+        }
+        if (!permissionsState && onboardingCompleted && hasRequestedPermissions) {
             showMissingPermissionsWarning = true
             saveMissingPermissionsWarning(true)
             showAppWithoutDefaultDialer = false
+        } else if (!permissionsState && !hasRequestedPermissions) {
+            showMissingPermissionsWarning = false
+            saveMissingPermissionsWarning(false)
+        }
+    }
+
+    private fun ensureUnrestrictedBatteryUsage() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+
+        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val lastPromptAt = prefs.getLong("battery_unrestricted_prompt_at", 0L)
+        if (now - lastPromptAt < 60_000L) {
+            return
+        }
+
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+        if (powerManager.isIgnoringBatteryOptimizations(packageName)) {
+            return
+        }
+
+        prefs.edit().putLong("battery_unrestricted_prompt_at", now).apply()
+
+        val requestIntent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+            data = Uri.parse("package:$packageName")
+        }
+
+        try {
+            startActivity(requestIntent)
+        } catch (_: Exception) {
+            // Some devices block direct request screens; open the optimization list as fallback.
+            try {
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                Toast.makeText(
+                    this,
+                    "배터리 사용을 '제한 없음'으로 설정해 주세요.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (_: Exception) {
+                startActivity(
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", packageName, null)
+                    )
+                )
+            }
         }
     }
 
@@ -317,6 +415,13 @@ class MainActivity : ComponentActivity() {
                 )
             )
         }
+    }
+
+    private fun initializeMyPhoneNumberDefault() {
+        if (!canReadDevicePhoneNumber(this)) {
+            return
+        }
+        SettingsStore.ensureMyPhoneNumberDefault(this, getDevicePhoneNumber(this))
     }
 }
 
@@ -598,6 +703,10 @@ private fun getOwnPhoneNumber(context: Context): String {
         return storedNumber
     }
 
+    return getDevicePhoneNumber(context)
+}
+
+private fun canReadDevicePhoneNumber(context: Context): Boolean {
     val hasPhoneState = ContextCompat.checkSelfPermission(
         context,
         Manifest.permission.READ_PHONE_STATE
@@ -615,7 +724,11 @@ private fun getOwnPhoneNumber(context: Context): String {
         Manifest.permission.READ_SMS
     ) == PackageManager.PERMISSION_GRANTED
 
-    if (!hasPhoneState && !hasPhoneNumbers && !hasReadSms) {
+    return hasPhoneState || hasPhoneNumbers || hasReadSms
+}
+
+private fun getDevicePhoneNumber(context: Context): String {
+    if (!canReadDevicePhoneNumber(context)) {
         return ""
     }
 
@@ -626,11 +739,30 @@ private fun getOwnPhoneNumber(context: Context): String {
         ""
     }
     if (directNumber.isNotBlank()) {
-        return directNumber
+        return directNumber.filter { it.isDigit() }
     }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
         val subscriptionManager = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val modernNumber = try {
+                subscriptionManager?.activeSubscriptionInfoList
+                    ?.asSequence()
+                    ?.mapNotNull { info ->
+                        subscriptionManager.getPhoneNumber(info.subscriptionId)
+                            ?.filter { it.isDigit() }
+                            ?.takeIf { it.isNotBlank() }
+                    }
+                    ?.firstOrNull()
+                    .orEmpty()
+            } catch (e: SecurityException) {
+                ""
+            }
+            if (modernNumber.isNotBlank()) {
+                return modernNumber
+            }
+        }
+
         val subscriptionNumber = try {
             subscriptionManager?.activeSubscriptionInfoList
                 ?.firstOrNull { !it.number.isNullOrBlank() }
@@ -640,7 +772,7 @@ private fun getOwnPhoneNumber(context: Context): String {
             ""
         }
         if (subscriptionNumber.isNotBlank()) {
-            return subscriptionNumber
+            return subscriptionNumber.filter { it.isDigit() }
         }
     }
 
