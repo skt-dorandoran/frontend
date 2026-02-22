@@ -103,21 +103,30 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_AUTO_CALL = "extra_auto_call"
     }
 
-    private val requiredPermissions = arrayOf(
-        Manifest.permission.CALL_PHONE,
-        Manifest.permission.READ_CALL_LOG,
-        Manifest.permission.READ_CONTACTS,
-        Manifest.permission.READ_PHONE_STATE,
-        Manifest.permission.READ_PHONE_NUMBERS,
-        Manifest.permission.RECORD_AUDIO,
-        Manifest.permission.POST_NOTIFICATIONS
-    )
+    private val corePermissions: Array<String>
+        get() = buildList {
+            add(Manifest.permission.CALL_PHONE)
+            add(Manifest.permission.READ_CALL_LOG)
+            add(Manifest.permission.READ_CONTACTS)
+            add(Manifest.permission.READ_PHONE_STATE)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                add(Manifest.permission.READ_PHONE_NUMBERS)
+            }
+            add(Manifest.permission.RECORD_AUDIO)
+        }.toTypedArray()
+
+    private val optionalPermissions: Array<String>
+        get() = buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }.toTypedArray()
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val allGranted = permissions.values.all { it }
-        permissionsState = allGranted
+    ) { _ ->
+        checkPermissions()
+        val allGranted = permissionsState
         savePermissionsRequested()
         onboardingPermissionPending = false
         if (!allGranted) {
@@ -226,7 +235,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkPermissions() {
-        val allGranted = requiredPermissions.all {
+        val allGranted = corePermissions.all {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         }
         permissionsState = allGranted
@@ -277,7 +286,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestPermissions() {
-        permissionLauncher.launch(requiredPermissions)
+        permissionLauncher.launch(corePermissions + optionalPermissions)
     }
 
 
@@ -292,6 +301,15 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         checkPermissions()
         if (permissionsState) {
+            showMissingPermissionsWarning = false
+            saveMissingPermissionsWarning(false)
+            if (hasRequestedPermissions && !onboardingCompleted) {
+                onboardingCompleted = true
+                saveOnboardingCompleted()
+            }
+            if (onboardingCompleted) {
+                showAppWithoutDefaultDialer = true
+            }
             initializeMyPhoneNumberDefault()
         }
         if (!permissionsState && onboardingCompleted) {
