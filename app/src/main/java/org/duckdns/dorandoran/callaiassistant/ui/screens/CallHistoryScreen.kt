@@ -165,7 +165,7 @@ fun CallHistoryScreen(
                         style = TextStyle(
                             fontSize = 15.sp,
                             fontFamily = pretendardFont,
-                            fontWeight = FontWeight(700),
+                            fontWeight = FontWeight(500),
                             color = Color(0xFF1D1D1F),
                             textAlign = TextAlign.Center,
                         )
