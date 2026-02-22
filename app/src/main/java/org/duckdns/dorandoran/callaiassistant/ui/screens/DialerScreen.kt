@@ -417,7 +417,11 @@ private fun DialPadButton(
                         color = digitColor,
                         textAlign = TextAlign.Center
                     ),
-                    modifier = if (digit == "*") Modifier.offset(y = 5.dp) else Modifier
+                    modifier = when (digit) {
+                        "*" -> Modifier.offset(y = 5.dp)
+                        "0", "#" -> Modifier.offset(x = (-1).dp)
+                        else -> Modifier
+                    }
                 )
             }
             Column(
