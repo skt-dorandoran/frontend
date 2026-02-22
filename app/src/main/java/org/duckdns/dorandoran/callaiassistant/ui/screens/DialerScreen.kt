@@ -79,61 +79,25 @@ fun DialerScreen(
         }
     }
 
-    // 반응형을 위한 화면 크기 정보
-    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-    val screenWidthDp = configuration.screenWidthDp
-    val screenHeightDp = configuration.screenHeightDp
-
-    // 화면 크기에 따라 키패드/폰트/패딩 크기 조정
-    val isSmallScreen = screenWidthDp <= 400 || screenHeightDp <= 720
-    val dialPadWidth = if (isSmallScreen) 236.dp else 286.dp
-    val dialPadButtonHeight = if (isSmallScreen) 62.dp else 80.dp
-    val dialPadButtonFontSize = if (isSmallScreen) 28.sp else 36.sp
-    val dialPadHangulFontSize = if (isSmallScreen) 11.sp else 13.sp
-    val dialPadLatinFontSize = if (isSmallScreen) 10.sp else 12.sp
-    val dialPadRowSpacing = if (isSmallScreen) 12.dp else 20.dp
-    val phoneNumberFontSize = if (isSmallScreen) 20.sp else 28.sp
-    val phoneNumberHeight = if (isSmallScreen) 32.dp else 44.dp
-    val topPadding = if (isSmallScreen) 16.dp else 40.dp
-    val bottomPadding = if (isSmallScreen) 12.dp else 24.dp
-    val keypadBottomSpacing = if (isSmallScreen) 10.dp else 24.dp
-    val callButtonSize = if (isSmallScreen) 60.dp else 82.dp
-    val callIconSize = if (isSmallScreen) 26.dp else 36.dp
-    val backspaceSize = if (isSmallScreen) 48.dp else 72.dp
-    val columnEdgeOffset = if (isSmallScreen) 21.dp else 25.dp
-    val headerWidth = dialPadWidth + (columnEdgeOffset * 2)
-    val headerHeight = if (isSmallScreen) 40.dp else 52.dp
-    val headerFontSize = if (isSmallScreen) 30.sp else 38.sp
-    val settingsButtonSize = if (isSmallScreen) 40.dp else 46.dp
-    val settingsIconSize = if (isSmallScreen) 28.dp else 34.dp
-    val headerOffsetY = 10.dp
-    val firstColumnOffsetX = -columnEdgeOffset
-    val thirdColumnOffsetX = columnEdgeOffset
-    val dialPadLiftY = (-22).dp
-    val callButtonLiftY = (-12).dp
-    val keypadToCallSpacing = if (isSmallScreen) 13.dp else 17.dp
-    val callToControlSpacing = (keypadToCallSpacing * 2) - 2.dp
-
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(Color.White)
-            .padding(top = topPadding, bottom = bottomPadding),
+            .padding(top = 40.dp, bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 1. 헤더 (고정) - 피그마 치수인 289dp로
+        // 1. 헤더 (고정) - 피그마 치수인 289dp로 복구 완료
         Row(
             modifier = Modifier
-                .width(headerWidth)
-                .offset(y = headerOffsetY)
-                .height(headerHeight),
+                .width(250.dp)
+                .height(43.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = "T.mate",
                 style = TextStyle(
-                    fontSize = headerFontSize,
+                    fontSize = 30.sp,
                     fontFamily = pretendardFont,
                     fontWeight = FontWeight(700),
                     color = Color(0xFF1D1D1F)
@@ -142,17 +106,16 @@ fun DialerScreen(
             // IconButton의 기본 패딩이 레이아웃을 왜곡하는 것을 막기 위해 Box로 교체
             Box(
                 modifier = Modifier
-                    .width(settingsButtonSize)
-                    .height(settingsButtonSize)
+                    .size(34.dp)
                     .clip(CircleShape)
                     .clickable { onOpenSettings() },
-                contentAlignment = Alignment.CenterEnd
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.setting),
                     contentDescription = "설정",
-                    tint = Color(0xFF323683),
-                    modifier = Modifier.size(settingsIconSize)
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
@@ -174,8 +137,8 @@ fun DialerScreen(
                     formatPhoneNumber(phoneNumber)
                 },
                 style = TextStyle(
-                    fontSize = phoneNumberFontSize,
-                    lineHeight = if (isSmallScreen) 18.sp else 22.sp,
+                    fontSize = 28.sp,
+                    lineHeight = 22.sp,
                     fontFamily = pretendardFont,
                     fontWeight = FontWeight(900),
                     color = Color(0xFF000000),
@@ -183,7 +146,7 @@ fun DialerScreen(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = phoneNumberHeight)
+                    .heightIn(min = 44.dp)
                     .wrapContentHeight(Alignment.CenterVertically)
             )
 
@@ -232,15 +195,14 @@ fun DialerScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(keypadBottomSpacing))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // 4. 키패드
         Column(
             modifier = Modifier
-                .width(dialPadWidth)
-                .offset(y = dialPadLiftY)
+                .width(271.dp)
                 .wrapContentHeight(),
-            verticalArrangement = Arrangement.spacedBy(dialPadRowSpacing),
+            verticalArrangement = Arrangement.spacedBy(19.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             val dialPad = listOf(
@@ -255,24 +217,14 @@ fun DialerScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    row.forEachIndexed { index, key ->
+                    row.forEach { key ->
                         DialPadButton(
                             digit = key.digit,
                             hangul = key.hangul,
                             latin = key.latin,
                             modifier = Modifier
                                 .weight(1f)
-                                .offset(
-                                    x = when (index) {
-                                        0 -> firstColumnOffsetX
-                                        2 -> thirdColumnOffsetX
-                                        else -> 0.dp
-                                    }
-                                )
-                                .heightIn(min = dialPadButtonHeight),
-                            digitFontSize = dialPadButtonFontSize,
-                            hangulFontSize = dialPadHangulFontSize,
-                            latinFontSize = dialPadLatinFontSize,
+                                .height(66.dp),
                             onClick = {
                                 if (key.digit.length == 1) {
                                     digitToTone(key.digit[0])?.let { tone ->
@@ -289,21 +241,19 @@ fun DialerScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(keypadToCallSpacing))
+        Spacer(modifier = Modifier.height(18.dp))
 
         // 5. 하단 영역 (통화 버튼 + 토글 바)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(callToControlSpacing)
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             Row(
-                modifier = Modifier
-                    .width(dialPadWidth)
-                    .offset(y = callButtonLiftY),
+                modifier = Modifier.width(271.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Spacer(modifier = Modifier.size(backspaceSize))
+                Spacer(modifier = Modifier.size(72.dp))
 
                 CallButton(
                     onClick = {
@@ -319,15 +269,13 @@ fun DialerScreen(
                                 onCallStarted(phoneNumber)
                             }
                         }
-                    },
-                    size = callButtonSize,
-                    iconSize = callIconSize
+                    }
                 )
 
                 if (phoneNumber.isNotEmpty() || showLastCalledNumber) {
                     Box(
                         modifier = Modifier
-                            .size(backspaceSize)
+                            .size(72.dp)
                             .combinedClickable(
                                 onClick = {
                                     if (showLastCalledNumber) {
@@ -346,12 +294,11 @@ fun DialerScreen(
                         Icon(
                             painter = painterResource(id = R.drawable.backspace),
                             contentDescription = "삭제",
-                            tint = Color.Unspecified,
-                            modifier = Modifier.size(if (isSmallScreen) 28.dp else 36.dp)
+                            tint = Color.Unspecified
                         )
                     }
                 } else {
-                    Spacer(modifier = Modifier.size(backspaceSize))
+                    Spacer(modifier = Modifier.size(72.dp))
                 }
             }
 
@@ -431,9 +378,6 @@ private fun DialPadButton(
     hangul: String,
     latin: String,
     modifier: Modifier = Modifier,
-    digitFontSize: androidx.compose.ui.unit.TextUnit = 32.sp,
-    hangulFontSize: androidx.compose.ui.unit.TextUnit = 12.sp,
-    latinFontSize: androidx.compose.ui.unit.TextUnit = 11.sp,
     onClick: () -> Unit
 ) {
     val pretendard = try {
@@ -451,20 +395,22 @@ private fun DialPadButton(
             verticalArrangement = Arrangement.Top
         ) {
             Box(
+                modifier = Modifier.height(38.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = digit,
                     style = TextStyle(
-                        fontSize = digitFontSize,
+                        fontSize = 32.sp,
                         fontFamily = pretendard,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight(500),
                         color = digitColor,
                         textAlign = TextAlign.Center
                     )
                 )
             }
             Column(
+                modifier = Modifier.height(28.dp),
                 verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.Top),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -472,24 +418,26 @@ private fun DialPadButton(
                     Text(
                         text = hangul,
                         style = TextStyle(
-                            fontSize = hangulFontSize,
+                            fontSize = 12.sp,
                             fontFamily = pretendard,
                             fontWeight = FontWeight(600),
                             color = digitColor,
                             textAlign = TextAlign.Center,
                             letterSpacing = 1.2.sp
-                        )
+                        ),
+                        modifier = Modifier.height(14.dp)
                     )
                 }
                 Text(
                     text = latin.ifBlank { " " },
                     style = TextStyle(
-                        fontSize = latinFontSize,
+                        fontSize = 11.sp,
                         fontFamily = pretendard,
                         fontWeight = FontWeight(500),
                         color = if (latin.isBlank()) Color.Transparent else digitColor,
                         textAlign = TextAlign.Center
-                    )
+                    ),
+                    modifier = Modifier.height(13.dp)
                 )
             }
         }
@@ -529,11 +477,11 @@ fun Modifier.figmaDropShadow(
 }
 
 @Composable
-private fun CallButton(onClick: () -> Unit, size: Dp = 73.dp, iconSize: Dp = 32.dp) {
+private fun CallButton(onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .figmaDropShadow()
-            .size(size)
+            .size(73.dp)
             .background(color = Color(0xFFFFFFFF), shape = CircleShape)
             .border(width = 1.dp, color = Color(0xFFEEF0F5), shape = CircleShape)
             .clip(CircleShape)
@@ -544,7 +492,7 @@ private fun CallButton(onClick: () -> Unit, size: Dp = 73.dp, iconSize: Dp = 32.
             painter = painterResource(id = R.drawable.phone_icon),
             contentDescription = "통화",
             tint = Color(0xFF5BC774),
-            modifier = Modifier.size(iconSize)
+            modifier = Modifier.size(32.dp)
         )
     }
 }
