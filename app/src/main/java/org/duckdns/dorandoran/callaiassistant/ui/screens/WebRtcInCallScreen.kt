@@ -1,5 +1,11 @@
 ﻿package org.duckdns.dorandoran.callaiassistant.ui.screens
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.collectAsState
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -54,6 +60,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -218,7 +225,7 @@ fun WebRtcInCallScreen(
     val currentSuggestions = listOf(aiSuggestionTop1, aiSuggestionTop2)
     val displayNumber = if (phoneNumber.isNotBlank()) formatPhoneNumber(phoneNumber) else "상대방"
     val lastRemoteTypedMessageText = textModeLastRemoteBubble.ifBlank { "상대방 대화가 없습니다" }
-    val directSpeakPlaceholderText = "직접 말하거나\n위의 추천 답변을 선택하세요"
+    val directSpeakPlaceholderText = "직접 말씀하시거나\n위의 추천 답변을 선택하세요"
     val textScale = remember { SettingsStore.getCallTextScale(context) }
     val settingPhoneNumber = remember {
         SettingsStore.getMyPhoneNumber(context).ifBlank { SettingsStore.DEFAULT_MY_PHONE_NUMBER }
@@ -679,41 +686,71 @@ fun WebRtcInCallScreen(
                                         .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalArrangement = Arrangement.Top
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.lucide_mic),
-                                            contentDescription = "마이크",
-                                            tint = Color(0xFF5D5D5D),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Text(
-                                            text = if (aiCorrectionOverlayState != AiCorrectionOverlayState.RECORDING) {
-                                                "보정된 문장을 확인해주세요"
-                                            } else {
-                                                "지금 이렇게 말하고 있어요"
-                                            },
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = Color(0xFF5D5D5D)
-                                        )
+                                    if (aiCorrectionDraftText.isNotBlank()) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(id = R.drawable.ic_lucide_mic),
+                                                contentDescription = "마이크",
+                                                tint = Color(0xFF5D5D5D),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Text(
+                                                text = if (aiCorrectionOverlayState != AiCorrectionOverlayState.RECORDING) {
+                                                    "보정된 문장을 확인해주세요"
+                                                } else {
+                                                    "지금 이렇게 말하고 있어요"
+                                                },
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = Color(0xFF5D5D5D)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(14.dp))
                                     }
-                                    Spacer(modifier = Modifier.height(14.dp))
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .weight(1f),
-                                        contentAlignment = Alignment.CenterStart
+                                        contentAlignment = if (aiCorrectionDraftText.isBlank()) {
+                                            Alignment.Center
+                                        } else {
+                                            Alignment.CenterStart
+                                        }
                                     ) {
-                                        Text(
-                                            text = aiCorrectionDraftText.ifBlank { "말씀하시면 문장이 여기에 표시됩니다" },
-                                            style = MaterialTheme.typography.bodyLarge.copy(
-                                                fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale * 1.4f,
-                                                fontWeight = FontWeight.SemiBold
-                                            ),
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
+                                        if (aiCorrectionDraftText.isBlank()) {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.ic_lucide_mic),
+                                                    contentDescription = "마이크",
+                                                    tint = Color(0xFF7A7A7A),
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text(
+                                                    text = "말씀하시면\n여기에 표시됩니다",
+                                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                                        fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale * 1.15f,
+                                                        fontWeight = FontWeight.Medium
+                                                    ),
+                                                    color = Color(0xFF9A9A9A),
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
+                                        } else {
+                                            Text(
+                                                text = aiCorrectionDraftText,
+                                                style = MaterialTheme.typography.bodyLarge.copy(
+                                                    fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale * 1.4f,
+                                                    fontWeight = FontWeight.SemiBold
+                                                ),
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
                                     }
                                 }
 
@@ -723,8 +760,8 @@ fun WebRtcInCallScreen(
                                     AiCorrectionOverlayState.RECORDING -> {
                                         val startCorrectionEnabled =
                                             aiCorrectionDraftText.isNotBlank() &&
-                                                !isAiCorrectionProcessing &&
-                                                !isAiCorrectionTranscribing
+                                                    !isAiCorrectionProcessing &&
+                                                    !isAiCorrectionTranscribing
                                         val startCorrectionButtonBrush = if (startCorrectionEnabled) {
                                             Brush.horizontalGradient(
                                                 colors = listOf(
@@ -875,19 +912,30 @@ fun WebRtcInCallScreen(
                                             color = Color(0xFF727272)
                                         )
                                     }
+                                    val refreshInfiniteTransition = rememberInfiniteTransition(label = "refresh_rotation")
+                                    val refreshRotationAngle by refreshInfiniteTransition.animateFloat(
+                                        initialValue = 0f,
+                                        targetValue = 360f,
+                                        animationSpec = infiniteRepeatable(
+                                            animation = tween(durationMillis = 800, easing = LinearEasing),
+                                            repeatMode = RepeatMode.Restart
+                                        ),
+                                        label = "refresh_angle"
+                                    )
                                     IconButton(
                                         enabled = !isRefreshingAiSuggestions,
                                         onClick = {
                                             viewModel.refreshAiSuggestions()
                                         }
                                     ) {
-                                        if (!isRefreshingAiSuggestions) {
-                                            Icon(
-                                                imageVector = Icons.Default.Refresh,
-                                                contentDescription = "추천 새로고침",
-                                                tint = secondaryTextColor
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = "추천 새로고침",
+                                            tint = secondaryTextColor,
+                                            modifier = Modifier.rotate(
+                                                if (isRefreshingAiSuggestions) refreshRotationAngle else 0f
                                             )
-                                        }
+                                        )
                                     }
                                 }
 
@@ -950,7 +998,12 @@ fun WebRtcInCallScreen(
                                             .fillMaxWidth()
                                             .height(126.dp)
                                             .clip(RoundedCornerShape(18.dp))
-                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                            .background(Color(0xFFFFFFFF))
+                                            .border(
+                                                width = 1.dp,
+                                                color = Color(0xFFEAEAEA),
+                                                shape = RoundedCornerShape(18.dp)
+                                            )
                                             .padding(horizontal = 16.dp, vertical = 14.dp),
                                         verticalArrangement = Arrangement.Top
                                     ) {
@@ -959,7 +1012,7 @@ fun WebRtcInCallScreen(
                                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
                                             Icon(
-                                                painter = painterResource(id = R.drawable.lucide_mic),
+                                                painter = painterResource(id = R.drawable.ic_lucide_mic),
                                                 contentDescription = "마이크",
                                                 tint = Color(0xFF5D5D5D),
                                                 modifier = Modifier.size(16.dp)
@@ -967,49 +1020,52 @@ fun WebRtcInCallScreen(
                                             Text(
                                                 text = "지금 이렇게 말하고 있어요",
                                                 style = MaterialTheme.typography.labelLarge,
-                                                color = MaterialTheme.colorScheme.onSurface
+                                                color = Color(0xFF5D5D5D)
                                             )
                                         }
                                         Spacer(modifier = Modifier.height(14.dp))
                                         Text(
                                             text = textModeLastMyBubble,
                                             style = MaterialTheme.typography.bodyLarge.copy(
-                                                fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale
+                                                fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale,
+                                                fontWeight = FontWeight.SemiBold
                                             ),
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                     }
                                 } else {
-                                    OutlinedButton(
-                                        onClick = {},
+                                    Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(126.dp),
-                                        shape = RoundedCornerShape(14.dp),
-                                        enabled = false,
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                            contentColor = MaterialTheme.colorScheme.onSurface,
-                                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                            disabledContentColor = MaterialTheme.colorScheme.onSurface
-                                        ),
-                                        border = BorderStroke(0.dp, Color.Transparent)
+                                            .height(126.dp)
+                                            .clip(RoundedCornerShape(18.dp))
+                                            .background(Color(0xFFFFFFFF))
+                                            .border(
+                                                width = 1.dp,
+                                                color = Color(0xFFEAEAEA),
+                                                shape = RoundedCornerShape(18.dp)
+                                            )
+                                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                                        verticalArrangement = Arrangement.Top
                                     ) {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
-                                            verticalAlignment = Alignment.CenterVertically
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Start
                                         ) {
                                             Icon(
-                                                painter = painterResource(id = R.drawable.lucide_mic),
+                                                painter = painterResource(id = R.drawable.ic_lucide_mic),
                                                 contentDescription = "마이크",
                                                 tint = Color(0xFF5D5D5D),
-                                                modifier = Modifier.size(18.dp)
+                                                modifier = Modifier.size(24.dp)
                                             )
                                             Spacer(modifier = Modifier.width(10.dp))
                                             Text(
                                                 text = directSpeakPlaceholderText,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = secondaryTextColor,
+                                                style = MaterialTheme.typography.bodyLarge.copy(
+                                                    fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale
+                                                ),
+                                                color = Color(0xFF5D5D5D),
                                                 textAlign = TextAlign.Start
                                             )
                                         }
@@ -1030,7 +1086,7 @@ fun WebRtcInCallScreen(
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        if (!isAiCorrectionMode) {
+                        if (!isAiCorrectionMode || connectionState != WebRtcConnectionState.IN_CALL) {
                             // 모드 선택 버튼들
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
