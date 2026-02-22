@@ -1,4 +1,4 @@
-package org.duckdns.dorandoran.callaiassistant.ui.screens
+﻿package org.duckdns.dorandoran.callaiassistant.ui.screens
 
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -22,7 +22,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.BorderStroke
@@ -215,11 +216,6 @@ fun CallTypingScreen(
             .fillMaxSize()
             .background(typingBodyBackground)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(typingBodyBackground)
-        ) {
         // TopBar (고정)
         TopAppBar(
             title = {
@@ -266,10 +262,10 @@ fun CallTypingScreen(
                         .padding(4.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CallEnd,
+                        painter = painterResource(id = R.drawable.ic_call_end_solar),
                         contentDescription = "통화 종료",
                         tint = MaterialTheme.colorScheme.onError,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.fillMaxSize(0.7f)
                     )
                 }
             },
@@ -435,39 +431,46 @@ fun CallTypingScreen(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(end = 8.dp)
-                        ) {
-                            val fieldShape = RoundedCornerShape(24.dp)
-                            val borderColor = Color(0xFFE8E8E8)
-                            val inputEnabled = inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible
-
-                            BasicTextField(
-                                value = inputText,
-                                onValueChange = { inputText = it },
-                                maxLines = 3,
-                                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                    color = MaterialTheme.colorScheme.onSurface
+                                .padding(end = 8.dp),
+                            placeholder = {
+                                Text(
+                                    text = "AI가 대신 말할 내용을 입력해주세요",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            },
+                            shape = RoundedCornerShape(24.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = primaryBlue,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                            ),
+                            maxLines = 3
+                        )
+                        IconButton(
+                            onClick = {
+                                val textToSend = inputText.text.trim()
+                                if (textToSend.isEmpty()) return@IconButton
+                                inputText = TextFieldValue()
+                                sendMessageNow(textToSend)
+                            },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
+                                        primaryBlue
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                    }
                                 ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 52.dp)
-                                    .clip(fieldShape)
-                                    .border(1.dp, borderColor, fieldShape)
-                                    .background(Color(0xFFFFFFFF))
-                                    .padding(start = 16.dp, end = 58.dp)
-                            ) { innerTextField ->
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 52.dp),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                if (inputText.text.isEmpty()) {
-                                    Text(
-                                        text = "AI가 대신 말할 내용을 입력해주세요",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                            enabled = inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "전송",
+                                tint = if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
+                                    Color.White
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
                                 }
                                 innerTextField()
                                 }
@@ -748,3 +751,4 @@ private fun playTypingModeDtmfTone(toneGenerator: ToneGenerator, key: Char) {
     }
     tone?.let { toneGenerator.startTone(it, 140) }
 }
+

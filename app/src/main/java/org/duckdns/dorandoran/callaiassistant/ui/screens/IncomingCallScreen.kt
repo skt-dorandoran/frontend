@@ -1,4 +1,4 @@
-package org.duckdns.dorandoran.callaiassistant.ui.screens
+﻿package org.duckdns.dorandoran.callaiassistant.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -10,130 +10,166 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import org.duckdns.dorandoran.callaiassistant.R
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 
 @Composable
 fun IncomingCallScreen(
+    modifier: Modifier = Modifier,
     callerName: String = "상대방",
     onAccept: () -> Unit,
-    onReject: () -> Unit,
-    modifier: Modifier = Modifier
+    onReject: () -> Unit
 ) {
+    val backgroundColor = Color(0xFFF8FBFF)
+    val primaryTextColor = Color.Black
+    val subtitleColor = Color(0xFF777B83)
+    val phoneNumberColor = Color(0xFF73777F)
+    val rejectColor = Color(0xFFEF3D3D)
+    val acceptColor = Color(0xFF11C56F)
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(32.dp),
+            .background(backgroundColor)
+            .navigationBarsPadding()
+            .padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Spacer(modifier = Modifier.weight(0.5f))
-
-        Box(
+        Column(
             modifier = Modifier
-                .size(120.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(top = 83.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                imageVector = Icons.Default.Call,
-                contentDescription = null,
-                modifier = Modifier.size(56.dp),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer
+            Text(
+                text = "T.mate 수신 중",
+                color = subtitleColor,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            Text(
+                text = formatIncomingDisplay(callerName),
+                color = primaryTextColor,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(9.dp))
+
+            Text(
+                text = "02-1233-2342",
+                color = phoneNumberColor,
+                fontSize = 15.sp,
+                textAlign = TextAlign.Center
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(
-            text = "전화가 왔어요",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = formatIncomingDisplay(callerName),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.weight(1f))
-
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            modifier = Modifier
+                .width(296.dp)
+                .padding(bottom = 32.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     modifier = Modifier
-                        .size(72.dp)
+                        .size(73.dp)
+                        .incomingButtonShadow()
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.error)
+                        .background(rejectColor)
                         .clickable(onClick = onReject),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CallEnd,
+                        painter = painterResource(id = R.drawable.ic_call_end_solar),
                         contentDescription = "거절",
-                        modifier = Modifier.size(36.dp),
-                        tint = MaterialTheme.colorScheme.onError
+                        modifier = Modifier.fillMaxSize(0.7f),
+                        tint = Color.White
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(11.dp))
                 Text(
                     text = "거절",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = primaryTextColor,
+                    fontSize = 12.sp
                 )
             }
+
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     modifier = Modifier
-                        .size(72.dp)
+                        .size(73.dp)
+                        .incomingButtonShadow()
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
+                        .background(acceptColor)
                         .clickable(onClick = onAccept),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Call,
+                        painter = painterResource(id = R.drawable.ic_call_accept_solar),
                         contentDescription = "응답",
-                        modifier = Modifier.size(36.dp),
-                        tint = MaterialTheme.colorScheme.onPrimary
+                        modifier = Modifier.fillMaxSize(0.56f),
+                        tint = Color.White
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(11.dp))
                 Text(
                     text = "응답",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = primaryTextColor,
+                    fontSize = 12.sp
                 )
             }
         }
+    }
+}
+
+private fun Modifier.incomingButtonShadow() = this.drawBehind {
+    val shadowColor = Color(0x4D959DA5).toArgb()
+    val transparentColor = Color.Transparent.toArgb()
+
+    drawIntoCanvas { canvas ->
+        val paint = Paint()
+        val frameworkPaint = paint.asFrameworkPaint()
+        frameworkPaint.color = transparentColor
+        frameworkPaint.setShadowLayer(
+            24.dp.toPx(),
+            0.dp.toPx(),
+            8.dp.toPx(),
+            shadowColor
+        )
+        canvas.drawCircle(
+            center = center,
+            radius = size.minDimension / 2f,
+            paint = paint
+        )
     }
 }
 
@@ -142,13 +178,13 @@ private fun formatIncomingDisplay(raw: String): String {
     if (digits.isBlank()) return raw
     return when {
         digits.startsWith("02") && digits.length == 9 ->
-            "${digits.substring(0, 2)}-${digits.substring(2, 5)}-${digits.substring(5)}"
+            "${digits.take(2)}-${digits.drop(2).take(3)}-${digits.drop(5)}"
         digits.startsWith("02") && digits.length == 10 ->
-            "${digits.substring(0, 2)}-${digits.substring(2, 6)}-${digits.substring(6)}"
+            "${digits.take(2)}-${digits.drop(2).take(4)}-${digits.drop(6)}"
         digits.length == 10 ->
-            "${digits.substring(0, 3)}-${digits.substring(3, 6)}-${digits.substring(6)}"
+            "${digits.take(3)}-${digits.drop(3).take(3)}-${digits.drop(6)}"
         digits.length == 11 ->
-            "${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7)}"
+            "${digits.take(3)}-${digits.drop(3).take(4)}-${digits.drop(7)}"
         else -> raw
     }
 }
@@ -158,9 +194,10 @@ private fun formatIncomingDisplay(raw: String): String {
 fun IncomingCallScreenPreview() {
     CallaiassistantTheme {
         IncomingCallScreen(
-            callerName = "홍길동",
+            callerName = "보라매 병원",
             onAccept = {},
             onReject = {}
         )
     }
 }
+
