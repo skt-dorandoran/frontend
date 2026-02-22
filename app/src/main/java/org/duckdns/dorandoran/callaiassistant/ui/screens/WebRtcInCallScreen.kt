@@ -19,6 +19,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,7 +38,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -94,7 +94,11 @@ import org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneTtsApi
 import java.io.File
 // --- 파일 최상위에 선언: 말풍선 컴포저블 ---
 @Composable
-public fun MyMessageBubble(message: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage, textScale: Float) {
+public fun MyMessageBubble(
+    message: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage,
+    textScale: Float,
+    textFontWeight: FontWeight = FontWeight.Normal
+) {
     val bubbleShape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
     val aiGradientBorder = Brush.horizontalGradient(
         colors = listOf(Color(0xFF8B7BFF), Color(0xFF66D1C5))
@@ -130,13 +134,18 @@ public fun MyMessageBubble(message: org.duckdns.dorandoran.callaiassistant.ui.vi
             text = message.text,
             color = Color(0xFF111111),
             fontSize = (16 * textScale).sp,
+            fontWeight = textFontWeight,
             modifier = Modifier.padding(12.dp)
         )
     }
 }
 
 @Composable
-public fun RemoteMessageBubble(message: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage, textScale: Float) {
+public fun RemoteMessageBubble(
+    message: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ChatMessage,
+    textScale: Float,
+    textFontWeight: FontWeight = FontWeight.Normal
+) {
     androidx.compose.material3.Surface(
         color = Color(0xFFFFFFFF),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
@@ -154,6 +163,7 @@ public fun RemoteMessageBubble(message: org.duckdns.dorandoran.callaiassistant.u
             text = message.text,
             color = androidx.compose.ui.graphics.Color.Black,
             fontSize = (16 * textScale).sp,
+            fontWeight = textFontWeight,
             modifier = Modifier.padding(12.dp)
         )
     }
@@ -934,7 +944,7 @@ fun WebRtcInCallScreen(
                                         }
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Refresh,
+                                            painter = painterResource(id = R.drawable.ic_redirect_refresh),
                                             contentDescription = "추천 새로고침",
                                             tint = secondaryTextColor,
                                             modifier = Modifier.rotate(
@@ -948,12 +958,15 @@ fun WebRtcInCallScreen(
 
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    verticalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
                                     val suggestionBorderBrush = Brush.horizontalGradient(
                                         colors = listOf(
-                                            Color(0xCCA371FE),
-                                            Color(0xCC74A5FA)
+                                            Color(0xFF8B79F6),
+                                            Color(0xFF7B8CF8),
+                                            Color(0xFF6BA3F8),
+                                            Color(0xFF67BCCF),
+                                            Color(0xFF7ADFD0)
                                         )
                                     )
                                     currentSuggestions.forEach { suggestion ->
@@ -964,7 +977,7 @@ fun WebRtcInCallScreen(
                                             },
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .height(48.dp),
+                                                .defaultMinSize(minHeight = 42.dp),
                                             shape = RoundedCornerShape(20.dp),
                                             enabled = !isRefreshingAiSuggestions && suggestion.isNotBlank(),
                                             border = BorderStroke(
@@ -989,6 +1002,8 @@ fun WebRtcInCallScreen(
                                             Text(
                                                 text = suggestion,
                                                 style = MaterialTheme.typography.bodyMedium,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
                                                 textAlign = TextAlign.Center
                                             )
                                         }

@@ -22,9 +22,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -260,21 +258,22 @@ fun CallTypingScreen(
                 IconButton(
                     onClick = onEndCall,
                     modifier = Modifier
+                        .padding(end = 20.dp)
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.error)
+                        .background(Color(0xFFFF6B6B))
                         .padding(4.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CallEnd,
+                        painter = painterResource(id = R.drawable.ic_solar_phone_bold),
                         contentDescription = "통화 종료",
-                        tint = MaterialTheme.colorScheme.onError,
+                        tint = Color.Unspecified,
                         modifier = Modifier.size(20.dp)
                     )
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = Color(0xFFFFFFFF)
             )
         )
 
@@ -290,7 +289,7 @@ fun CallTypingScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
                 reverseLayout = true
             ) {
                 // 메시지를 역순으로 표시 (최신 메시지가 맨 아래)
@@ -301,9 +300,17 @@ fun CallTypingScreen(
                         horizontalArrangement = if (message.isFromMe) Arrangement.End else Arrangement.Start
                     ) {
                         if (!message.isFromMe) {
-                            RemoteMessageBubble(message = message, textScale = textScale)
+                            RemoteMessageBubble(
+                                message = message,
+                                textScale = textScale,
+                                textFontWeight = FontWeight.SemiBold
+                            )
                         } else {
-                            MyMessageBubble(message = message, textScale = textScale)
+                            MyMessageBubble(
+                                message = message,
+                                textScale = textScale,
+                                textFontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
                 }
@@ -315,9 +322,9 @@ fun CallTypingScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(typingBodyBackground)
-                .padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                .padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
             horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically
@@ -343,7 +350,7 @@ fun CallTypingScreen(
                 ) {
                     if (!isRefreshingAiSuggestions) {
                         Icon(
-                            imageVector = Icons.Default.Refresh,
+                            painter = painterResource(id = R.drawable.ic_redirect_refresh),
                             contentDescription = "추천 새로고침",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(14.dp)
@@ -357,7 +364,7 @@ fun CallTypingScreen(
                     text = suggestion,
                     isLoading = isRefreshingAiSuggestions,
                     controlsEnabled = !isInlineKeypadVisible,
-                    useGradientBorder = false,
+                    useGradientBorder = true,
                     modifier = Modifier.fillMaxWidth(0.62f),
                     onClick = {
                         if (isRefreshingAiSuggestions || suggestion.isBlank()) return@SuggestionButton
@@ -565,7 +572,13 @@ private fun SuggestionButton(
 ) {
     val shape = RoundedCornerShape(999.dp)
     val gradientBrush = Brush.horizontalGradient(
-        colors = listOf(Color(0xFF8B7BFF), Color(0xFF66D1C5))
+        colors = listOf(
+            Color(0xFF8B79F6),
+            Color(0xFF7B8CF8),
+            Color(0xFF6BA3F8),
+            Color(0xFF67BCCF),
+            Color(0xFF7ADFD0)
+        )
     )
     OutlinedButton(
         onClick = onClick,
@@ -604,7 +617,7 @@ private fun SuggestionButton(
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.Normal,
             textAlign = TextAlign.End,
             modifier = Modifier
                 .fillMaxWidth()
