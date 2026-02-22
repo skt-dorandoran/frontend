@@ -543,7 +543,7 @@ fun CallTypingScreen(
                 TypingModeKeypadContent(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 10.dp, end = 10.dp, top = 40.dp, bottom = 14.dp),
+                        .padding(start = 10.dp, end = 10.dp, top = 50.dp, bottom = 24.dp),
                     onKeyPress = { key ->
                         playTypingModeDtmfTone(toneGenerator, key)
                     }
@@ -625,19 +625,25 @@ private fun TypingModeKeypadContent(
         listOf(TypingModeDialPadKey("*", ",", ""), TypingModeDialPadKey("0", "ㅎ", "+"), TypingModeDialPadKey("#", ";", ""))
     )
 
+    val keypadVerticalRowSpacing = 10.dp
+    val keypadHorizontalKeySpacing = 7.dp
+
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(keypadVerticalRowSpacing)
     ) {
         dialPad.forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(
+                    keypadHorizontalKeySpacing,
+                    Alignment.CenterHorizontally
+                )
             ) {
                 row.forEach { key ->
                     Box(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier,
                         contentAlignment = Alignment.Center
                     ) {
                         TypingModeDialPadButton(
