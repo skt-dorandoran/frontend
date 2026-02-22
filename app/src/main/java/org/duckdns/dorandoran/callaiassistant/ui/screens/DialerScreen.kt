@@ -63,6 +63,9 @@ fun DialerScreen(
     } catch (_: Exception) {
         FontFamily.Default
     }
+    val headerWidth = 276.dp
+    val keypadWidth = 272.dp
+    val keypadColumnShift = 18.dp
 
     DisposableEffect(Unit) {
         onDispose { toneGenerator.release() }
@@ -83,13 +86,13 @@ fun DialerScreen(
         modifier = modifier
             .fillMaxSize()
             .background(Color.White)
-            .padding(top = 40.dp, bottom = 24.dp),
+            .padding(top = 28.dp, bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // 1. 헤더 (고정) - 피그마 치수인 289dp로 복구 완료
         Row(
             modifier = Modifier
-                .width(250.dp)
+                .width(headerWidth)
                 .height(43.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -114,7 +117,7 @@ fun DialerScreen(
                 Icon(
                     painter = painterResource(id = R.drawable.setting),
                     contentDescription = "설정",
-                    tint = Color.Unspecified,
+                    tint = Color(0xFF323683),
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -200,7 +203,7 @@ fun DialerScreen(
         // 4. 키패드
         Column(
             modifier = Modifier
-                .width(271.dp)
+                .width(keypadWidth)
                 .wrapContentHeight(),
             verticalArrangement = Arrangement.spacedBy(19.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -217,14 +220,21 @@ fun DialerScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    row.forEach { key ->
+                    row.forEachIndexed { index, key ->
+                        val horizontalShift = when (index) {
+                            0 -> -keypadColumnShift
+                            2 -> keypadColumnShift
+                            else -> 0.dp
+                        }
+
                         DialPadButton(
                             digit = key.digit,
                             hangul = key.hangul,
                             latin = key.latin,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(66.dp),
+                                .height(66.dp)
+                                .offset(x = horizontalShift),
                             onClick = {
                                 if (key.digit.length == 1) {
                                     digitToTone(key.digit[0])?.let { tone ->
@@ -403,10 +413,11 @@ private fun DialPadButton(
                     style = TextStyle(
                         fontSize = 32.sp,
                         fontFamily = pretendard,
-                        fontWeight = FontWeight(500),
+                        fontWeight = FontWeight(700),
                         color = digitColor,
                         textAlign = TextAlign.Center
-                    )
+                    ),
+                    modifier = if (digit == "*") Modifier.offset(y = 5.dp) else Modifier
                 )
             }
             Column(
@@ -425,7 +436,9 @@ private fun DialPadButton(
                             textAlign = TextAlign.Center,
                             letterSpacing = 1.2.sp
                         ),
-                        modifier = Modifier.height(14.dp)
+                        modifier = Modifier
+                            .height(14.dp)
+                            .offset(y = if (hangul == ";") 4.dp else 0.dp)
                     )
                 }
                 Text(
