@@ -9,11 +9,17 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -25,10 +31,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.TextRange
@@ -52,7 +61,7 @@ import org.duckdns.dorandoran.callaiassistant.webrtc.WebRtcManager
 import android.util.Log
 import kotlinx.coroutines.launch
 
-private val NOISE_ONLY_REGEX = Regex("^[\\p{Punct}\\s쨌??+$")
+private val NOISE_ONLY_REGEX = Regex("^[\\p{Punct}\\s·…]+$")
 
 private fun isMeaningfulConversationText(text: String): Boolean {
     val normalized = text.trim()
@@ -166,7 +175,7 @@ fun CallTypingScreen(
         }
     }
 
-    // TTS 珥덇린??- ?듯솕 ?쒖옉 ??1?뚮쭔
+    // TTS 초기화 - 통화 시작 시 1회만
     LaunchedEffect(Unit) {
         TtsManager.initializeForCall(
             context = context,
@@ -180,7 +189,7 @@ fun CallTypingScreen(
 
     DisposableEffect(Unit) {
         onDispose {
-            // TTS 醫낅즺?섏? 留먭퀬 (?ㅻⅨ ?붾㈃?먯꽌 ?ъ슜?????덉쓬) ?먮쭔 ?뺣━
+            // TTS 종료하지 말고 (다른 화면에서 사용할 수 있음) 큐만 정리
             CustomAudioDeviceModule.clearTtsQueue()
             messageTts = null
             isTtsReady = false
@@ -188,26 +197,26 @@ fun CallTypingScreen(
         }
     }
 
-    // 硫붿떆吏媛 異붽??섎㈃ ?ㅽ겕濡ㅼ쓣 媛???꾨옒濡?利됱떆 ?대룞
+    // 메시지가 추가되면 스크롤을 가장 아래로 즉시 이동
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.scrollToItem(index = 0)
         }
     }
     
-    // ?낅젰 ?꾨뱶 ?ъ빱???쒖뿉???ㅽ겕濡??좎?
+    // 입력 필드 포커스 시에도 스크롤 유지
     LaunchedEffect(inputText.text) {
         if (messages.isNotEmpty()) {
             listState.scrollToItem(index = 0)
         }
     }
     
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(typingBodyBackground)
     ) {
-        // TopBar (怨좎젙)
+        // TopBar (고정)
         TopAppBar(
             title = {
                 Row(
@@ -254,7 +263,7 @@ fun CallTypingScreen(
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_call_end_solar),
-                        contentDescription = "?듯솕 醫낅즺",
+                        contentDescription = "통화 종료",
                         tint = MaterialTheme.colorScheme.onError,
                         modifier = Modifier.fillMaxSize(0.7f)
                     )
@@ -265,7 +274,7 @@ fun CallTypingScreen(
             )
         )
 
-        // 硫붿떆吏 ?곸뿭 (?ㅽ겕濡?媛??
+        // 메시지 영역 (스크롤 가능)
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -280,7 +289,7 @@ fun CallTypingScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 reverseLayout = true
             ) {
-                // 硫붿떆吏瑜???닚?쇰줈 ?쒖떆 (理쒖떊 硫붿떆吏媛 留??꾨옒)
+                // 메시지를 역순으로 표시 (최신 메시지가 맨 아래)
                 items(displayMessages.size) { index ->
                     val message = displayMessages[displayMessages.size - 1 - index]
                     Row(
@@ -297,7 +306,7 @@ fun CallTypingScreen(
             }
         }
 
-        // ?낅젰 釉붾윮 諛붾줈 ??怨좎젙 AI 異붿쿇 ?듬?
+        // 입력 블럭 바로 위 고정 AI 추천 답변
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -311,13 +320,13 @@ fun CallTypingScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.Lightbulb,
-                    contentDescription = "AI 異붿쿇",
+                    contentDescription = "AI 추천",
                     tint = Color(0xFFFFC107),
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = if (isSendingAiSuggestion) "AI 異붿쿇 ?듬? ?꾩넚 以?." else "AI 異붿쿇 ?듬?",
+                    text = if (isSendingAiSuggestion) "AI 추천 답변 전송 중.." else "AI 추천 답변",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold
@@ -331,7 +340,7 @@ fun CallTypingScreen(
                     if (!isRefreshingAiSuggestions) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = "異붿쿇 ?덈줈怨좎묠",
+                            contentDescription = "추천 새로고침",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(14.dp)
                         )
@@ -354,13 +363,13 @@ fun CallTypingScreen(
             }
         }
 
-        // BottomBar (怨좎젙)
+        // BottomBar (고정)
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .imePadding(),
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 8.dp
+            color = Color(0xFFFFFFFF),
+            shadowElevation = 0.dp
         ) {
             Box(
                 modifier = Modifier
@@ -370,62 +379,36 @@ fun CallTypingScreen(
                 Column(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            if (visibleOneClickReplies.isNotEmpty()) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(oneClickScrollState)
-                                        .padding(bottom = 12.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    if (visibleOneClickReplies.isNotEmpty() && !isInlineKeypadVisible) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(oneClickScrollState)
+                                .padding(bottom = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            visibleOneClickReplies.forEach { reply ->
+                                OutlinedButton(
+                                    enabled = !isInlineKeypadVisible,
+                                    onClick = {
+                                        inputText = TextFieldValue(
+                                            text = reply,
+                                            selection = TextRange(reply.length)
+                                        )
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
-                                    visibleOneClickReplies.forEach { reply ->
-                                        OutlinedButton(
-                                            enabled = !isInlineKeypadVisible,
-                                            onClick = {
-                                                inputText = TextFieldValue(
-                                                    text = reply,
-                                                    selection = TextRange(reply.length)
-                                                )
-                                            },
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                        ) {
-                                            Text(
-                                                text = reply,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                maxLines = 1
-                                            )
-                                        }
-                                    }
+                                    Text(
+                                        text = reply,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1
+                                    )
                                 }
-                            }
-                        }
-
-                        if (isInlineKeypadVisible) {
-                            Surface(
-                                modifier = Modifier
-                                    .align(Alignment.TopCenter)
-                                    .fillMaxWidth()
-                                    .zIndex(1f),
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
-                                tonalElevation = 6.dp,
-                                shadowElevation = 8.dp
-                            ) {
-                                TypingModeKeypadContent(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 8.dp),
-                                    onKeyPress = { key ->
-                                        playTypingModeDtmfTone(toneGenerator, key)
-                                    }
-                                )
                             }
                         }
                     }
 
-                    // ?낅젰李?(??긽 蹂댁씠?꾨줉 ?ㅻ쾭?덉씠 諛뽰쑝濡?遺꾨━)
+                    // 입력창 (항상 보이도록 오버레이 밖으로 분리)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -433,29 +416,25 @@ fun CallTypingScreen(
                         IconButton(
                             onClick = { isInlineKeypadVisible = !isInlineKeypadVisible },
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isInlineKeypadVisible) primaryBlue.copy(alpha = 0.15f)
-                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                                )
+                                .height(52.dp)
+                                .width(36.dp)
+                                .align(Alignment.CenterVertically)
+                                .offset(y = 1.dp)
                         ) {
                             TypingKeypadDotsIcon(
                                 tint = if (isInlineKeypadVisible) primaryBlue else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(36.dp)
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        OutlinedTextField(
-                            value = inputText,
-                            onValueChange = { inputText = it },
+                        Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(end = 8.dp),
                             placeholder = {
                                 Text(
-                                    text = "AI媛 ???留먰븷 ?댁슜???낅젰?댁＜?몄슂",
+                                    text = "AI가 대신 말할 내용을 입력해주세요",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             },
@@ -487,16 +466,91 @@ fun CallTypingScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = "?꾩넚",
+                                contentDescription = "전송",
                                 tint = if (inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible) {
                                     Color.White
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant
                                 }
-                            )
+                                innerTextField()
+                                }
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    val textToSend = inputText.text.trim()
+                                    if (textToSend.isEmpty()) return@IconButton
+                                    inputText = TextFieldValue()
+                                    sendMessageNow(textToSend)
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .size(43.2.dp),
+                                enabled = inputEnabled
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_send_blue),
+                                    contentDescription = "전송",
+                                    tint = Color.Unspecified,
+                                    modifier = Modifier
+                                        .size(32.4.dp)
+                                        .alpha(if (inputEnabled) 1f else 0.4f)
+                                )
+                            }
                         }
                     }
                 }
+            }
+        }
+        }
+
+        AnimatedVisibility(
+            visible = isInlineKeypadVisible,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(start = 0.dp, end = 0.dp, bottom = 76.dp)
+                .zIndex(3f),
+            enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
+        ) {
+            val keypadShape = RoundedCornerShape(
+                topStart = 40.dp,
+                topEnd = 40.dp,
+                bottomStart = 0.dp,
+                bottomEnd = 0.dp
+            )
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(keypadShape)
+                    .drawWithContent {
+                        drawContent()
+                        val shadowHeight = 18.dp.toPx()
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.03f),
+                                    Color.Transparent
+                                ),
+                                startY = 0f,
+                                endY = shadowHeight
+                            )
+                        )
+                    },
+                shape = keypadShape,
+                color = Color(0xFFFFFFFF).copy(alpha = 0.88f),
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp
+            ) {
+                TypingModeKeypadContent(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 10.dp, end = 10.dp, top = 50.dp, bottom = 24.dp),
+                    onKeyPress = { key ->
+                        playTypingModeDtmfTone(toneGenerator, key)
+                    }
+                )
             }
         }
     }
@@ -546,7 +600,7 @@ private fun SuggestionButton(
             } else if (useGradientBorder) {
                 Color.Transparent
             } else {
-                MaterialTheme.colorScheme.outline
+                Color(0xFFCCCCCC)
             }
         )
     ) {
@@ -557,7 +611,7 @@ private fun SuggestionButton(
             textAlign = TextAlign.End,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
+                .padding(vertical = 2.5.dp)
         )
     }
 }
@@ -574,19 +628,25 @@ private fun TypingModeKeypadContent(
         listOf(TypingModeDialPadKey("*", ",", ""), TypingModeDialPadKey("0", "ㅎ", "+"), TypingModeDialPadKey("#", ";", ""))
     )
 
+    val keypadVerticalRowSpacing = 10.dp
+    val keypadHorizontalKeySpacing = 7.dp
+
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(keypadVerticalRowSpacing)
     ) {
         dialPad.forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(
+                    keypadHorizontalKeySpacing,
+                    Alignment.CenterHorizontally
+                )
             ) {
                 row.forEach { key ->
                     Box(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier,
                         contentAlignment = Alignment.Center
                     ) {
                         TypingModeDialPadButton(
@@ -610,8 +670,6 @@ private fun TypingModeDialPadButton(
     Box(
         modifier = Modifier
             .size(72.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -648,23 +706,27 @@ private fun TypingKeypadDotsIcon(
     tint: Color,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Box(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.Center
     ) {
-        repeat(3) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                repeat(3) {
-                    Box(
-                        modifier = Modifier
-                            .size(3.dp)
-                            .clip(CircleShape)
-                            .background(tint)
-                    )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            repeat(3) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(3) {
+                        Box(
+                            modifier = Modifier
+                                .size(3.dp)
+                                .clip(CircleShape)
+                                .background(tint)
+                        )
+                    }
                 }
             }
         }
