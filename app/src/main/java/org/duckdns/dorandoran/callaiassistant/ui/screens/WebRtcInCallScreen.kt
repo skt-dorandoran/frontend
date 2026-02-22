@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -669,7 +670,12 @@ fun WebRtcInCallScreen(
                                         .fillMaxWidth()
                                         .height(260.dp)
                                         .clip(RoundedCornerShape(18.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                        .background(Color(0xFFFFFFFF))
+                                        .border(
+                                            width = 1.dp,
+                                            color = Color(0xFFEAEAEA),
+                                            shape = RoundedCornerShape(18.dp)
+                                        )
                                         .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalArrangement = Arrangement.Top
                                 ) {
@@ -678,9 +684,9 @@ fun WebRtcInCallScreen(
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         Icon(
-                                            painter = painterResource(id = R.drawable.ic_lucide_mic),
+                                            painter = painterResource(id = R.drawable.lucide_mic),
                                             contentDescription = "마이크",
-                                            tint = primaryBlue,
+                                            tint = Color(0xFF5D5D5D),
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Text(
@@ -690,121 +696,105 @@ fun WebRtcInCallScreen(
                                                 "지금 이렇게 말하고 있어요"
                                             },
                                             style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            color = Color(0xFF5D5D5D)
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(14.dp))
-                                    Text(
-                                        text = aiCorrectionDraftText.ifBlank { "말씀하시면 문장이 여기에 표시됩니다" },
-                                        style = MaterialTheme.typography.bodyLarge.copy(
-                                            fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        Text(
+                                            text = aiCorrectionDraftText.ifBlank { "말씀하시면 문장이 여기에 표시됩니다" },
+                                            style = MaterialTheme.typography.bodyLarge.copy(
+                                                fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale * 1.4f,
+                                                fontWeight = FontWeight.SemiBold
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
 
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    when (aiCorrectionOverlayState) {
-                                        AiCorrectionOverlayState.RECORDING -> {
-                                            Button(
-                                                onClick = {
-                                                    val rawText = aiCorrectionDraftText
-                                                    if (rawText.isBlank() || isAiCorrectionProcessing || isAiCorrectionTranscribing) return@Button
-                                                    viewModel.stopAiCorrectionRecording()
-                                                    isAiCorrectionTranscribing = true
-                                                    coroutineScope.launch {
-                                                        val probeText = try {
-                                                            val probeFile = aiCorrectionProbeWavFile
-                                                            if (probeFile != null && probeFile.exists()) {
-                                                                RemoteSttApi.recognize(probeFile).orEmpty()
-                                                            } else {
-                                                                ""
-                                                            }
-                                                        } catch (e: Exception) {
-                                                            Log.w("WebRtcInCallScreen", "Whisper transcribe failed: ${e.message}")
-                                                            ""
-                                                        } finally {
-                                                            clearAiCorrectionProbeWav()
-                                                        }
-                                                        val textForCorrection = probeText.trim().ifBlank { rawText.trim() }
-                                                        viewModel.requestAiCorrection(
-                                                            rawText = textForCorrection,
-                                                            phoneNumber = settingPhoneNumber
-                                                        ) { _ ->
-                                                            isAiCorrectionTranscribing = false
-                                                            aiCorrectionOverlayState = AiCorrectionOverlayState.READY_TO_SEND
-                                                        }
-                                                    }
-                                                },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                shape = RoundedCornerShape(12.dp),
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = if (isAiCorrectionProcessing || isAiCorrectionTranscribing) {
-                                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
-                                                    } else {
-                                                        Color(0xFF7E57C2)
-                                                    },
-                                                    contentColor = Color.White,
-                                                    disabledContainerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f),
-                                                    disabledContentColor = Color.White
-                                                ),
-                                                enabled = aiCorrectionDraftText.isNotBlank() && !isAiCorrectionProcessing && !isAiCorrectionTranscribing
-                                            ) {
-                                                Text(
-                                                    when {
-                                                        isAiCorrectionTranscribing -> "음성 분석 중..."
-                                                        isAiCorrectionProcessing -> "AI 보정 중..."
-                                                        else -> "보정 시작"
-                                                    }
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                when (aiCorrectionOverlayState) {
+                                    AiCorrectionOverlayState.RECORDING -> {
+                                        val startCorrectionEnabled =
+                                            aiCorrectionDraftText.isNotBlank() &&
+                                                !isAiCorrectionProcessing &&
+                                                !isAiCorrectionTranscribing
+                                        val startCorrectionButtonBrush = if (startCorrectionEnabled) {
+                                            Brush.horizontalGradient(
+                                                colors = listOf(
+                                                    Color(0xFF9A7BFF),
+                                                    Color(0xFF87B7FF),
+                                                    Color(0xFF6FE0C8)
                                                 )
-                                            }
+                                            )
+                                        } else {
+                                            val disabled = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
+                                            Brush.horizontalGradient(colors = listOf(disabled, disabled))
                                         }
-                                        AiCorrectionOverlayState.READY_TO_SEND -> {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                            ) {
-                                                OutlinedButton(
-                                                    onClick = {
-                                                        onLocalAudioTransmissionToggle(false)
-                                                        viewModel.clearAiCorrectionDraft()
-                                                        viewModel.startAiCorrectionRecording()
-                                                        isAiCorrectionTranscribing = false
-                                                        prepareAiCorrectionProbeWav()
-                                                        aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
-                                                    },
-                                                    modifier = Modifier.weight(1f),
-                                                    shape = RoundedCornerShape(12.dp)
-                                                ) {
-                                                    Text("다시 말하기")
-                                                }
-                                                Button(
-                                                    onClick = {
-                                                        val textToSend = aiCorrectionDraftText.trim()
-                                                        if (textToSend.isBlank() || isAiCorrectionSending) return@Button
-                                                        isAiCorrectionSending = true
-                                                        onLocalAudioTransmissionToggle(true)
-                                                        viewModel.sendMessage(
-                                                            textToSend,
-                                                            origin = org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin.TEXT_MODE
-                                                        )
-                                                        speakTextWithTts(textToSend) {
-                                                            isAiCorrectionSending = false
-                                                            aiCorrectionOverlayState = AiCorrectionOverlayState.SENT
+
+                                        Button(
+                                            onClick = {
+                                                val rawText = aiCorrectionDraftText
+                                                if (rawText.isBlank() || isAiCorrectionProcessing || isAiCorrectionTranscribing) return@Button
+                                                viewModel.stopAiCorrectionRecording()
+                                                isAiCorrectionTranscribing = true
+                                                coroutineScope.launch {
+                                                    val probeText = try {
+                                                        val probeFile = aiCorrectionProbeWavFile
+                                                        if (probeFile != null && probeFile.exists()) {
+                                                            RemoteSttApi.recognize(probeFile).orEmpty()
+                                                        } else {
+                                                            ""
                                                         }
-                                                    },
-                                                    modifier = Modifier.weight(1f),
-                                                    shape = RoundedCornerShape(12.dp),
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = primaryBlue,
-                                                        contentColor = Color.White
-                                                    ),
-                                                    enabled = aiCorrectionDraftText.isNotBlank() && !isAiCorrectionSending
-                                                ) {
-                                                    Text(if (isAiCorrectionSending) "전송 중..." else "보내기")
+                                                    } catch (e: Exception) {
+                                                        Log.w("WebRtcInCallScreen", "Whisper transcribe failed: ${e.message}")
+                                                        ""
+                                                    } finally {
+                                                        clearAiCorrectionProbeWav()
+                                                    }
+                                                    val textForCorrection = probeText.trim().ifBlank { rawText.trim() }
+                                                    viewModel.requestAiCorrection(
+                                                        rawText = textForCorrection,
+                                                        phoneNumber = settingPhoneNumber
+                                                    ) { _ ->
+                                                        isAiCorrectionTranscribing = false
+                                                        aiCorrectionOverlayState = AiCorrectionOverlayState.READY_TO_SEND
+                                                    }
                                                 }
-                                            }
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(startCorrectionButtonBrush),
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color.Transparent,
+                                                contentColor = Color.White,
+                                                disabledContainerColor = Color.Transparent,
+                                                disabledContentColor = Color.White
+                                            ),
+                                            enabled = startCorrectionEnabled
+                                        ) {
+                                            Text(
+                                                when {
+                                                    isAiCorrectionTranscribing -> "음성 분석 중..."
+                                                    isAiCorrectionProcessing -> "AI 보정 중..."
+                                                    else -> "보정 시작"
+                                                }
+                                            )
                                         }
-                                        AiCorrectionOverlayState.SENT -> {
+                                    }
+                                    AiCorrectionOverlayState.READY_TO_SEND -> {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
                                             OutlinedButton(
                                                 onClick = {
                                                     onLocalAudioTransmissionToggle(false)
@@ -814,11 +804,52 @@ fun WebRtcInCallScreen(
                                                     prepareAiCorrectionProbeWav()
                                                     aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
                                                 },
-                                                modifier = Modifier.fillMaxWidth(),
+                                                modifier = Modifier.weight(1f),
                                                 shape = RoundedCornerShape(12.dp)
                                             ) {
                                                 Text("다시 말하기")
                                             }
+                                            Button(
+                                                onClick = {
+                                                    val textToSend = aiCorrectionDraftText.trim()
+                                                    if (textToSend.isBlank() || isAiCorrectionSending) return@Button
+                                                    isAiCorrectionSending = true
+                                                    onLocalAudioTransmissionToggle(true)
+                                                    viewModel.sendMessage(
+                                                        textToSend,
+                                                        origin = org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin.TEXT_MODE
+                                                    )
+                                                    speakTextWithTts(textToSend) {
+                                                        isAiCorrectionSending = false
+                                                        aiCorrectionOverlayState = AiCorrectionOverlayState.SENT
+                                                    }
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = primaryBlue,
+                                                    contentColor = Color.White
+                                                ),
+                                                enabled = aiCorrectionDraftText.isNotBlank() && !isAiCorrectionSending
+                                            ) {
+                                                Text(if (isAiCorrectionSending) "전송 중..." else "보내기")
+                                            }
+                                        }
+                                    }
+                                    AiCorrectionOverlayState.SENT -> {
+                                        OutlinedButton(
+                                            onClick = {
+                                                onLocalAudioTransmissionToggle(false)
+                                                viewModel.clearAiCorrectionDraft()
+                                                viewModel.startAiCorrectionRecording()
+                                                isAiCorrectionTranscribing = false
+                                                prepareAiCorrectionProbeWav()
+                                                aiCorrectionOverlayState = AiCorrectionOverlayState.RECORDING
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) {
+                                            Text("다시 말하기")
                                         }
                                     }
                                 }
@@ -928,9 +959,9 @@ fun WebRtcInCallScreen(
                                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
                                             Icon(
-                                                painter = painterResource(id = R.drawable.ic_lucide_mic),
+                                                painter = painterResource(id = R.drawable.lucide_mic),
                                                 contentDescription = "마이크",
-                                                tint = primaryBlue,
+                                                tint = Color(0xFF5D5D5D),
                                                 modifier = Modifier.size(16.dp)
                                             )
                                             Text(
@@ -969,9 +1000,9 @@ fun WebRtcInCallScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Icon(
-                                                painter = painterResource(id = R.drawable.ic_lucide_mic),
+                                                painter = painterResource(id = R.drawable.lucide_mic),
                                                 contentDescription = "마이크",
-                                                tint = primaryBlue,
+                                                tint = Color(0xFF5D5D5D),
                                                 modifier = Modifier.size(18.dp)
                                             )
                                             Spacer(modifier = Modifier.width(10.dp))

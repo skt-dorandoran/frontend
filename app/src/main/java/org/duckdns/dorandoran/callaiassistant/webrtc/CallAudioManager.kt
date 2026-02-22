@@ -1,6 +1,8 @@
 package org.duckdns.dorandoran.callaiassistant.webrtc
 
 import android.content.Context
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -24,18 +26,28 @@ class CallAudioManager(private val context: Context) {
     private var savedSpeakerphoneOn = false
     private var audioFocusRequest: AudioFocusRequest? = null
     private var audioFocusListener: AudioManager.OnAudioFocusChangeListener? = null
+    private var isStarted = false
+    private var manualSpeakerEnabled = false
+    private var audioDeviceCallback: AudioDeviceCallback? = null
 
     /**
      * 통화 시작 시 호출. WebRTC join() 전에 호출하여 오디오 경로를 선점.
      */
     fun start() {
+        if (isStarted) {
+            refreshRoute()
+            return
+        }
         try {
             savedAudioMode = audioManager.mode
             savedSpeakerphoneOn = audioManager.isSpeakerphoneOn
+            manualSpeakerEnabled = false
             audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-            audioManager.isSpeakerphoneOn = false
             requestAudioFocus()
-            Log.d(TAG, "CallAudioManager started, mode=MODE_IN_COMMUNICATION, speakerphone=off")
+            registerAudioDeviceCallback()
+            refreshRoute()
+            isStarted = true
+            Log.d(TAG, "CallAudioManager started, mode=MODE_IN_COMMUNICATION")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start CallAudioManager", e)
         }
@@ -46,9 +58,13 @@ class CallAudioManager(private val context: Context) {
      */
     fun stop() {
         try {
+            unregisterAudioDeviceCallback()
             abandonAudioFocus()
+            clearCommunicationDevice()
             audioManager.isSpeakerphoneOn = savedSpeakerphoneOn
             audioManager.mode = savedAudioMode
+            manualSpeakerEnabled = false
+            isStarted = false
             Log.d(TAG, "CallAudioManager stopped, mode restored to $savedAudioMode")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to stop CallAudioManager", e)
@@ -60,11 +76,95 @@ class CallAudioManager(private val context: Context) {
      */
     fun setSpeakerphone(on: Boolean) {
         try {
-            audioManager.isSpeakerphoneOn = on
-            Log.d(TAG, "Speakerphone set to $on")
+            manualSpeakerEnabled = on
+            refreshRoute()
+            Log.d(TAG, "Speakerphone preference set to $on")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to set speakerphone", e)
         }
+    }
+
+    private fun registerAudioDeviceCallback() {
+        if (audioDeviceCallback != null) return
+        audioDeviceCallback = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+                refreshRoute()
+            }
+
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+                refreshRoute()
+            }
+        }
+        audioManager.registerAudioDeviceCallback(audioDeviceCallback!!, null)
+    }
+
+    private fun unregisterAudioDeviceCallback() {
+        audioDeviceCallback?.let {
+            audioManager.unregisterAudioDeviceCallback(it)
+            audioDeviceCallback = null
+        }
+    }
+
+    private fun refreshRoute() {
+        if (!isStarted && audioManager.mode != AudioManager.MODE_IN_COMMUNICATION) return
+
+        val communicationDevices = getCommunicationDevices()
+        val bluetoothDevice = communicationDevices.firstOrNull { it.isBluetoothCommunicationDevice() }
+        val speakerDevice = communicationDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+        val earpieceDevice = communicationDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE }
+
+        when {
+            bluetoothDevice != null -> {
+                setCommunicationDevice(bluetoothDevice, "bluetooth")
+            }
+            manualSpeakerEnabled && speakerDevice != null -> {
+                setCommunicationDevice(speakerDevice, "speaker(manual)")
+            }
+            speakerDevice != null -> {
+                // 요구사항: 이어폰 끊김 시 스마트폰 스피커/마이크로 즉시 복귀
+                setCommunicationDevice(speakerDevice, "speaker(auto-fallback)")
+            }
+            earpieceDevice != null -> {
+                setCommunicationDevice(earpieceDevice, "earpiece(fallback)")
+            }
+            else -> {
+                clearCommunicationDevice()
+                @Suppress("DEPRECATION")
+                audioManager.isSpeakerphoneOn = !manualSpeakerEnabled
+                Log.w(TAG, "No communication devices, fallback to legacy speakerphone state")
+            }
+        }
+    }
+
+    private fun getCommunicationDevices(): List<AudioDeviceInfo> {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            audioManager.availableCommunicationDevices
+        } else {
+            emptyList()
+        }
+    }
+
+    private fun setCommunicationDevice(device: AudioDeviceInfo, reason: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val changed = audioManager.setCommunicationDevice(device)
+            Log.d(TAG, "Route -> ${device.type} ($reason), changed=$changed")
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.isSpeakerphoneOn = device.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+            Log.d(TAG, "Route (legacy) -> ${device.type} ($reason)")
+        }
+    }
+
+    private fun clearCommunicationDevice() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            audioManager.clearCommunicationDevice()
+        }
+    }
+
+    private fun AudioDeviceInfo.isBluetoothCommunicationDevice(): Boolean {
+        return type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+            type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+            type == AudioDeviceInfo.TYPE_HEARING_AID
     }
 
     private fun requestAudioFocus() {
