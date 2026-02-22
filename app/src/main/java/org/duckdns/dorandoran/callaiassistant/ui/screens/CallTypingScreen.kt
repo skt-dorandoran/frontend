@@ -94,6 +94,7 @@ fun CallTypingScreen(
     var isSendingMessage by remember { mutableStateOf(false) }
     var isSendingAiSuggestion by remember { mutableStateOf(false) }
     var isInlineKeypadVisible by remember { mutableStateOf(false) }
+    var isBackNavigationInProgress by remember { mutableStateOf(false) }
     val voiceId = remember { VoiceCloneStore.getVoiceId(context) }
     val isVoiceCloneEnabled = remember { SettingsStore.isVoiceCloneEnabled(context) }
     val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_DTMF, 80) }
@@ -249,7 +250,17 @@ fun CallTypingScreen(
                 }
             },
             navigationIcon = {
-                IconButton(onClick = { navController.popBackStack() }) {
+                IconButton(
+                    enabled = !isBackNavigationInProgress,
+                    onClick = {
+                        if (isBackNavigationInProgress) return@IconButton
+                        isBackNavigationInProgress = true
+                        val popped = navController.popBackStack()
+                        if (!popped) {
+                            isBackNavigationInProgress = false
+                        }
+                    }
+                ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "뒤로가기"
