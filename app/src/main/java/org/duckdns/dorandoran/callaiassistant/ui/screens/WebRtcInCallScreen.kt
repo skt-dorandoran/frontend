@@ -31,7 +31,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -684,9 +683,9 @@ fun WebRtcInCallScreen(
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Mic,
+                                            painter = painterResource(id = R.drawable.lucide_mic),
                                             contentDescription = "마이크",
-                                            tint = primaryBlue,
+                                            tint = Color(0xFF5D5D5D),
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Text(
@@ -959,9 +958,9 @@ fun WebRtcInCallScreen(
                                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.Mic,
+                                                painter = painterResource(id = R.drawable.lucide_mic),
                                                 contentDescription = "마이크",
-                                                tint = primaryBlue,
+                                                tint = Color(0xFF5D5D5D),
                                                 modifier = Modifier.size(16.dp)
                                             )
                                             Text(
@@ -1000,9 +999,9 @@ fun WebRtcInCallScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.Mic,
+                                                painter = painterResource(id = R.drawable.lucide_mic),
                                                 contentDescription = "마이크",
-                                                tint = primaryBlue,
+                                                tint = Color(0xFF5D5D5D),
                                                 modifier = Modifier.size(18.dp)
                                             )
                                             Spacer(modifier = Modifier.width(10.dp))
