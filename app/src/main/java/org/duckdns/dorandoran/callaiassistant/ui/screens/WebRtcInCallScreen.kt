@@ -477,8 +477,13 @@ fun WebRtcInCallScreen(
         }
     }
 
-    LaunchedEffect(silenceIntervention.eventId) {
+    LaunchedEffect(silenceIntervention.eventId, connectionState) {
         if (!silenceIntervention.visible || silenceIntervention.eventId <= 0L) return@LaunchedEffect
+        if (connectionState != WebRtcConnectionState.IN_CALL) {
+            // 통화 시작 전(또는 종료 후)에는 개입 TTS를 재생하지 않는다.
+            viewModel.dismissSilenceIntervention()
+            return@LaunchedEffect
+        }
         val text = silenceIntervention.interventionText.ifBlank { "잠시만요" }
         try {
             viewModel.sendMessage(
