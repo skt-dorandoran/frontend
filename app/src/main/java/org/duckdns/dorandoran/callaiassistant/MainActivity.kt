@@ -474,7 +474,6 @@ private fun PhoneAppContent(
     fun startOutgoingCall(number: String) {
         lastCalledPhoneNumber = number
         webrtcPhoneNumber = number.ifBlank { "상대방" }
-        callSignalingManager.markAsCaller()
         coroutineScope.launch {
             if (!callSignalingManager.isListening.value) {
                 callSignalingManager.startListening()
@@ -482,14 +481,17 @@ private fun PhoneAppContent(
                     callSignalingManager.isListening.first { it }
                 }
                 if (ready != true) {
+                    callSignalingManager.clearCallerMode()
                     bannerMessage = "통화 연결을 준비 중입니다"
                     bannerLocked = true
                     return@launch
                 }
             }
             val callerNumber = getOwnPhoneNumber(activity.applicationContext)
+            callSignalingManager.markAsCaller()
             val callId = callSignalingManager.initiateCall(callerNumber, number)
             if (callId.isBlank()) {
+                callSignalingManager.clearCallerMode()
                 bannerMessage = "통화 연결을 준비 중입니다"
                 bannerLocked = true
                 return@launch
