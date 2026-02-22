@@ -10,8 +10,11 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -333,6 +336,9 @@ class MainActivity : ComponentActivity() {
                 showAppWithoutDefaultDialer = true
             }
             initializeMyPhoneNumberDefault()
+            if (onboardingCompleted && hasRequestedPermissions) {
+                ensureUnrestrictedBatteryUsage()
+            }
         }
         if (!permissionsState && onboardingCompleted && hasRequestedPermissions) {
             showMissingPermissionsWarning = true
@@ -341,6 +347,49 @@ class MainActivity : ComponentActivity() {
         } else if (!permissionsState && !hasRequestedPermissions) {
             showMissingPermissionsWarning = false
             saveMissingPermissionsWarning(false)
+        }
+    }
+
+    private fun ensureUnrestrictedBatteryUsage() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+
+        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val lastPromptAt = prefs.getLong("battery_unrestricted_prompt_at", 0L)
+        if (now - lastPromptAt < 60_000L) {
+            return
+        }
+
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+        if (powerManager.isIgnoringBatteryOptimizations(packageName)) {
+            return
+        }
+
+        prefs.edit().putLong("battery_unrestricted_prompt_at", now).apply()
+
+        val requestIntent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+            data = Uri.parse("package:$packageName")
+        }
+
+        try {
+            startActivity(requestIntent)
+        } catch (_: Exception) {
+            // Some devices block direct request screens; open the optimization list as fallback.
+            try {
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                Toast.makeText(
+                    this,
+                    "배터리 사용을 '제한 없음'으로 설정해 주세요.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (_: Exception) {
+                startActivity(
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", packageName, null)
+                    )
+                )
+            }
         }
     }
 
