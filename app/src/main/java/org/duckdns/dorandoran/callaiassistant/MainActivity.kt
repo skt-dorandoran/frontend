@@ -108,6 +108,7 @@ class MainActivity : ComponentActivity() {
         Manifest.permission.READ_CALL_LOG,
         Manifest.permission.READ_CONTACTS,
         Manifest.permission.READ_PHONE_STATE,
+        Manifest.permission.READ_PHONE_NUMBERS,
         Manifest.permission.RECORD_AUDIO,
         Manifest.permission.POST_NOTIFICATIONS
     )
@@ -129,6 +130,7 @@ class MainActivity : ComponentActivity() {
         showAppWithoutDefaultDialer = true
         onboardingCompleted = true
         saveOnboardingCompleted()
+        initializeMyPhoneNumberDefault()
     }
 
     private val defaultDialerLauncher = registerForActivityResult(
@@ -155,6 +157,7 @@ class MainActivity : ComponentActivity() {
             showMissingPermissionsWarning = false
             saveMissingPermissionsWarning(false)
             showAppWithoutDefaultDialer = true
+            initializeMyPhoneNumberDefault()
         } else if (onboardingCompleted) {
             showMissingPermissionsWarning = true
             saveMissingPermissionsWarning(true)
@@ -288,6 +291,9 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         checkPermissions()
+        if (permissionsState) {
+            initializeMyPhoneNumberDefault()
+        }
         if (!permissionsState && onboardingCompleted) {
             showMissingPermissionsWarning = true
             saveMissingPermissionsWarning(true)
@@ -317,6 +323,13 @@ class MainActivity : ComponentActivity() {
                 )
             )
         }
+    }
+
+    private fun initializeMyPhoneNumberDefault() {
+        if (!canReadDevicePhoneNumber(this)) {
+            return
+        }
+        SettingsStore.ensureMyPhoneNumberDefault(this, getDevicePhoneNumber(this))
     }
 }
 
@@ -598,6 +611,10 @@ private fun getOwnPhoneNumber(context: Context): String {
         return storedNumber
     }
 
+    return getDevicePhoneNumber(context)
+}
+
+private fun canReadDevicePhoneNumber(context: Context): Boolean {
     val hasPhoneState = ContextCompat.checkSelfPermission(
         context,
         Manifest.permission.READ_PHONE_STATE
@@ -615,7 +632,11 @@ private fun getOwnPhoneNumber(context: Context): String {
         Manifest.permission.READ_SMS
     ) == PackageManager.PERMISSION_GRANTED
 
-    if (!hasPhoneState && !hasPhoneNumbers && !hasReadSms) {
+    return hasPhoneState || hasPhoneNumbers || hasReadSms
+}
+
+private fun getDevicePhoneNumber(context: Context): String {
+    if (!canReadDevicePhoneNumber(context)) {
         return ""
     }
 
@@ -626,11 +647,30 @@ private fun getOwnPhoneNumber(context: Context): String {
         ""
     }
     if (directNumber.isNotBlank()) {
-        return directNumber
+        return directNumber.filter { it.isDigit() }
     }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
         val subscriptionManager = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val modernNumber = try {
+                subscriptionManager?.activeSubscriptionInfoList
+                    ?.asSequence()
+                    ?.mapNotNull { info ->
+                        subscriptionManager.getPhoneNumber(info.subscriptionId)
+                            ?.filter { it.isDigit() }
+                            ?.takeIf { it.isNotBlank() }
+                    }
+                    ?.firstOrNull()
+                    .orEmpty()
+            } catch (e: SecurityException) {
+                ""
+            }
+            if (modernNumber.isNotBlank()) {
+                return modernNumber
+            }
+        }
+
         val subscriptionNumber = try {
             subscriptionManager?.activeSubscriptionInfoList
                 ?.firstOrNull { !it.number.isNullOrBlank() }
@@ -640,7 +680,7 @@ private fun getOwnPhoneNumber(context: Context): String {
             ""
         }
         if (subscriptionNumber.isNotBlank()) {
-            return subscriptionNumber
+            return subscriptionNumber.filter { it.isDigit() }
         }
     }
 

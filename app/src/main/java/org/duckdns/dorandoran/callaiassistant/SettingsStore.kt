@@ -90,10 +90,16 @@ object SettingsStore {
 
     fun ensureMyPhoneNumberDefault(context: Context, deviceNumber: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val normalizedDeviceNumber = deviceNumber.filter { it.isDigit() }
         if (prefs.contains(KEY_MY_PHONE_NUMBER)) {
+            val current = prefs.getString(KEY_MY_PHONE_NUMBER, "")?.filter { it.isDigit() }.orEmpty()
+            val isPlaceholder = current.isBlank() || current == DEFAULT_MY_PHONE_NUMBER
+            if (isPlaceholder && normalizedDeviceNumber.isNotBlank()) {
+                prefs.edit().putString(KEY_MY_PHONE_NUMBER, normalizedDeviceNumber).apply()
+            }
             return
         }
-        val defaultValue = if (deviceNumber.isNotBlank()) deviceNumber else DEFAULT_MY_PHONE_NUMBER
+        val defaultValue = if (normalizedDeviceNumber.isNotBlank()) normalizedDeviceNumber else DEFAULT_MY_PHONE_NUMBER
         prefs.edit().putString(KEY_MY_PHONE_NUMBER, defaultValue).apply()
     }
 
