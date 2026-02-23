@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,7 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -43,7 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -52,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.imePadding
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
+import org.duckdns.dorandoran.callaiassistant.ui.components.FilledSwitch
 
 class CallIntroPromptActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -217,56 +214,6 @@ private fun CallIntroPromptContent(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun FilledSwitch(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    checkedTrackColor: Color,
-    uncheckedTrackColor: Color,
-    modifier: Modifier = Modifier,
-    thumbColor: Color = Color.White
-) {
-    val switchWidth = 52.dp
-    val switchHeight = 32.dp
-    val thumbSize = 24.dp
-    val padding = 4.dp
-    val trackColor by animateColorAsState(
-        targetValue = if (checked) checkedTrackColor else uncheckedTrackColor,
-        label = "SwitchTrackColor"
-    )
-    val thumbOffset by animateDpAsState(
-        targetValue = if (checked) switchWidth - thumbSize - (padding * 2) else 0.dp,
-        label = "SwitchThumbOffset"
-    )
-
-    Box(
-        modifier = modifier
-            .size(width = switchWidth, height = switchHeight)
-            .clip(CircleShape)
-            .background(trackColor)
-            .toggleable(
-                value = checked,
-                role = Role.Switch,
-                onValueChange = onCheckedChange
-            ),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = padding),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            Box(
-                modifier = Modifier
-                    .offset(x = thumbOffset)
-                    .size(thumbSize)
-                    .background(thumbColor, CircleShape)
-            )
         }
     }
 }
