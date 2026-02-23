@@ -113,25 +113,42 @@ class CallAudioManager(private val context: Context) {
         val speakerDevice = communicationDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
         val earpieceDevice = communicationDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE }
 
-        when {
-            bluetoothDevice != null -> {
-                setCommunicationDevice(bluetoothDevice, "bluetooth")
+        // 1) 블루투스 연결 시 항상 블루투스 우선.
+        if (bluetoothDevice != null) {
+            setCommunicationDevice(bluetoothDevice, "bluetooth")
+            return
+        }
+
+        // 2) 블루투스가 없으면 스마트폰 라우트 사용:
+        //    - 스피커폰 ON -> 외부 스피커
+        //    - 스피커폰 OFF -> 일반 통화 이어피스
+        if (manualSpeakerEnabled) {
+            when {
+                speakerDevice != null -> setCommunicationDevice(speakerDevice, "speaker(manual)")
+                earpieceDevice != null -> setCommunicationDevice(earpieceDevice, "earpiece(no-speaker-fallback)")
+                else -> {
+                    clearCommunicationDevice()
+                    @Suppress("DEPRECATION")
+                    audioManager.isSpeakerphoneOn = true
+                    Log.w(TAG, "No communication devices, fallback to legacy speakerphone ON")
+                }
             }
-            manualSpeakerEnabled && speakerDevice != null -> {
-                setCommunicationDevice(speakerDevice, "speaker(manual)")
+            return
+        }
+
+        when {
+            earpieceDevice != null -> {
+                setCommunicationDevice(earpieceDevice, "earpiece(default)")
             }
             speakerDevice != null -> {
-                // 요구사항: 이어폰 끊김 시 스마트폰 스피커/마이크로 즉시 복귀
-                setCommunicationDevice(speakerDevice, "speaker(auto-fallback)")
-            }
-            earpieceDevice != null -> {
-                setCommunicationDevice(earpieceDevice, "earpiece(fallback)")
+                // 이어피스가 없는 기기(예: 태블릿)는 스피커로 폴백.
+                setCommunicationDevice(speakerDevice, "speaker(fallback-no-earpiece)")
             }
             else -> {
                 clearCommunicationDevice()
                 @Suppress("DEPRECATION")
-                audioManager.isSpeakerphoneOn = !manualSpeakerEnabled
-                Log.w(TAG, "No communication devices, fallback to legacy speakerphone state")
+                audioManager.isSpeakerphoneOn = false
+                Log.w(TAG, "No communication devices, fallback to legacy earpiece mode")
             }
         }
     }

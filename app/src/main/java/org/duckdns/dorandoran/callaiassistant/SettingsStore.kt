@@ -18,6 +18,7 @@ object SettingsStore {
     private const val KEY_CALL_INTRO_PROMPT_ENABLED = "call_intro_prompt_enabled"
     private const val KEY_CALL_INTRO_PROMPT_STYLE = "call_intro_prompt_style"
     private const val KEY_CALL_INTRO_PROMPT_DEFAULTS_APPLIED = "call_intro_prompt_defaults_applied"
+    private const val KEY_SILENCE_INTERVENTION_TTS_ENABLED = "silence_intervention_tts_enabled"
     private const val KEY_VOICE_CLONE_ENABLED = "voice_clone_enabled"
     private const val KEY_MY_PHONE_NUMBER = "my_phone_number"
     private const val ONE_CLICK_REPLY_COUNT = 9
@@ -71,6 +72,16 @@ object SettingsStore {
     fun setCallIntroPromptStyle(context: Context, style: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_CALL_INTRO_PROMPT_STYLE, style).apply()
+    }
+
+    fun isSilenceInterventionTtsEnabled(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_SILENCE_INTERVENTION_TTS_ENABLED, true)
+    }
+
+    fun setSilenceInterventionTtsEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_SILENCE_INTERVENTION_TTS_ENABLED, enabled).apply()
     }
 
     fun isVoiceCloneEnabled(context: Context): Boolean {

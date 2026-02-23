@@ -30,7 +30,8 @@ data class ChatMessage(
 enum class MessageOrigin {
     GENERAL,
     TEXT_MODE,
-    AI_SUGGESTION
+    AI_SUGGESTION,
+    SILENCE_INTERVENTION
 }
 
 enum class ConversationSpeaker {
@@ -647,11 +648,15 @@ class CallViewModel : ViewModel() {
     private fun refreshLastConversationBubbles() {
         val current = _messages.value
         _textModeLastMyBubble.value = current.asReversed()
-            .firstOrNull { it.isFromMe && isMeaningfulText(it.text) }
+            .firstOrNull {
+                it.isFromMe &&
+                        it.origin != MessageOrigin.SILENCE_INTERVENTION &&
+                        isMeaningfulText(it.text)
+            }
             ?.text
             .orEmpty()
         _textModeLastRemoteBubble.value = current.asReversed()
-            .firstOrNull { !it.isFromMe && isMeaningfulText(it.text) }
+            .firstOrNull { !it.isFromMe && it.isStt && isMeaningfulText(it.text) }
             ?.text
             .orEmpty()
     }

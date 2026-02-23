@@ -1,7 +1,10 @@
 package org.duckdns.dorandoran.callaiassistant.webrtc
 
 import android.content.Context
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.media.MediaRecorder
+import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +78,23 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     private var localSttHpPrevOut: Float = 0f
     private var localSttAgcGain: Float = 1f
     private var localSttStartJob: Job? = null
+    @Volatile
+    private var remoteSttRecentRms: Float = 0f
+    private val audioManager by lazy { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    @Volatile
+    private var speakerphoneRouteHint: Boolean = false
+    @Volatile
+    private var bluetoothRouteActive: Boolean = false
+    @Volatile
+    private var speakerRouteActive: Boolean = false
+    @Volatile
+    private var lastRouteRefreshMs: Long = 0L
+    @Volatile
+    private var localEchoGuardGain: Float = 1f
+    @Volatile
+    private var localEchoGuardActive: Boolean = false
+    @Volatile
+    private var localEchoGuardHoldUntilMs: Long = 0L
 
     private var peerConnectionFactory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
@@ -143,6 +163,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         remoteSttAgcGain = 1f
         remoteAudioLevelSmoothed = 0f
         remoteAudioLevelLastEmitMs = 0L
+        remoteSttRecentRms = 0f
         _remoteAudioLevel.value = 0f
     }
 
@@ -208,6 +229,9 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         localSttHpPrevIn = 0f
         localSttHpPrevOut = 0f
         localSttAgcGain = 1f
+        localEchoGuardGain = 1f
+        localEchoGuardActive = false
+        localEchoGuardHoldUntilMs = 0L
     }
 
     private fun createRemoteAudioSink(): AudioSink {
@@ -298,6 +322,40 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         log("Local audio transmission ${if (enabled) "enabled" else "muted"}")
     }
 
+    fun setSpeakerphoneHint(enabled: Boolean) {
+        speakerphoneRouteHint = enabled
+        refreshAudioRouteState(force = true)
+    }
+
+    private fun refreshAudioRouteState(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastRouteRefreshMs < 250L) return
+        lastRouteRefreshMs = now
+
+        var routeBluetooth = false
+        var routeSpeaker = speakerphoneRouteHint
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val communicationDevice = audioManager.communicationDevice
+            routeBluetooth = communicationDevice?.let { it.isBluetoothCommunicationDevice() } ?: false
+            routeSpeaker = routeSpeaker || communicationDevice?.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+        } else {
+            @Suppress("DEPRECATION")
+            routeSpeaker = routeSpeaker || audioManager.isSpeakerphoneOn
+        }
+
+        @Suppress("DEPRECATION")
+        routeSpeaker = routeSpeaker || audioManager.isSpeakerphoneOn
+        bluetoothRouteActive = routeBluetooth
+        speakerRouteActive = routeSpeaker
+    }
+
+    private fun AudioDeviceInfo.isBluetoothCommunicationDevice(): Boolean {
+        return type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+            type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+            type == AudioDeviceInfo.TYPE_HEARING_AID
+    }
+
     private fun preprocessRemoteAudioForStt(input: FloatArray): FloatArray {
         if (input.isEmpty()) return input
 
@@ -324,6 +382,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         remoteSttHpPrevOut = prevOut
 
         val rms = kotlin.math.sqrt((energy / filtered.size).coerceAtLeast(1e-9f))
+        remoteSttRecentRms = (remoteSttRecentRms * 0.90f) + (rms * 0.10f)
         val targetRms = when {
             rms < 0.012f -> 0.16f
             rms < 0.025f -> 0.13f
@@ -351,6 +410,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
 
     private fun preprocessLocalAudioForStt(input: FloatArray): FloatArray {
         if (input.isEmpty()) return input
+        refreshAudioRouteState()
         val hpAlpha = 0.94f
         val filtered = FloatArray(input.size)
         var prevIn = localSttHpPrevIn
@@ -371,7 +431,29 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         localSttHpPrevIn = prevIn
         localSttHpPrevOut = prevOut
 
+        val now = System.currentTimeMillis()
         val rms = kotlin.math.sqrt((energy / filtered.size).coerceAtLeast(1e-9f))
+        val remoteRms = remoteSttRecentRms
+        val localDominance = if (remoteRms > 1e-6f) rms / remoteRms else 1f
+        val echoGuardEnabled = speakerRouteActive && !bluetoothRouteActive
+        if (echoGuardEnabled) {
+            val echoLikely = remoteRms > 0.050f && localDominance < 0.45f && peak < 0.30f
+            if (echoLikely) {
+                localEchoGuardActive = true
+                localEchoGuardHoldUntilMs = now + 220L
+            } else if (now > localEchoGuardHoldUntilMs) {
+                localEchoGuardActive = false
+            }
+        } else {
+            localEchoGuardActive = false
+            localEchoGuardHoldUntilMs = 0L
+        }
+
+        val echoGuardTarget = if (localEchoGuardActive) 0.22f else 1.0f
+        val echoGuardSmoothing = if (echoGuardTarget < localEchoGuardGain) 0.35f else 0.08f
+        localEchoGuardGain += (echoGuardTarget - localEchoGuardGain) * echoGuardSmoothing
+        localEchoGuardGain = localEchoGuardGain.coerceIn(0.18f, 1.0f)
+
         val targetRms = when {
             rms < 0.010f -> 0.17f
             rms < 0.020f -> 0.14f
@@ -389,7 +471,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         }
         localSttAgcGain = localSttAgcGain.coerceIn(1f, 14f)
         for (i in filtered.indices) {
-            filtered[i] = (filtered[i] * localSttAgcGain).coerceIn(-1f, 1f)
+            filtered[i] = (filtered[i] * localSttAgcGain * localEchoGuardGain).coerceIn(-1f, 1f)
         }
         return filtered
     }
@@ -522,8 +604,8 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
 
         // Custom AudioDeviceModule: 에코 캔슬러 활성화 + TTS PCM 믹싱
         audioDeviceModule = CustomAudioDeviceModule.builder(context)
-            // Prefer speech-optimized capture for better articulation on the uplink.
-            .setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
+            // VOICE_COMMUNICATION enables the platform's call-optimized AEC path.
+            .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
             .setUseHardwareAcousticEchoCanceler(true)
             .setUseHardwareNoiseSuppressor(true)
             .createAudioDeviceModule()

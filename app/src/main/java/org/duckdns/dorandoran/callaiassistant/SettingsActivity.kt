@@ -8,18 +8,29 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,6 +77,9 @@ private fun SettingsContent(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var textSizeStep by remember { mutableFloatStateOf(SettingsStore.getCallTextSizeStep(context).toFloat()) }
+    var isSilenceInterventionTtsEnabled by remember {
+        mutableStateOf(SettingsStore.isSilenceInterventionTtsEnabled(context))
+    }
     val scrollState = rememberScrollState()
 
     // 글자 크기 단계에 따른 미리보기 폰트 사이즈 계산
@@ -90,6 +104,10 @@ private fun SettingsContent(
         SettingsStore.setCallTextSizeStep(context, textSizeStep.toInt())
     }
 
+    LaunchedEffect(isSilenceInterventionTtsEnabled) {
+        SettingsStore.setSilenceInterventionTtsEnabled(context, isSilenceInterventionTtsEnabled)
+    }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = Color.White
@@ -98,6 +116,8 @@ private fun SettingsContent(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
+                .navigationBarsPadding()
+                .verticalScrollbar(scrollState)
                 .verticalScroll(scrollState),
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.Start
@@ -283,6 +303,16 @@ private fun SettingsContent(
                     descriptionFontWeight = FontWeight.Normal,
                     onClick = onOpenCallIntroPrompt
                 )
+                SettingsDivider()
+
+                SettingsToggleRow(
+                    title = "\"잠시만요\" TTS 재생",
+                    description = "3초 이상 침묵이 유지되거나, 상대방이 되물을 경우 \"잠시만요\"를 상대방에게 전달해요.",
+                    checked = isSilenceInterventionTtsEnabled,
+                    onCheckedChange = { isSilenceInterventionTtsEnabled = it }
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
             }
         }
     }
@@ -352,5 +382,142 @@ private fun SettingsMenuRow(
             tint = Color(0xFFD0D0D0),
             modifier = Modifier.size(24.dp)
         )
+    }
+}
+
+@Composable
+private fun Modifier.verticalScrollbar(scrollState: ScrollState): Modifier {
+    val density = LocalDensity.current
+    val thumbWidthPx = with(density) { 3.dp.toPx() }
+    val endPaddingPx = with(density) { 6.dp.toPx() }
+    val minThumbHeightPx = with(density) { 36.dp.toPx() }
+    val cornerPx = with(density) { 999.dp.toPx() }
+
+    return this.drawWithContent {
+        drawContent()
+        val max = scrollState.maxValue
+        if (max <= 0 || !scrollState.isScrollInProgress) return@drawWithContent
+
+        val viewportHeight = size.height
+        val contentHeight = viewportHeight + max
+        val rawThumbHeight = (viewportHeight / contentHeight) * viewportHeight
+        val thumbHeight = rawThumbHeight.coerceAtLeast(minThumbHeightPx).coerceAtMost(viewportHeight)
+        val travel = (viewportHeight - thumbHeight).coerceAtLeast(0f)
+        val progress = (scrollState.value.toFloat() / max.toFloat()).coerceIn(0f, 1f)
+
+        drawRoundRect(
+            color = Color(0x664A4A4A),
+            topLeft = Offset(
+                x = size.width - thumbWidthPx - endPaddingPx,
+                y = travel * progress
+            ),
+            size = Size(thumbWidthPx, thumbHeight),
+            cornerRadius = CornerRadius(cornerPx, cornerPx)
+        )
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            ) {
+                onCheckedChange(!checked)
+            }
+            .padding(vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 15.sp,
+                    color = Color.Black
+                )
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    color = Color(0xFF999999),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Normal
+                ),
+                lineHeight = 19.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        FilledSwitch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            checkedTrackColor = Color(0xFF537CEC),
+            uncheckedTrackColor = Color(0xFFE0E0E0)
+        )
+    }
+}
+
+@Composable
+private fun FilledSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    checkedTrackColor: Color,
+    uncheckedTrackColor: Color,
+    modifier: Modifier = Modifier,
+    thumbColor: Color = Color.White
+) {
+    val switchWidth = 52.dp
+    val switchHeight = 32.dp
+    val thumbSize = 24.dp
+    val padding = 4.dp
+    val trackColor by animateColorAsState(
+        targetValue = if (checked) checkedTrackColor else uncheckedTrackColor,
+        label = "SwitchTrackColor"
+    )
+    val thumbOffset by animateDpAsState(
+        targetValue = if (checked) switchWidth - thumbSize - (padding * 2) else 0.dp,
+        label = "SwitchThumbOffset"
+    )
+
+    Box(
+        modifier = modifier
+            .size(width = switchWidth, height = switchHeight)
+            .clip(CircleShape)
+            .background(trackColor)
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange
+            ),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = padding),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Box(
+                modifier = Modifier
+                    .offset(x = thumbOffset)
+                    .size(thumbSize)
+                    .background(thumbColor, CircleShape)
+            )
+        }
     }
 }
