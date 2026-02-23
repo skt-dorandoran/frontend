@@ -75,6 +75,8 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     private var localSttHpPrevOut: Float = 0f
     private var localSttAgcGain: Float = 1f
     private var localSttStartJob: Job? = null
+    @Volatile
+    private var remoteSttRecentRms: Float = 0f
 
     private var peerConnectionFactory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
@@ -143,6 +145,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         remoteSttAgcGain = 1f
         remoteAudioLevelSmoothed = 0f
         remoteAudioLevelLastEmitMs = 0L
+        remoteSttRecentRms = 0f
         _remoteAudioLevel.value = 0f
     }
 
@@ -324,6 +327,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         remoteSttHpPrevOut = prevOut
 
         val rms = kotlin.math.sqrt((energy / filtered.size).coerceAtLeast(1e-9f))
+        remoteSttRecentRms = (remoteSttRecentRms * 0.90f) + (rms * 0.10f)
         val targetRms = when {
             rms < 0.012f -> 0.16f
             rms < 0.025f -> 0.13f
@@ -372,6 +376,14 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         localSttHpPrevOut = prevOut
 
         val rms = kotlin.math.sqrt((energy / filtered.size).coerceAtLeast(1e-9f))
+        val remoteRms = remoteSttRecentRms
+        val localDominance = if (remoteRms > 1e-6f) rms / remoteRms else 1f
+        val echoDominant = remoteRms > 0.030f && localDominance < 0.60f && peak < 0.22f
+        if (echoDominant) {
+            // Speakerphone acoustic leakage case:
+            // when remote speech dominates local mic, skip local STT uplink frames.
+            return FloatArray(0)
+        }
         val targetRms = when {
             rms < 0.010f -> 0.17f
             rms < 0.020f -> 0.14f
@@ -522,8 +534,8 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
 
         // Custom AudioDeviceModule: 에코 캔슬러 활성화 + TTS PCM 믹싱
         audioDeviceModule = CustomAudioDeviceModule.builder(context)
-            // Prefer speech-optimized capture for better articulation on the uplink.
-            .setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
+            // VOICE_COMMUNICATION enables the platform's call-optimized AEC path.
+            .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
             .setUseHardwareAcousticEchoCanceler(true)
             .setUseHardwareNoiseSuppressor(true)
             .createAudioDeviceModule()
