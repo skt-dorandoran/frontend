@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 import kotlinx.coroutines.delay
+import androidx.compose.foundation.layout.offset
 
 class OneClickReplyActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -85,12 +86,13 @@ private fun OneClickReplyContent(onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(scrollState)
-                    .padding(horizontal = 24.dp, vertical = 8.dp)
+                    .padding(horizontal = 24.dp)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                        .offset(x = (-8).dp)
+                        .padding(horizontal = 0.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
@@ -118,7 +120,7 @@ private fun OneClickReplyContent(onBack: () -> Unit) {
                             bannerMessage = "저장되었어요"
                         }
                     ) {
-                        Text(text = "저장", fontSize = 13.sp)
+                        Text(text = "저장", fontSize = 15.sp)
                     }
                 }
 

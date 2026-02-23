@@ -65,7 +65,7 @@ fun DialerScreen(
     }
     val headerWidth = 276.dp
     val keypadWidth = 272.dp
-    val keypadColumnShift = 18.dp
+    val keypadColumnShift = 13.dp
 
     DisposableEffect(Unit) {
         onDispose { toneGenerator.release() }
@@ -204,6 +204,7 @@ fun DialerScreen(
         Column(
             modifier = Modifier
                 .width(keypadWidth)
+                .offset(y = 2.dp)
                 .wrapContentHeight(),
             verticalArrangement = Arrangement.spacedBy(19.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -255,6 +256,7 @@ fun DialerScreen(
 
         // 5. 하단 영역 (통화 버튼 + 토글 바)
         Column(
+            modifier = Modifier.offset(y = 2.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
@@ -413,12 +415,12 @@ private fun DialPadButton(
                     style = TextStyle(
                         fontSize = 32.sp,
                         fontFamily = pretendard,
-                        fontWeight = FontWeight(700),
+                        fontWeight = FontWeight(650),
                         color = digitColor,
                         textAlign = TextAlign.Center
                     ),
                     modifier = when (digit) {
-                        "*" -> Modifier.offset(y = 5.dp)
+                        "*" -> Modifier.offset(y = 7.dp)
                         "0", "#" -> Modifier.offset(x = (-1).dp)
                         else -> Modifier
                     }
