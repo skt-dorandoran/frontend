@@ -212,6 +212,7 @@ fun WebRtcInCallScreen(
     val isRefreshingAiSuggestions by viewModel.isRefreshingAiSuggestions.collectAsState()
     val silenceIntervention by viewModel.silenceIntervention.collectAsState()
     val aiCorrectionAlert by viewModel.aiCorrectionAlert.collectAsState()
+    val isRemoteSpeaking by webRtcManager.isRemoteSpeaking.collectAsState()
     val isAiCorrectionMode = selectedMode == CallMode.AI_CORRECTION
     val isVoiceConversationMode = selectedMode == CallMode.DIRECT || selectedMode == CallMode.AI_CORRECTION
     val isKeypadActive = callScreenState == CallScreenState.KEYPAD
@@ -517,9 +518,13 @@ fun WebRtcInCallScreen(
         }
     }
 
-    LaunchedEffect(silenceIntervention.eventId, connectionState, isSilenceInterventionTtsEnabled) {
+    LaunchedEffect(silenceIntervention.eventId, connectionState, isSilenceInterventionTtsEnabled, isRemoteSpeaking) {
         if (!silenceIntervention.visible || silenceIntervention.eventId <= 0L) return@LaunchedEffect
         if (!isSilenceInterventionTtsEnabled) {
+            viewModel.dismissSilenceIntervention()
+            return@LaunchedEffect
+        }
+        if (isRemoteSpeaking) {
             viewModel.dismissSilenceIntervention()
             return@LaunchedEffect
         }
@@ -530,6 +535,7 @@ fun WebRtcInCallScreen(
         }
         val text = silenceIntervention.interventionText.ifBlank { "잠시만요" }
         try {
+            webRtcManager.markInterventionPlaybackStarted()
             viewModel.sendMessage(
                 text,
                 origin = org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin.SILENCE_INTERVENTION
@@ -537,11 +543,14 @@ fun WebRtcInCallScreen(
             speakTextWithTts(
                 textToSend = text,
                 sourceType = "crisis_intervention"
-            ) { }
+            ) {
+                webRtcManager.markInterventionPlaybackFinished()
+            }
             delay(8000)
         } finally {
             // Ensure stale intervention UI does not remain when this effect is cancelled
             // (e.g., screen navigation / recomposition lifecycle changes).
+            webRtcManager.markInterventionPlaybackFinished()
             viewModel.dismissSilenceIntervention()
         }
     }
@@ -659,7 +668,7 @@ fun WebRtcInCallScreen(
                                 .padding(horizontal = 24.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (silenceIntervention.visible && isSilenceInterventionTtsEnabled) {
+                            if (silenceIntervention.visible && isSilenceInterventionTtsEnabled && !isRemoteSpeaking) {
                                 CrisisInterventionPanel(
                                     remoteText = lastRemoteTypedMessageText,
                                     interventionText = silenceIntervention.interventionText.ifBlank { "잠시만요" },
@@ -1665,5 +1674,3 @@ fun WebRtcInCallScreenInCallPreview() {
         )
     }
 }
-
-

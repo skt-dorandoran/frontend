@@ -80,6 +80,30 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     private var localSttStartJob: Job? = null
     @Volatile
     private var remoteSttRecentRms: Float = 0f
+    @Volatile
+    private var remoteSpeechHoldUntilMs: Long = 0L
+    @Volatile
+    private var localSilenceDetectedAtMs: Long = 0L
+    @Volatile
+    private var remoteSilenceDetectedAtMs: Long = 0L
+    @Volatile
+    private var localLastSilenceDurationSec: Double = 0.0
+    @Volatile
+    private var remoteLastSilenceDurationSec: Double = 0.0
+    @Volatile
+    private var interventionSuppressedUntilMs: Long = 0L
+    @Volatile
+    private var interventionPlaybackActive: Boolean = false
+    @Volatile
+    private var lastInterventionTriggeredAtMs: Long = 0L
+
+    private val _isRemoteSpeaking = MutableStateFlow(false)
+    val isRemoteSpeaking: StateFlow<Boolean> = _isRemoteSpeaking.asStateFlow()
+
+    // 로컬/원격 WS의 이벤트 타이밍 차이를 흡수하기 위해 여유를 넓힌다.
+    private val dualSilenceSyncWindowMs = 4500L
+    private val interventionMinIntervalMs = 2500L
+    private val interventionCooldownAfterPlaybackMs = 3200L
     private val audioManager by lazy { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     @Volatile
     private var speakerphoneRouteHint: Boolean = false
@@ -128,6 +152,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         remoteSttStartJob = scope.launch(Dispatchers.Default) {
             val sttClient = org.duckdns.dorandoran.callaiassistant.stt.RealtimeTranscribeWsClient(
                 tag = "$TAG-RemoteStt",
+                silenceThresholdSeconds = 3.0,
                 callId = buildSttCallId("remote"),
                 onInterim = { payload ->
                     if (payload.text.isNotBlank()) {
@@ -138,6 +163,9 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     if (payload.text.isNotBlank()) {
                         viewModel.updateRemoteSttMessage(payload, isFinal = true)
                     }
+                },
+                onSilenceDetected = { duration ->
+                    onRemoteSilenceDetected(duration, viewModel)
                 },
                 onError = { err -> Log.e(TAG, "Remote STT error: $err") }
             )
@@ -165,6 +193,10 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         remoteAudioLevelLastEmitMs = 0L
         remoteSttRecentRms = 0f
         _remoteAudioLevel.value = 0f
+        remoteSpeechHoldUntilMs = 0L
+        _isRemoteSpeaking.value = false
+        remoteSilenceDetectedAtMs = 0L
+        remoteLastSilenceDurationSec = 0.0
     }
 
     fun startLocalStt(context: Context, viewModel: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel) {
@@ -175,7 +207,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         localSttStartJob = scope.launch(Dispatchers.Default) {
             val sttClient = org.duckdns.dorandoran.callaiassistant.stt.RealtimeTranscribeWsClient(
                 tag = "$TAG-LocalStt",
-                silenceThresholdSeconds = 8.0,
+                silenceThresholdSeconds = 3.0,
                 callId = buildSttCallId("local"),
                 onInterim = { payload ->
                     if (payload.text.isNotBlank()) {
@@ -188,11 +220,16 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     }
                 },
                 onSilenceDetected = { duration ->
-                    viewModel.onSilenceDetected(duration)
+                    onLocalSilenceDetected(duration, viewModel)
                 },
                 onComprehension = { payload ->
                     if (payload.status.equals("alert", ignoreCase = true) || payload.enableAiCorrection) {
                         viewModel.onComprehensionAlert()
+                        triggerInterventionIfAllowed(
+                            source = "comprehension",
+                            fallbackSilenceDurationSec = 0.0,
+                            viewModel = viewModel
+                        )
                     }
                 },
                 onError = { err -> Log.e(TAG, "Local STT error: $err") }
@@ -232,6 +269,11 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         localEchoGuardGain = 1f
         localEchoGuardActive = false
         localEchoGuardHoldUntilMs = 0L
+        localSilenceDetectedAtMs = 0L
+        localLastSilenceDurationSec = 0.0
+        interventionSuppressedUntilMs = 0L
+        interventionPlaybackActive = false
+        lastInterventionTriggeredAtMs = 0L
     }
 
     private fun createRemoteAudioSink(): AudioSink {
@@ -299,6 +341,10 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         }.let { if (it < 0.015f) 0f else it }
 
         val nowMs = System.currentTimeMillis()
+        if (normalized >= 0.055f) {
+            remoteSpeechHoldUntilMs = nowMs + 800L
+        }
+        refreshRemoteSpeakingState(nowMs)
         if (nowMs - remoteAudioLevelLastEmitMs >= 33L || abs(smoothed - _remoteAudioLevel.value) >= 0.018f) {
             remoteAudioLevelSmoothed = smoothed
             remoteAudioLevelLastEmitMs = nowMs
@@ -306,6 +352,89 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         } else {
             remoteAudioLevelSmoothed = smoothed
         }
+    }
+
+    private fun refreshRemoteSpeakingState(nowMs: Long = System.currentTimeMillis()) {
+        val speaking = nowMs < remoteSpeechHoldUntilMs
+        if (_isRemoteSpeaking.value != speaking) {
+            _isRemoteSpeaking.value = speaking
+        }
+    }
+
+    private fun onLocalSilenceDetected(
+        durationSec: Double,
+        viewModel: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
+    ) {
+        localSilenceDetectedAtMs = System.currentTimeMillis()
+        localLastSilenceDurationSec = durationSec
+        maybeTriggerDualSilenceIntervention(viewModel)
+    }
+
+    private fun onRemoteSilenceDetected(
+        durationSec: Double,
+        viewModel: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
+    ) {
+        remoteSilenceDetectedAtMs = System.currentTimeMillis()
+        remoteLastSilenceDurationSec = durationSec
+        // 서버가 원격 무음을 확정했으면 휴리스틱 발화 상태는 즉시 해제한다.
+        remoteSpeechHoldUntilMs = 0L
+        refreshRemoteSpeakingState()
+        maybeTriggerDualSilenceIntervention(viewModel)
+    }
+
+    private fun maybeTriggerDualSilenceIntervention(
+        viewModel: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
+    ) {
+        val now = System.currentTimeMillis()
+        if (localSilenceDetectedAtMs <= 0L || remoteSilenceDetectedAtMs <= 0L) return
+        val delta = kotlin.math.abs(localSilenceDetectedAtMs - remoteSilenceDetectedAtMs)
+        val bothRecent = now - localSilenceDetectedAtMs <= dualSilenceSyncWindowMs &&
+            now - remoteSilenceDetectedAtMs <= dualSilenceSyncWindowMs
+        if (!bothRecent || delta > dualSilenceSyncWindowMs) return
+        val mergedDuration = maxOf(localLastSilenceDurationSec, remoteLastSilenceDurationSec)
+        triggerInterventionIfAllowed(
+            source = "dual_silence",
+            fallbackSilenceDurationSec = mergedDuration,
+            viewModel = viewModel
+        )
+    }
+
+    private fun triggerInterventionIfAllowed(
+        source: String,
+        fallbackSilenceDurationSec: Double,
+        viewModel: org.duckdns.dorandoran.callaiassistant.ui.viewmodel.CallViewModel
+    ) {
+        val now = System.currentTimeMillis()
+        refreshRemoteSpeakingState(now)
+
+        val isWithinSuppression = now < interventionSuppressedUntilMs
+        val intervalBlocked = now - lastInterventionTriggeredAtMs < interventionMinIntervalMs
+        val remoteSpeaking = _isRemoteSpeaking.value
+        val shouldBlockByRemoteSpeaking = source != "dual_silence" && remoteSpeaking
+        if (interventionPlaybackActive || isWithinSuppression || intervalBlocked || shouldBlockByRemoteSpeaking) {
+            log(
+                "Intervention blocked source=$source " +
+                "playbackActive=$interventionPlaybackActive suppressed=$isWithinSuppression " +
+                    "intervalBlocked=$intervalBlocked remoteSpeaking=$remoteSpeaking"
+            )
+            return
+        }
+
+        lastInterventionTriggeredAtMs = now
+        viewModel.onSilenceDetected(fallbackSilenceDurationSec)
+    }
+
+    fun markInterventionPlaybackStarted() {
+        interventionPlaybackActive = true
+        interventionSuppressedUntilMs = System.currentTimeMillis() + interventionCooldownAfterPlaybackMs
+    }
+
+    fun markInterventionPlaybackFinished() {
+        interventionPlaybackActive = false
+        interventionSuppressedUntilMs = System.currentTimeMillis() + interventionCooldownAfterPlaybackMs
+        // 개입 TTS 직후에는 무음 카운트를 새로 시작하도록 최근 이벤트를 비운다.
+        localSilenceDetectedAtMs = 0L
+        remoteSilenceDetectedAtMs = 0L
     }
 
     private fun buildSttCallId(suffix: String): String {
