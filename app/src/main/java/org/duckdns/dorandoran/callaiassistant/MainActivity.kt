@@ -987,6 +987,7 @@ private fun WebRtcCallContent(
         onEndCall = handleEndCall,
         onSpeakerphoneToggle = { isOn ->
             callAudioManager.setSpeakerphone(isOn)
+            webRtcManager.setSpeakerphoneHint(isOn)
         },
         onLocalAudioTransmissionToggle = { enabled ->
             webRtcManager.setLocalAudioTransmissionEnabled(enabled)
