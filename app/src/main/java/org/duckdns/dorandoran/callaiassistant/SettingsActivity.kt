@@ -10,15 +10,12 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,12 +27,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
 import kotlin.math.roundToInt
+import org.duckdns.dorandoran.callaiassistant.ui.components.FilledSwitch
 
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -469,55 +466,5 @@ private fun SettingsToggleRow(
             checkedTrackColor = Color(0xFF537CEC),
             uncheckedTrackColor = Color(0xFFE0E0E0)
         )
-    }
-}
-
-@Composable
-private fun FilledSwitch(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    checkedTrackColor: Color,
-    uncheckedTrackColor: Color,
-    modifier: Modifier = Modifier,
-    thumbColor: Color = Color.White
-) {
-    val switchWidth = 52.dp
-    val switchHeight = 32.dp
-    val thumbSize = 24.dp
-    val padding = 4.dp
-    val trackColor by animateColorAsState(
-        targetValue = if (checked) checkedTrackColor else uncheckedTrackColor,
-        label = "SwitchTrackColor"
-    )
-    val thumbOffset by animateDpAsState(
-        targetValue = if (checked) switchWidth - thumbSize - (padding * 2) else 0.dp,
-        label = "SwitchThumbOffset"
-    )
-
-    Box(
-        modifier = modifier
-            .size(width = switchWidth, height = switchHeight)
-            .clip(CircleShape)
-            .background(trackColor)
-            .toggleable(
-                value = checked,
-                role = Role.Switch,
-                onValueChange = onCheckedChange
-            ),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = padding),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            Box(
-                modifier = Modifier
-                    .offset(x = thumbOffset)
-                    .size(thumbSize)
-                    .background(thumbColor, CircleShape)
-            )
-        }
     }
 }

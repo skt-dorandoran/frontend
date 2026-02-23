@@ -65,6 +65,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -454,6 +457,7 @@ private fun PhoneAppContent(
     val callAudioManager = remember { CallAudioManager(activity.applicationContext) }
     val ringbackToneHelper = remember { RingbackToneHelper() }
     val coroutineScope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     val incomingCall by callSignalingManager.incomingCall.collectAsState()
     val contactsVersion = rememberContactsVersion(activity.applicationContext)
@@ -467,6 +471,20 @@ private fun PhoneAppContent(
 
     var autoCallConsumed by remember { mutableStateOf(false) }
 
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                lastCalledPhoneNumber = prefs.getString("last_called_phone_number", null)
+                    ?.filter { it.isDigit() }
+                    ?.ifBlank { null }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     // WebRtcManager 콜백 설정 - 통화 종료 시 알림 취소
     androidx.compose.runtime.SideEffect {
         webRtcManager.onCallEnded = {
@@ -479,10 +497,6 @@ private fun PhoneAppContent(
     LaunchedEffect(Unit) {
         callSignalingManager.startListening()
         activity.startCallListeningService()
-    }
-
-    LaunchedEffect(incomingCall) {
-        showIncomingCall = incomingCall != null
     }
 
     LaunchedEffect(initialPhoneNumber) {
@@ -526,6 +540,13 @@ private fun PhoneAppContent(
             webRtcManager.joinAsCaller(callId)
             showWebRtcCall = true
         }
+    }
+
+    LaunchedEffect(incomingCall) {
+        showIncomingCall = incomingCall != null
+        incomingCall?.callerNumber
+            ?.takeIf { it.isNotBlank() }
+            ?.let { persistLastCalledNumber(it) }
     }
 
     LaunchedEffect(autoCall, initialPhoneNumber) {

@@ -129,6 +129,7 @@ class RealtimeTranscribeWsClient(
         try {
             val data = JSONObject(raw)
             val type = data.optString("type")
+            val status = data.optString("status")
             when (type) {
                 "interim" -> onInterim(
                     RealtimeSttPayload(
@@ -159,7 +160,24 @@ class RealtimeTranscribeWsClient(
                         enableAiCorrection = data.optBoolean("enableAiCorrection", false)
                     )
                 )
-                "error" -> onError(data.optString("text").ifBlank { "STT server error" })
+                "error" -> onError(
+                    data.optString("message")
+                        .ifBlank { data.optString("text") }
+                        .ifBlank { "STT server error" }
+                )
+                else -> {
+                    // 일부 이해실패 응답은 type 없이 status만 내려온다.
+                    if (status.isNotBlank()) {
+                        onComprehension(
+                            RealtimeComprehensionPayload(
+                                status = status,
+                                failureCount = data.optInt("failureCount").takeIf { it >= 0 },
+                                threshold = data.optInt("threshold").takeIf { it >= 0 },
+                                enableAiCorrection = data.optBoolean("enableAiCorrection", false)
+                            )
+                        )
+                    }
+                }
             }
         } catch (e: Exception) {
             Log.e(tag, "Failed to parse STT WS message: $raw", e)

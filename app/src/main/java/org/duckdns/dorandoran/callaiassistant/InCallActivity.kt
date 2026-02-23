@@ -81,6 +81,7 @@ class InCallActivity : ComponentActivity() {
             val roomId = intent.getStringExtra(CallListeningService.EXTRA_ROOM_ID)
                 ?: org.duckdns.dorandoran.callaiassistant.webrtc.WEBRTC_ROOM_ID
             val callerNumber = intent.getStringExtra(CallListeningService.EXTRA_CALLER_NUMBER).orEmpty()
+            persistLatestCallNumber(callerNumber)
             if (callId.isNotEmpty()) {
                 (application as? CallApp)?.callSignalingManager?.setIncomingFromIntent(
                     org.duckdns.dorandoran.callaiassistant.webrtc.CallSignalingManager.IncomingCallInfo(
@@ -296,6 +297,15 @@ class InCallActivity : ComponentActivity() {
         } else {
             startService(Intent(this, CallListeningService::class.java))
         }
+    }
+
+    private fun persistLatestCallNumber(number: String) {
+        val normalized = number.filter { it.isDigit() }
+        if (normalized.isBlank()) return
+        getSharedPreferences("app_prefs", MODE_PRIVATE)
+            .edit()
+            .putString("last_called_phone_number", normalized)
+            .apply()
     }
 }
 
