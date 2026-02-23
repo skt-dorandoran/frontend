@@ -230,6 +230,9 @@ fun WebRtcInCallScreen(
     val voiceId = remember { org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore.getVoiceId(context) }
     val isVoiceCloneEnabled = remember { org.duckdns.dorandoran.callaiassistant.SettingsStore.isVoiceCloneEnabled(context) }
     val introPromptEnabled = SettingsStore.isCallIntroPromptEnabled(context)
+    var isSilenceInterventionTtsEnabled by remember {
+        mutableStateOf(SettingsStore.isSilenceInterventionTtsEnabled(context))
+    }
     val introPromptStyle = SettingsStore.getCallIntroPromptStyle(context)
     val introPromptCustom = SettingsStore.getCallIntroPromptCustom(context)
     val introPromptText = when (introPromptStyle) {
@@ -403,6 +406,7 @@ fun WebRtcInCallScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 syncSpeakerphoneUiState()
                 isTextModeNavigationInProgress = false
+                isSilenceInterventionTtsEnabled = SettingsStore.isSilenceInterventionTtsEnabled(context)
                 if (selectedMode == CallMode.TEXT) {
                     // 텍스트 통화 화면에서 돌아오면 직접 말하기 모드로 복원
                     selectedMode = CallMode.DIRECT
@@ -501,8 +505,12 @@ fun WebRtcInCallScreen(
         }
     }
 
-    LaunchedEffect(silenceIntervention.eventId, connectionState) {
+    LaunchedEffect(silenceIntervention.eventId, connectionState, isSilenceInterventionTtsEnabled) {
         if (!silenceIntervention.visible || silenceIntervention.eventId <= 0L) return@LaunchedEffect
+        if (!isSilenceInterventionTtsEnabled) {
+            viewModel.dismissSilenceIntervention()
+            return@LaunchedEffect
+        }
         if (connectionState != WebRtcConnectionState.IN_CALL) {
             // 통화 시작 전(또는 종료 후)에는 개입 TTS를 재생하지 않는다.
             viewModel.dismissSilenceIntervention()
@@ -639,7 +647,7 @@ fun WebRtcInCallScreen(
                                 .padding(horizontal = 24.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (silenceIntervention.visible) {
+                            if (silenceIntervention.visible && isSilenceInterventionTtsEnabled) {
                                 CrisisInterventionPanel(
                                     remoteText = lastRemoteTypedMessageText,
                                     interventionText = silenceIntervention.interventionText.ifBlank { "잠시만요" },
