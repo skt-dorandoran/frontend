@@ -226,6 +226,7 @@ fun WebRtcInCallScreen(
         context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
     }
     var isSpeakerphoneOn by remember { mutableStateOf(audioManager.isSpeakerphoneOn) }
+    var hasAppliedInitialSpeakerphoneOff by remember { mutableStateOf(false) }
     // 음성 클론 TTS 분기용 상태
     val voiceId = remember { org.duckdns.dorandoran.callaiassistant.voiceclone.VoiceCloneStore.getVoiceId(context) }
     val isVoiceCloneEnabled = remember { org.duckdns.dorandoran.callaiassistant.SettingsStore.isVoiceCloneEnabled(context) }
@@ -401,6 +402,16 @@ fun WebRtcInCallScreen(
         syncSpeakerphoneUiState()
     }
 
+    LaunchedEffect(connectionState) {
+        if (connectionState == WebRtcConnectionState.IN_CALL && !hasAppliedInitialSpeakerphoneOff) {
+            isSpeakerphoneOn = false
+            onSpeakerphoneToggle(false)
+            hasAppliedInitialSpeakerphoneOff = true
+        } else if (connectionState == WebRtcConnectionState.DISCONNECTED) {
+            hasAppliedInitialSpeakerphoneOff = false
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -520,7 +531,7 @@ fun WebRtcInCallScreen(
         try {
             viewModel.sendMessage(
                 text,
-                origin = org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin.TEXT_MODE
+                origin = org.duckdns.dorandoran.callaiassistant.ui.viewmodel.MessageOrigin.SILENCE_INTERVENTION
             )
             speakTextWithTts(
                 textToSend = text,
