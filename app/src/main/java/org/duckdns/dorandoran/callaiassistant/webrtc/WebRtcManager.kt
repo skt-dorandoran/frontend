@@ -119,6 +119,8 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     private var localEchoGuardActive: Boolean = false
     @Volatile
     private var localEchoGuardHoldUntilMs: Long = 0L
+    @Volatile
+    private var textCallModeActive: Boolean = false
 
     private var peerConnectionFactory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
@@ -456,6 +458,11 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         refreshAudioRouteState(force = true)
     }
 
+    fun setTextCallModeActive(enabled: Boolean) {
+        textCallModeActive = enabled
+        log("Text call STT isolation ${if (enabled) "enabled" else "disabled"}")
+    }
+
     private fun refreshAudioRouteState(force: Boolean = false) {
         val now = System.currentTimeMillis()
         if (!force && now - lastRouteRefreshMs < 250L) return
@@ -565,17 +572,28 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         val remoteRms = remoteSttRecentRms
         val localDominance = if (remoteRms > 1e-6f) rms / remoteRms else 1f
         val echoGuardEnabled = speakerRouteActive && !bluetoothRouteActive
+        var hardBlockEchoFrame = false
         if (echoGuardEnabled) {
             val echoLikely = remoteRms > 0.050f && localDominance < 0.45f && peak < 0.30f
             if (echoLikely) {
                 localEchoGuardActive = true
                 localEchoGuardHoldUntilMs = now + 220L
+                val remoteSpeakingNow = now < remoteSpeechHoldUntilMs
+                // 텍스트 통화 모드에서는 원격 음성이 로컬 STT(오른쪽 버블)로 섞이지 않도록
+                // 에코 의심 프레임을 강하게 차단한다.
+                if (textCallModeActive && remoteSpeakingNow) {
+                    hardBlockEchoFrame = true
+                }
             } else if (now > localEchoGuardHoldUntilMs) {
                 localEchoGuardActive = false
             }
         } else {
             localEchoGuardActive = false
             localEchoGuardHoldUntilMs = 0L
+        }
+
+        if (hardBlockEchoFrame) {
+            return FloatArray(0)
         }
 
         val echoGuardTarget = if (localEchoGuardActive) 0.22f else 1.0f
@@ -733,7 +751,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
 
         // Custom AudioDeviceModule: 에코 캔슬러 활성화 + TTS PCM 믹싱
         audioDeviceModule = CustomAudioDeviceModule.builder(context)
-            // VOICE_COMMUNICATION enables the platform's call-optimized AEC path.
+            // 하울링/에코 억제를 위해 통화 최적화 캡처 소스를 사용한다.
             .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
             .setUseHardwareAcousticEchoCanceler(true)
             .setUseHardwareNoiseSuppressor(true)
@@ -908,9 +926,12 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
 
         val constraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation2", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("googDAEchoCancellation", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googNoiseSuppression", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googAutoGainControl", "true"))
-            mandatory.add(MediaConstraints.KeyValuePair("googHighpassFilter", "false"))
+            mandatory.add(MediaConstraints.KeyValuePair("googTypingNoiseDetection", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("googHighpassFilter", "true"))
         }
         audioSource = factory.createAudioSource(constraints)
         localAudioTrack = factory.createAudioTrack("audio0", audioSource)

@@ -127,6 +127,14 @@ fun CallTypingScreen(
     }
 
     val listState = rememberLazyListState()
+
+    DisposableEffect(webRtcManager) {
+        webRtcManager.setTextCallModeActive(true)
+        onDispose {
+            webRtcManager.setTextCallModeActive(false)
+        }
+    }
+
     fun sendMessageNow(rawText: String) {
         val textToSend = rawText.trim()
         if (textToSend.isEmpty() || isSendingMessage || isInlineKeypadVisible) return

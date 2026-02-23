@@ -277,6 +277,13 @@ fun WebRtcInCallScreen(
     val controlIconColor = if (isDark) Color(0xFFE8EAF0) else Color(0xFF5D5E62)
     val toneGenerator = remember { ToneGenerator(AudioManager.STREAM_DTMF, 80) }
 
+    DisposableEffect(webRtcManager) {
+        webRtcManager.setTextCallModeActive(false)
+        onDispose {
+            webRtcManager.setTextCallModeActive(false)
+        }
+    }
+
     fun syncSpeakerphoneUiState() {
         isSpeakerphoneOn = audioManager.isSpeakerphoneOn
     }
