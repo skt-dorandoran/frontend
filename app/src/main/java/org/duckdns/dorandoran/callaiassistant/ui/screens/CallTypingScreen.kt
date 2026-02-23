@@ -20,6 +20,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Lightbulb
@@ -31,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -282,14 +289,16 @@ fun CallTypingScreen(
                         .padding(end = 20.dp)
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFFF6B6B))
+                        .background(Color(0xFFEF3D3D))
                         .padding(4.dp)
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_solar_phone_bold),
                         contentDescription = "통화 종료",
                         tint = Color.Unspecified,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier
+                            .size(25.3.dp)
+                            .offset(x = 2.dp)
                     )
                 }
             },
@@ -347,7 +356,18 @@ fun CallTypingScreen(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+            val refreshInfiniteTransition = rememberInfiniteTransition(label = "typing_refresh_rotation")
+            val refreshRotationAngle by refreshInfiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = -360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 800, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "typing_refresh_angle"
+            )
             Row(
+                modifier = Modifier.padding(end = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
@@ -369,14 +389,14 @@ fun CallTypingScreen(
                     onClick = { viewModel.refreshAiSuggestions() },
                     modifier = Modifier.size(22.dp)
                 ) {
-                    if (!isRefreshingAiSuggestions) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_redirect_refresh),
-                            contentDescription = "추천 새로고침",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_redirect_refresh),
+                        contentDescription = "추천 새로고침",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .size(12.6.dp)
+                            .rotate(if (isRefreshingAiSuggestions) refreshRotationAngle else 0f)
+                    )
                 }
             }
 
@@ -411,6 +431,7 @@ fun CallTypingScreen(
                 Column(
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    val inputFieldBorderColor = Color(0xFFE8E8E8)
                     if (visibleOneClickReplies.isNotEmpty() && !isInlineKeypadVisible) {
                         Row(
                             modifier = Modifier
@@ -428,11 +449,13 @@ fun CallTypingScreen(
                                             selection = TextRange(reply.length)
                                         )
                                     },
+                                    border = BorderStroke(1.dp, inputFieldBorderColor),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
                                     Text(
                                         text = reply,
                                         style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFF2F3238),
                                         maxLines = 1
                                     )
                                 }
@@ -466,7 +489,6 @@ fun CallTypingScreen(
                                 .padding(end = 8.dp)
                         ) {
                             val fieldShape = RoundedCornerShape(24.dp)
-                            val borderColor = Color(0xFFE8E8E8)
                             val inputEnabled = inputText.text.isNotBlank() && !isSendingMessage && !isInlineKeypadVisible
 
                             BasicTextField(
@@ -480,7 +502,7 @@ fun CallTypingScreen(
                                     .fillMaxWidth()
                                     .heightIn(min = 52.dp)
                                     .clip(fieldShape)
-                                    .border(1.dp, borderColor, fieldShape)
+                                    .border(1.dp, inputFieldBorderColor, fieldShape)
                                     .background(Color(0xFFFFFFFF))
                                     .padding(start = 16.dp, end = 58.dp)
                             ) { innerTextField ->
