@@ -14,7 +14,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +32,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -63,18 +63,24 @@ import kotlinx.coroutines.yield
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.navigation.NavController
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -1298,20 +1304,6 @@ fun WebRtcInCallScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
                     } else {
-                        Box(
-                            modifier = Modifier
-                                .size(width = 44.dp, height = 5.dp)
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
-                                .pointerInput(Unit) {
-                                    detectVerticalDragGestures { change, _ ->
-                                        change.consume()
-                                    }
-                                }
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
                         KeypadScreenContent(
                             modifier = Modifier.fillMaxWidth(),
                             onKeyPress = { key ->
@@ -1370,6 +1362,7 @@ fun WebRtcInCallScreen(
                         Box(
                             modifier = Modifier
                                 .size(60.dp)
+                                .inCallControlButtonShadow()
                                 .clip(CircleShape)
                                 .background(Color(0xFFEF3D3D))
                                 .clickable(onClick = onEndCall),
@@ -1378,9 +1371,9 @@ fun WebRtcInCallScreen(
                             Icon(
                                 painter = painterResource(id = R.drawable.ic_call_end_solar),
                                 contentDescription = "통화 종료",
-                                tint = MaterialTheme.colorScheme.onError,
+                                tint = Color.White,
                                 modifier = Modifier
-                                    .size(39.2.dp)
+                                    .fillMaxSize(0.7f)
                                     .offset(x = 1.dp)
                             )
                         }
@@ -1496,6 +1489,9 @@ private fun KeypadScreenContent(
     modifier: Modifier = Modifier,
     onKeyPress: (Char) -> Unit
 ) {
+    val keypadWidth = 272.dp
+    val keypadColumnShift = 13.dp
+
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1510,28 +1506,32 @@ private fun KeypadScreenContent(
 
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .width(keypadWidth)
+                .offset(y = 2.dp)
+                .wrapContentHeight(),
+            verticalArrangement = Arrangement.spacedBy(19.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             dialPad.forEach { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    row.forEach { key ->
-                        Box(
-                            modifier = Modifier.weight(1f),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            InCallDialPadButton(
-                                key = key,
-                                onClick = {
-                                    key.digit.firstOrNull()?.let { onKeyPress(it) }
-                                }
-                            )
+                    row.forEachIndexed { index, key ->
+                        val horizontalShift = when (index) {
+                            0 -> -keypadColumnShift
+                            2 -> keypadColumnShift
+                            else -> 0.dp
                         }
+
+                        InCallDialPadButton(
+                            key = key,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                key.digit.firstOrNull()?.let { onKeyPress(it) }
+                            },
+                            horizontalShift = horizontalShift
+                        )
                     }
                 }
             }
@@ -1542,36 +1542,80 @@ private fun KeypadScreenContent(
 @Composable
 private fun InCallDialPadButton(
     key: InCallDialPadKey,
-    onClick: () -> Unit
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+    horizontalShift: androidx.compose.ui.unit.Dp = 0.dp
 ) {
+    val pretendard = try {
+        FontFamily(Font(R.font.pretendard_medium, FontWeight.Medium))
+    } catch (_: Exception) {
+        FontFamily.Default
+    }
+    val digitColor = Color(0xFF000000)
+
     Box(
         modifier = Modifier
-            .size(72.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            .then(modifier)
+            .height(66.dp)
+            .offset(x = horizontalShift)
             .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.TopCenter
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Top
         ) {
-            Text(
-                text = key.digit,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            if (key.hangul.isNotBlank() || key.latin.isNotBlank()) {
+            Box(
+                modifier = Modifier.height(38.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = key.hangul,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface
+                    text = key.digit,
+                    style = TextStyle(
+                        fontSize = 32.sp,
+                        fontFamily = pretendard,
+                        fontWeight = FontWeight(650),
+                        color = digitColor,
+                        textAlign = TextAlign.Center
+                    ),
+                    modifier = when (key.digit) {
+                        "*" -> Modifier.offset(y = 7.dp)
+                        "0", "#" -> Modifier.offset(x = (-1).dp)
+                        else -> Modifier
+                    }
                 )
+            }
+            Column(
+                modifier = Modifier.height(28.dp),
+                verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.Top),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (key.hangul.isNotBlank()) {
+                    Text(
+                        text = key.hangul,
+                        style = TextStyle(
+                            fontSize = 12.sp,
+                            fontFamily = pretendard,
+                            fontWeight = FontWeight(600),
+                            color = digitColor,
+                            textAlign = TextAlign.Center,
+                            letterSpacing = 1.2.sp
+                        ),
+                        modifier = Modifier
+                            .height(14.dp)
+                            .offset(y = if (key.hangul == ";") 4.dp else 0.dp)
+                    )
+                }
                 Text(
                     text = key.latin.ifBlank { " " },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (key.latin.isBlank()) Color.Transparent else MaterialTheme.colorScheme.onSurface
+                    style = TextStyle(
+                        fontSize = 11.sp,
+                        fontFamily = pretendard,
+                        fontWeight = FontWeight(500),
+                        color = if (key.latin.isBlank()) Color.Transparent else digitColor,
+                        textAlign = TextAlign.Center
+                    ),
+                    modifier = Modifier.height(13.dp)
                 )
             }
         }
@@ -1579,6 +1623,28 @@ private fun InCallDialPadButton(
 }
 
 private data class InCallDialPadKey(val digit: String, val hangul: String, val latin: String)
+
+private fun Modifier.inCallControlButtonShadow() = this.drawBehind {
+    val shadowColor = Color(0x4D959DA5).toArgb()
+    val transparentColor = Color.Transparent.toArgb()
+
+    drawIntoCanvas { canvas ->
+        val paint = Paint()
+        val frameworkPaint = paint.asFrameworkPaint()
+        frameworkPaint.color = transparentColor
+        frameworkPaint.setShadowLayer(
+            24.dp.toPx(),
+            0.dp.toPx(),
+            8.dp.toPx(),
+            shadowColor
+        )
+        canvas.drawCircle(
+            center = center,
+            radius = size.minDimension / 2f,
+            paint = paint
+        )
+    }
+}
 
 @Composable
 private fun KeypadDotsIcon(
