@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -674,7 +675,7 @@ fun WebRtcInCallScreen(
                         if (callScreenState == CallScreenState.KEYPAD) {
                             Modifier.fillMaxHeight(0.75f)
                         } else {
-                            Modifier
+                            Modifier.fillMaxHeight(0.825f)
                         }
                     )
                     .navigationBarsPadding()
@@ -693,7 +694,9 @@ fun WebRtcInCallScreen(
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset(y = 1.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     if (callScreenState == CallScreenState.MODE_SELECT) {
@@ -933,117 +936,122 @@ fun WebRtcInCallScreen(
                                     }
                                 }
                             } else {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                Column(
+                                    modifier = Modifier.offset(y = (-12).dp)
                                 ) {
                                     Row(
+                                        modifier = Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.ic_idea),
-                                            contentDescription = "AI 추천",
-                                            tint = Color.Unspecified,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Text(
-                                            text = "AI 추천 답변",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = Color(0xFF727272)
-                                        )
-                                    }
-                                    val refreshInfiniteTransition = rememberInfiniteTransition(label = "refresh_rotation")
-                                    val refreshRotationAngle by refreshInfiniteTransition.animateFloat(
-                                        initialValue = 0f,
-                                        targetValue = 360f,
-                                        animationSpec = infiniteRepeatable(
-                                            animation = tween(durationMillis = 800, easing = LinearEasing),
-                                            repeatMode = RepeatMode.Restart
-                                        ),
-                                        label = "refresh_angle"
-                                    )
-                                    IconButton(
-                                        enabled = !isRefreshingAiSuggestions,
-                                        onClick = {
-                                            viewModel.refreshAiSuggestions()
-                                        }
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.ic_redirect_refresh),
-                                            contentDescription = "추천 새로고침",
-                                            tint = secondaryTextColor,
-                                            modifier = Modifier.rotate(
-                                                if (isRefreshingAiSuggestions) refreshRotationAngle else 0f
-                                            )
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(3.dp))
-
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(3.dp)
-                                ) {
-                                    val suggestionBorderBrush = Brush.horizontalGradient(
-                                        colors = listOf(
-                                            Color(0xFF8B79F6),
-                                            Color(0xFF7B8CF8),
-                                            Color(0xFF6BA3F8),
-                                            Color(0xFF67BCCF),
-                                            Color(0xFF7ADFD0)
-                                        )
-                                    )
-                                    currentSuggestions.forEach { suggestion ->
-                                        OutlinedButton(
-                                            onClick = {
-                                                if (isRefreshingAiSuggestions || suggestion.isBlank()) return@OutlinedButton
-                                                sendDirectSuggestionNow(suggestion)
-                                            },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .defaultMinSize(minHeight = 42.dp),
-                                            shape = RoundedCornerShape(20.dp),
-                                            enabled = !isRefreshingAiSuggestions && suggestion.isNotBlank(),
-                                            border = BorderStroke(
-                                                width = 2.dp,
-                                                brush = suggestionBorderBrush
-                                            ),
-                                            colors = ButtonDefaults.outlinedButtonColors(
-                                                containerColor = if (isRefreshingAiSuggestions) {
-                                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                                                } else {
-                                                    Color.Transparent
-                                                },
-                                                contentColor = if (isRefreshingAiSuggestions) {
-                                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                                } else {
-                                                    MaterialTheme.colorScheme.onBackground
-                                                },
-                                                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                                                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+                                        Row(
+                                            modifier = Modifier.padding(start = 2.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
-                                            Text(
-                                                text = suggestion,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                maxLines = 2,
-                                                overflow = TextOverflow.Ellipsis,
-                                                textAlign = TextAlign.Center
+                                            Icon(
+                                                painter = painterResource(id = R.drawable.ic_idea),
+                                                contentDescription = "AI 추천",
+                                                tint = Color.Unspecified,
+                                                modifier = Modifier.size(18.dp)
                                             )
+                                            Text(
+                                                text = "AI 추천 답변",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = Color(0xFF727272)
+                                            )
+                                        }
+                                        val refreshInfiniteTransition = rememberInfiniteTransition(label = "refresh_rotation")
+                                        val refreshRotationAngle by refreshInfiniteTransition.animateFloat(
+                                            initialValue = 0f,
+                                            targetValue = -360f,
+                                            animationSpec = infiniteRepeatable(
+                                                animation = tween(durationMillis = 800, easing = LinearEasing),
+                                                repeatMode = RepeatMode.Restart
+                                            ),
+                                            label = "refresh_angle"
+                                        )
+                                        IconButton(
+                                            enabled = !isRefreshingAiSuggestions,
+                                            onClick = {
+                                                viewModel.refreshAiSuggestions()
+                                            }
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(id = R.drawable.ic_redirect_refresh),
+                                                contentDescription = "추천 새로고침",
+                                                tint = secondaryTextColor,
+                                                modifier = Modifier.rotate(
+                                                    if (isRefreshingAiSuggestions) refreshRotationAngle else 0f
+                                                )
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(3.dp))
+
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        val suggestionBorderBrush = Brush.horizontalGradient(
+                                            colors = listOf(
+                                                Color(0xFF8B79F6),
+                                                Color(0xFF7B8CF8),
+                                                Color(0xFF6BA3F8),
+                                                Color(0xFF67BCCF),
+                                                Color(0xFF7ADFD0)
+                                            )
+                                        )
+                                        currentSuggestions.forEach { suggestion ->
+                                            OutlinedButton(
+                                                onClick = {
+                                                    if (isRefreshingAiSuggestions || suggestion.isBlank()) return@OutlinedButton
+                                                    sendDirectSuggestionNow(suggestion)
+                                                },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .defaultMinSize(minHeight = 46.2.dp),
+                                                shape = RoundedCornerShape(20.dp),
+                                                enabled = !isRefreshingAiSuggestions && suggestion.isNotBlank(),
+                                                border = BorderStroke(
+                                                    width = 2.dp,
+                                                    brush = suggestionBorderBrush
+                                                ),
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    containerColor = if (isRefreshingAiSuggestions) {
+                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                                                    } else {
+                                                        Color.Transparent
+                                                    },
+                                                    contentColor = if (isRefreshingAiSuggestions) {
+                                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                                    } else {
+                                                        MaterialTheme.colorScheme.onBackground
+                                                    },
+                                                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                                                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            ) {
+                                                Text(
+                                                    text = suggestion,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
                                         }
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(24.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
 
                                 if (textModeLastMyBubble.isNotBlank() && !isAiCorrectionMode) {
                                     Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(126.dp)
+                                            .height(144.9.dp)
                                             .clip(RoundedCornerShape(18.dp))
                                             .background(Color(0xFFFFFFFF))
                                             .border(
@@ -1084,7 +1092,7 @@ fun WebRtcInCallScreen(
                                     Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(126.dp)
+                                            .height(144.9.dp)
                                             .clip(RoundedCornerShape(18.dp))
                                             .background(Color(0xFFFFFFFF))
                                             .border(
@@ -1120,30 +1128,41 @@ fun WebRtcInCallScreen(
                                 }
                             }
                         } else {
+                            if (connectionState != WebRtcConnectionState.IN_CALL) {
+                                Spacer(modifier = Modifier.height(300.dp))
+                            }
                             Text(
                                 text = "전화 모드를 선택해주세요",
                                 style = MaterialTheme.typography.bodyLarge.copy(
                                     fontSize = 13.sp
                                 ),
                                 color = Color(0xFF5D5D5D),
-                                modifier = Modifier.fillMaxWidth().padding(start = 2.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 2.dp),
                                 textAlign = TextAlign.Start
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(
+                            modifier = Modifier.height(
+                                if (connectionState == WebRtcConnectionState.IN_CALL) 9.32.dp else 10.dp
+                            )
+                        )
 
                         if (!isAiCorrectionMode || connectionState != WebRtcConnectionState.IN_CALL) {
                             // 모드 선택 버튼들
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .offset(y = 0.dp),
                                 horizontalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 Button(
                                     onClick = { selectedMode = CallMode.DIRECT },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(46.dp),
+                                        .height(48.3.dp),
                                     shape = RoundedCornerShape(18.dp),
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                     colors = ButtonDefaults.buttonColors(
@@ -1170,7 +1189,7 @@ fun WebRtcInCallScreen(
                                     },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(46.dp),
+                                        .height(48.3.dp),
                                     shape = RoundedCornerShape(18.dp),
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                     colors = ButtonDefaults.buttonColors(
@@ -1226,7 +1245,7 @@ fun WebRtcInCallScreen(
                                     },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(46.dp),
+                                        .height(48.3.dp),
                                     shape = RoundedCornerShape(18.dp),
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                     colors = ButtonDefaults.buttonColors(
@@ -1278,7 +1297,11 @@ fun WebRtcInCallScreen(
 
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset(
+                            y = if (connectionState == WebRtcConnectionState.IN_CALL) (-14).dp else (-8).dp
+                        ),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1320,7 +1343,7 @@ fun WebRtcInCallScreen(
                             modifier = Modifier
                                 .size(60.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFFF6B6B))
+                                .background(Color(0xFFEF3D3D))
                                 .clickable(onClick = onEndCall),
                             contentAlignment = Alignment.Center
                         ) {
@@ -1328,7 +1351,9 @@ fun WebRtcInCallScreen(
                                 painter = painterResource(id = R.drawable.ic_call_end_solar),
                                 contentDescription = "통화 종료",
                                 tint = MaterialTheme.colorScheme.onError,
-                                modifier = Modifier.size(39.2.dp)
+                                modifier = Modifier
+                                    .size(39.2.dp)
+                                    .offset(x = 1.dp)
                             )
                         }
                     }
@@ -1621,3 +1646,5 @@ fun WebRtcInCallScreenInCallPreview() {
         )
     }
 }
+
+
