@@ -106,6 +106,7 @@ class CallListeningService : Service() {
 
     private fun showIncomingCall(callId: String, roomId: String, callerNumber: String) {
         createIncomingCallChannel()
+        persistLatestCallNumber(callerNumber)
         val now = System.currentTimeMillis()
         if (lastIncomingCallId == callId && (now - lastIncomingAt) < INCOMING_DEBOUNCE_MS) {
             android.util.Log.d("CallListeningService", "Duplicate incoming ignored: callId=$callId")
@@ -235,6 +236,15 @@ class CallListeningService : Service() {
             }
             (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
         }
+    }
+
+    private fun persistLatestCallNumber(number: String) {
+        val normalized = number.filter { it.isDigit() }
+        if (normalized.isBlank()) return
+        getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("last_called_phone_number", normalized)
+            .apply()
     }
 
     private fun createNotification(): Notification {

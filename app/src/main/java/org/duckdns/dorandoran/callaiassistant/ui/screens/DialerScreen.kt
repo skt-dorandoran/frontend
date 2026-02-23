@@ -56,6 +56,13 @@ fun DialerScreen(
 ) {
     var phoneNumber by remember(initialPhoneNumber) { mutableStateOf(initialPhoneNumber) }
     var showLastCalledNumber by remember { mutableStateOf(false) }
+    var latestCallNumber by remember(lastCalledNumber) {
+        mutableStateOf(
+            lastCalledNumber
+                ?.filter { it.isDigit() || it == '+' }
+                ?.ifBlank { null }
+        )
+    }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val contactsVersion = rememberContactsVersion(context)
@@ -89,6 +96,27 @@ fun DialerScreen(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
+    }
+
+    LaunchedEffect(resumeTick, lastCalledNumber) {
+        val latestFromLog = repository.getLatestCallPhoneNumber()
+        // 앱이 저장한 최신 번호(lastCalledNumber)가 있으면 그것을 우선한다.
+        if (lastCalledNumber.isNullOrBlank() && !latestFromLog.isNullOrBlank()) {
+            latestCallNumber = latestFromLog
+        }
+    }
+
+    val effectiveLastCalledNumber = lastCalledNumber
+            ?.filter { it.isDigit() || it == '+' }
+            ?.ifBlank { null }
+        ?: latestCallNumber
+
+    fun materializeLastCalledIfNeeded(): String {
+        if (!showLastCalledNumber) return phoneNumber
+        val last = effectiveLastCalledNumber.orEmpty()
+        phoneNumber = last
+        showLastCalledNumber = false
+        return phoneNumber
     }
 
     LaunchedEffect(phoneNumber, showLastCalledNumber, contactsVersion, resumeTick) {
@@ -152,8 +180,8 @@ fun DialerScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = if (showLastCalledNumber && lastCalledNumber != null) {
-                    formatPhoneNumber(lastCalledNumber)
+                text = if (showLastCalledNumber && effectiveLastCalledNumber != null) {
+                    formatPhoneNumber(effectiveLastCalledNumber.orEmpty())
                 } else if (phoneNumber.isBlank()) {
                     ""
                 } else {
@@ -173,9 +201,9 @@ fun DialerScreen(
                     .wrapContentHeight(Alignment.CenterVertically)
             )
 
-            if (!showLastCalledNumber && lastCalledNumber != null && phoneNumber.isBlank()) {
+            if (!showLastCalledNumber && effectiveLastCalledNumber != null && phoneNumber.isBlank()) {
                 Text(
-                    text = "마지막 통화: ${formatPhoneNumber(lastCalledNumber)}",
+                    text = "마지막 통화: ${formatPhoneNumber(effectiveLastCalledNumber)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp)
@@ -257,6 +285,7 @@ fun DialerScreen(
                                 .height(66.dp)
                                 .offset(x = horizontalShift),
                             onClick = {
+                                materializeLastCalledIfNeeded()
                                 if (key.digit.length == 1) {
                                     digitToTone(key.digit[0])?.let { tone ->
                                         try { toneGenerator.startTone(tone, 120) } catch (_: Throwable) {}
@@ -290,11 +319,11 @@ fun DialerScreen(
                 CallButton(
                     onClick = {
                         when {
-                            phoneNumber.isBlank() && lastCalledNumber != null && !showLastCalledNumber -> {
+                            phoneNumber.isBlank() && effectiveLastCalledNumber != null && !showLastCalledNumber -> {
                                 showLastCalledNumber = true
                             }
-                            showLastCalledNumber && lastCalledNumber != null -> {
-                                onCallStarted(lastCalledNumber)
+                            showLastCalledNumber && effectiveLastCalledNumber != null -> {
+                                onCallStarted(effectiveLastCalledNumber)
                                 showLastCalledNumber = false
                             }
                             phoneNumber.isNotBlank() -> {
@@ -311,7 +340,10 @@ fun DialerScreen(
                             .combinedClickable(
                                 onClick = {
                                     if (showLastCalledNumber) {
-                                        showLastCalledNumber = false
+                                        val last = materializeLastCalledIfNeeded()
+                                        if (last.isNotEmpty()) {
+                                            phoneNumber = last.dropLast(1)
+                                        }
                                     } else if (phoneNumber.isNotEmpty()) {
                                         phoneNumber = phoneNumber.dropLast(1)
                                     }

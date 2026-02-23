@@ -73,6 +73,40 @@ class CallLogRepository(private val context: Context) {
         getContactNameSync(phoneNumber)
     }
 
+    suspend fun getLatestCallPhoneNumber(): String? = withContext(Dispatchers.IO) {
+        val projection = arrayOf(
+            CallLog.Calls.NUMBER,
+            CallLog.Calls.TYPE
+        )
+        val selection = "${CallLog.Calls.NUMBER} IS NOT NULL AND ${CallLog.Calls.NUMBER} != ''"
+
+        context.contentResolver.query(
+            CallLog.Calls.CONTENT_URI,
+            projection,
+            selection,
+            null,
+            "${CallLog.Calls.DATE} DESC"
+        )?.use { cursor ->
+            val numberIndex = cursor.getColumnIndex(CallLog.Calls.NUMBER)
+            val typeIndex = cursor.getColumnIndex(CallLog.Calls.TYPE)
+
+            while (cursor.moveToNext()) {
+                val rawNumber = cursor.getString(numberIndex).orEmpty()
+                val number = rawNumber.filter { it.isDigit() || it == '+' }
+                if (number.isBlank()) continue
+
+                // 마지막 수신/발신(및 부재중 포함) 번호를 우선 사용한다.
+                when (cursor.getInt(typeIndex)) {
+                    CallLog.Calls.INCOMING_TYPE,
+                    CallLog.Calls.OUTGOING_TYPE,
+                    CallLog.Calls.MISSED_TYPE -> return@withContext number
+                }
+            }
+        }
+
+        null
+    }
+
     suspend fun searchContacts(query: String, limit: Int = 3): Pair<List<ContactMatch>, Int> =
         withContext(Dispatchers.IO) {
             val trimmed = query.trim()
