@@ -176,6 +176,18 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 onSilenceDetected = { duration ->
                     onRemoteSilenceDetected(duration, viewModel)
                 },
+                onComprehension = { payload ->
+                    if (payload.enableAiCorrection) {
+                        if (SettingsStore.isComprehensionAutoAiCorrectionEnabled(context)) {
+                            viewModel.onComprehensionAlert()
+                        }
+                        triggerInterventionIfAllowed(
+                            source = "comprehension",
+                            fallbackSilenceDurationSec = 0.0,
+                            viewModel = viewModel
+                        )
+                    }
+                },
                 onError = { err -> Log.e(TAG, "Remote STT error: $err") }
             )
             sttClient.connect()
@@ -230,18 +242,6 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 },
                 onSilenceDetected = { duration ->
                     onLocalSilenceDetected(duration, viewModel)
-                },
-                onComprehension = { payload ->
-                    if (payload.enableAiCorrection) {
-                        if (SettingsStore.isComprehensionAutoAiCorrectionEnabled(context)) {
-                            viewModel.onComprehensionAlert()
-                        }
-                        triggerInterventionIfAllowed(
-                            source = "comprehension",
-                            fallbackSilenceDurationSec = 0.0,
-                            viewModel = viewModel
-                        )
-                    }
                 },
                 onError = { err -> Log.e(TAG, "Local STT error: $err") }
             )
