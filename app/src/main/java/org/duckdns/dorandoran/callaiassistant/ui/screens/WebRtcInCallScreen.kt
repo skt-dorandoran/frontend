@@ -243,6 +243,9 @@ fun WebRtcInCallScreen(
     var isSilenceInterventionTtsEnabled by remember {
         mutableStateOf(SettingsStore.isSilenceInterventionTtsEnabled(context))
     }
+    var isComprehensionAutoAiCorrectionEnabled by remember {
+        mutableStateOf(SettingsStore.isComprehensionAutoAiCorrectionEnabled(context))
+    }
     val introPromptStyle = SettingsStore.getCallIntroPromptStyle(context)
     val introPromptCustom = SettingsStore.getCallIntroPromptCustom(context)
     val introPromptText = when (introPromptStyle) {
@@ -434,6 +437,7 @@ fun WebRtcInCallScreen(
                 syncSpeakerphoneUiState()
                 isTextModeNavigationInProgress = false
                 isSilenceInterventionTtsEnabled = SettingsStore.isSilenceInterventionTtsEnabled(context)
+                isComprehensionAutoAiCorrectionEnabled = SettingsStore.isComprehensionAutoAiCorrectionEnabled(context)
                 if (selectedMode == CallMode.TEXT) {
                     // 텍스트 통화 화면에서 돌아오면 직접 말하기 모드로 복원
                     selectedMode = CallMode.DIRECT
@@ -527,6 +531,10 @@ fun WebRtcInCallScreen(
 
     LaunchedEffect(aiCorrectionAlert) {
         if (aiCorrectionAlert) {
+            if (!isComprehensionAutoAiCorrectionEnabled) {
+                viewModel.consumeComprehensionAlert()
+                return@LaunchedEffect
+            }
             if (connectionState == WebRtcConnectionState.IN_CALL) {
                 callScreenState = CallScreenState.MODE_SELECT
                 if (!isAiCorrectionMode || !isDirectSpeakOverlayOpen) {

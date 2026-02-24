@@ -77,6 +77,9 @@ private fun SettingsContent(
     var isSilenceInterventionTtsEnabled by remember {
         mutableStateOf(SettingsStore.isSilenceInterventionTtsEnabled(context))
     }
+    var isComprehensionAutoAiCorrectionEnabled by remember {
+        mutableStateOf(SettingsStore.isComprehensionAutoAiCorrectionEnabled(context))
+    }
     val scrollState = rememberScrollState()
 
     // 글자 크기 단계에 따른 미리보기 폰트 사이즈 계산
@@ -103,6 +106,10 @@ private fun SettingsContent(
 
     LaunchedEffect(isSilenceInterventionTtsEnabled) {
         SettingsStore.setSilenceInterventionTtsEnabled(context, isSilenceInterventionTtsEnabled)
+    }
+
+    LaunchedEffect(isComprehensionAutoAiCorrectionEnabled) {
+        SettingsStore.setComprehensionAutoAiCorrectionEnabled(context, isComprehensionAutoAiCorrectionEnabled)
     }
 
     Surface(
@@ -307,6 +314,14 @@ private fun SettingsContent(
                     description = "3초 이상 침묵이 유지되거나, 상대방이 되물을 경우 \"잠시만요\"를 상대방에게 전달해요.",
                     checked = isSilenceInterventionTtsEnabled,
                     onCheckedChange = { isSilenceInterventionTtsEnabled = it }
+                )
+                SettingsDivider()
+
+                SettingsToggleRow(
+                    title = "이해실패 AI 보정 자동 전환",
+                    description = "이해 실패 감지 시 AI 보정 모드로 자동 전환해요.",
+                    checked = isComprehensionAutoAiCorrectionEnabled,
+                    onCheckedChange = { isComprehensionAutoAiCorrectionEnabled = it }
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))

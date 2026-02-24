@@ -22,6 +22,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.json.JSONObject
 import org.webrtc.AudioSink
 import org.webrtc.AudioSource
@@ -232,7 +233,9 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 },
                 onComprehension = { payload ->
                     if (payload.status.equals("alert", ignoreCase = true) || payload.enableAiCorrection) {
-                        viewModel.onComprehensionAlert()
+                        if (SettingsStore.isComprehensionAutoAiCorrectionEnabled(context)) {
+                            viewModel.onComprehensionAlert()
+                        }
                         triggerInterventionIfAllowed(
                             source = "comprehension",
                             fallbackSilenceDurationSec = 0.0,
