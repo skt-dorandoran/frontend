@@ -232,7 +232,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                     onLocalSilenceDetected(duration, viewModel)
                 },
                 onComprehension = { payload ->
-                    if (payload.status.equals("alert", ignoreCase = true) || payload.enableAiCorrection) {
+                    if (payload.enableAiCorrection) {
                         if (SettingsStore.isComprehensionAutoAiCorrectionEnabled(context)) {
                             viewModel.onComprehensionAlert()
                         }

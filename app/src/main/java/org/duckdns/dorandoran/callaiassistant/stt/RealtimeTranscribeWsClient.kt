@@ -50,6 +50,8 @@ class RealtimeTranscribeWsClient(
     private var ws: WebSocket? = null
     @Volatile
     private var connected: Boolean = false
+    @Volatile
+    private var hasLoggedAudioRequest: Boolean = false
 
     fun connect() {
         if (ws != null) return
@@ -59,6 +61,7 @@ class RealtimeTranscribeWsClient(
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     connected = true
+                    hasLoggedAudioRequest = false
                     val initPayload = JSONObject().apply {
                         put("sampleRate", TARGET_SAMPLE_RATE)
                         put("callId", callId)
@@ -66,7 +69,9 @@ class RealtimeTranscribeWsClient(
                             put("silenceThreshold", silenceThresholdSeconds)
                         }
                     }
-                    webSocket.send(initPayload.toString())
+                    val initPayloadRaw = initPayload.toString()
+                    Log.d(tag, "Crisis/comprehension request init: $initPayloadRaw")
+                    webSocket.send(initPayloadRaw)
                     Log.d(tag, "STT WS connected: ${NetworkUrlUtil.DORANDORAN_HTTPS_BASE_URL}")
                 }
 
@@ -101,14 +106,24 @@ class RealtimeTranscribeWsClient(
     }
 
     fun disconnect() {
-        ws?.send(JSONObject().put("type", "finalize").toString())
+        val finalizePayload = JSONObject().put("type", "finalize").toString()
+        Log.d(tag, "Crisis/comprehension request finalize: $finalizePayload")
+        ws?.send(finalizePayload)
         ws?.close(1000, "client_close")
         ws = null
         connected = false
+        hasLoggedAudioRequest = false
     }
 
     fun sendPcm16Mono16k(frameBytes: ByteArray) {
         if (frameBytes.isEmpty() || !connected) return
+        if (!hasLoggedAudioRequest) {
+            hasLoggedAudioRequest = true
+            Log.d(
+                tag,
+                "Crisis/comprehension request audio(binary): firstFrameBytes=${frameBytes.size}, sampleRate=$TARGET_SAMPLE_RATE, channels=1, encoding=pcm_s16le"
+            )
+        }
         ws?.send(frameBytes.toByteString())
     }
 
@@ -152,14 +167,17 @@ class RealtimeTranscribeWsClient(
                     )
                 )
                 "silence_detected" -> onSilenceDetected(data.optDouble("silenceDuration", 0.0))
-                "comprehension_check" -> onComprehension(
-                    RealtimeComprehensionPayload(
-                        status = data.optString("status", "ok"),
-                        failureCount = data.optInt("failureCount").takeIf { it >= 0 },
-                        threshold = data.optInt("threshold").takeIf { it >= 0 },
-                        enableAiCorrection = data.optBoolean("enableAiCorrection", false)
+                "comprehension_check" -> {
+                    logComprehensionEvent(data, raw)
+                    onComprehension(
+                        RealtimeComprehensionPayload(
+                            status = data.optString("status", "ok"),
+                            failureCount = data.optInt("failureCount").takeIf { it >= 0 },
+                            threshold = data.optInt("threshold").takeIf { it >= 0 },
+                            enableAiCorrection = data.optBoolean("enableAiCorrection", false)
+                        )
                     )
-                )
+                }
                 "error" -> onError(
                     data.optString("message")
                         .ifBlank { data.optString("text") }
@@ -168,6 +186,7 @@ class RealtimeTranscribeWsClient(
                 else -> {
                     // 일부 이해실패 응답은 type 없이 status만 내려온다.
                     if (status.isNotBlank()) {
+                        logComprehensionEvent(data, raw)
                         onComprehension(
                             RealtimeComprehensionPayload(
                                 status = status,
@@ -182,6 +201,20 @@ class RealtimeTranscribeWsClient(
         } catch (e: Exception) {
             Log.e(tag, "Failed to parse STT WS message: $raw", e)
         }
+    }
+
+    private fun logComprehensionEvent(data: JSONObject, raw: String) {
+        val status = data.optString("status", "ok")
+        val failureCount = data.optInt("failureCount").takeIf { it >= 0 }
+        val threshold = data.optInt("threshold").takeIf { it >= 0 }
+        val enableAiCorrection = data.optBoolean("enableAiCorrection", false)
+        val matchedKeywords = data.optJSONArray("matchedKeywords")?.toString().orEmpty()
+        Log.d(
+            tag,
+            "Crisis/comprehension event: status=$status, failureCount=$failureCount, " +
+                "threshold=$threshold, enableAiCorrection=$enableAiCorrection, " +
+                "matchedKeywords=$matchedKeywords, raw=$raw"
+        )
     }
 
     private fun pcm16BytesToMonoShort(audioData: ByteArray, numberOfChannels: Int): ShortArray {

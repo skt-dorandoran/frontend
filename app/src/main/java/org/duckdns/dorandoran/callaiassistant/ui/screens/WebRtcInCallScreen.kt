@@ -535,13 +535,13 @@ fun WebRtcInCallScreen(
                 viewModel.consumeComprehensionAlert()
                 return@LaunchedEffect
             }
+            if (selectedMode != CallMode.DIRECT) {
+                viewModel.consumeComprehensionAlert()
+                return@LaunchedEffect
+            }
             if (connectionState == WebRtcConnectionState.IN_CALL) {
                 callScreenState = CallScreenState.MODE_SELECT
-                if (!isAiCorrectionMode || !isDirectSpeakOverlayOpen) {
-                    enterAiCorrectionOverlayFresh()
-                }
-            } else {
-                selectedMode = CallMode.AI_CORRECTION
+                enterAiCorrectionOverlayFresh()
             }
             viewModel.consumeComprehensionAlert()
         }
