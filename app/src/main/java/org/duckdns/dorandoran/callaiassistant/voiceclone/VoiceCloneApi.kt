@@ -5,12 +5,12 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
+import org.duckdns.dorandoran.callaiassistant.util.NetworkUrlUtil
 import org.json.JSONObject
 import java.io.File
 
 object VoiceCloneApi {
     private const val TAG = "VoiceCloneApi"
-    private const val BASE_URL = "https://dorandoran.dev"
 
     /**
      * AI 음성 클론 모델 학습 요청
@@ -29,7 +29,7 @@ object VoiceCloneApi {
                 )
                 .build()
             val request = Request.Builder()
-                .url("$BASE_URL/api/v1/voice/clone")
+                .url("${NetworkUrlUtil.DORANDORAN_HTTPS_BASE_URL}/api/v1/voice/clone")
                 .post(requestBody)
                 .build()
             val response = client.newCall(request).execute()
@@ -58,7 +58,7 @@ object VoiceCloneApi {
             json.put("voiceId", voiceId)
             val body = okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), json.toString())
             val request = Request.Builder()
-                .url("$BASE_URL/api/v1/voice/$voiceId")
+                .url("${NetworkUrlUtil.DORANDORAN_HTTPS_BASE_URL}/api/v1/voice/$voiceId")
                 .delete(body)
                 .build()
             val response = client.newCall(request).execute()

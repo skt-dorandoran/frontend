@@ -8,6 +8,7 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
+import org.duckdns.dorandoran.callaiassistant.util.NetworkUrlUtil
 import org.json.JSONObject
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -40,8 +41,7 @@ class RealtimeTranscribeWsClient(
     private val onError: (String) -> Unit = {}
 ) {
     companion object {
-        private const val BASE_URL = "https://dorandoran.dev"
-        private const val WS_URL = "wss://dorandoran.dev/api/v1/speech/transcribe/ws"
+        private const val WS_URL = "${NetworkUrlUtil.DORANDORAN_WSS_BASE_URL}/api/v1/speech/transcribe/ws"
         private const val TARGET_SAMPLE_RATE = 16000
     }
 
@@ -67,7 +67,7 @@ class RealtimeTranscribeWsClient(
                         }
                     }
                     webSocket.send(initPayload.toString())
-                    Log.d(tag, "STT WS connected: $BASE_URL")
+                    Log.d(tag, "STT WS connected: ${NetworkUrlUtil.DORANDORAN_HTTPS_BASE_URL}")
                 }
 
                 override fun onMessage(webSocket: WebSocket, text: String) {

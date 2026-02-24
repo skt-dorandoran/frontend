@@ -8,13 +8,13 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
+import org.duckdns.dorandoran.callaiassistant.util.NetworkUrlUtil
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.TimeUnit
 
 object RemoteSttApi {
     private const val TAG = "RemoteSttApi"
-    private const val WHISPER_X_BASE_URL = "http://10.0.234.18:8000"
 
     /**
      * WhisperX STT API 호출 (wav 파일 업로드)
@@ -23,7 +23,7 @@ object RemoteSttApi {
      */
     suspend fun recognize(file: File): String? = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "recognize request start: url=$WHISPER_X_BASE_URL/transcribe, file=${file.absolutePath}, size=${file.length()}")
+            Log.d(TAG, "recognize request start: url=${NetworkUrlUtil.WHISPER_X_HTTP_BASE_URL}/transcribe, file=${file.absolutePath}, size=${file.length()}")
             val client = OkHttpClient.Builder()
                 .connectTimeout(3, TimeUnit.SECONDS)
                 .readTimeout(6, TimeUnit.SECONDS)
@@ -33,7 +33,7 @@ object RemoteSttApi {
                 .addFormDataPart("file", file.name, file.asRequestBody("audio/wav".toMediaTypeOrNull()))
                 .build()
             val request = Request.Builder()
-                .url("$WHISPER_X_BASE_URL/transcribe")
+                .url("${NetworkUrlUtil.WHISPER_X_HTTP_BASE_URL}/transcribe")
                 .post(requestBody)
                 .build()
             client.newCall(request).execute().use { response ->

@@ -8,6 +8,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ConversationHistoryItem
+import org.duckdns.dorandoran.callaiassistant.util.NetworkUrlUtil
 import org.json.JSONArray
 import org.json.JSONObject
 import okio.Buffer
@@ -26,7 +27,6 @@ data class AiSuggestionResponse(
 
 object AiSuggestionApi {
     private const val TAG = "AiSuggestionApi"
-    private const val BASE_URL = "https://dorandoran.dev"
 
     suspend fun generateResponse(
         callId: String,
@@ -53,7 +53,7 @@ object AiSuggestionApi {
             }
             val body = payload.toString().toRequestBody("application/json".toMediaTypeOrNull())
             val request = Request.Builder()
-                .url("$BASE_URL/api/v1/ai/generate-response")
+                .url("${NetworkUrlUtil.DORANDORAN_HTTPS_BASE_URL}/api/v1/ai/generate-response")
                 .post(body)
                 .build()
             val streamed = StringBuilder()
