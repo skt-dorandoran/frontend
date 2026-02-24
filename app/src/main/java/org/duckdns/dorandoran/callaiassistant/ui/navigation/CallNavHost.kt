@@ -35,6 +35,7 @@ fun CallNavHost(
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
     onLocalAudioTransmissionToggle: (Boolean) -> Unit = {},
+    onDirectModeProximityActiveChanged: (Boolean) -> Unit = {},
     enableIntroPromptPlayback: Boolean = true,
     navController: NavHostController = rememberNavController(),
     callViewModel: CallViewModel = viewModel()
@@ -100,6 +101,7 @@ fun CallNavHost(
                 onEndCall = onEndCall,
                 onSpeakerphoneToggle = onSpeakerphoneToggle,
                 onLocalAudioTransmissionToggle = onLocalAudioTransmissionToggle,
+                onDirectModeProximityActiveChanged = onDirectModeProximityActiveChanged,
                 webRtcManager = webRtcManager,
                 enableIntroPromptPlayback = enableIntroPromptPlayback,
                 navController = navController,

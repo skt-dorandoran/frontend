@@ -192,6 +192,7 @@ fun WebRtcInCallScreen(
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
     onLocalAudioTransmissionToggle: (Boolean) -> Unit = {},
+    onDirectModeProximityActiveChanged: (Boolean) -> Unit = {},
     webRtcManager: WebRtcManager,
     enableIntroPromptPlayback: Boolean = true,
     navController: NavController? = null,
@@ -582,11 +583,18 @@ fun WebRtcInCallScreen(
         }
     }
 
+    LaunchedEffect(selectedMode, connectionState) {
+        val shouldEnableProximity = selectedMode == CallMode.DIRECT &&
+            connectionState == WebRtcConnectionState.IN_CALL
+        onDirectModeProximityActiveChanged(shouldEnableProximity)
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             viewModel.stopAiCorrectionRecording()
             clearAiCorrectionProbeWav()
             onLocalAudioTransmissionToggle(true)
+            onDirectModeProximityActiveChanged(false)
             viewModel.dismissSilenceIntervention()
         }
     }
