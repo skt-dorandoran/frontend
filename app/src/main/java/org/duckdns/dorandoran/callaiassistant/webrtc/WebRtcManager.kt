@@ -22,6 +22,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import org.duckdns.dorandoran.callaiassistant.SettingsStore
 import org.json.JSONObject
 import org.webrtc.AudioSink
 import org.webrtc.AudioSource
@@ -120,6 +121,12 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     @Volatile
     private var localEchoGuardHoldUntilMs: Long = 0L
     @Volatile
+    private var localTxUserEnabled: Boolean = true
+    @Volatile
+    private var localTxEchoSuppressed: Boolean = false
+    @Volatile
+    private var localTxEchoSuppressHoldUntilMs: Long = 0L
+    @Volatile
     private var textCallModeActive: Boolean = false
 
     private var peerConnectionFactory: PeerConnectionFactory? = null
@@ -168,6 +175,18 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 },
                 onSilenceDetected = { duration ->
                     onRemoteSilenceDetected(duration, viewModel)
+                },
+                onComprehension = { payload ->
+                    if (payload.enableAiCorrection) {
+                        if (SettingsStore.isComprehensionAutoAiCorrectionEnabled(context)) {
+                            viewModel.onComprehensionAlert()
+                        }
+                        triggerInterventionIfAllowed(
+                            source = "comprehension",
+                            fallbackSilenceDurationSec = 0.0,
+                            viewModel = viewModel
+                        )
+                    }
                 },
                 onError = { err -> Log.e(TAG, "Remote STT error: $err") }
             )
@@ -224,16 +243,6 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 onSilenceDetected = { duration ->
                     onLocalSilenceDetected(duration, viewModel)
                 },
-                onComprehension = { payload ->
-                    if (payload.status.equals("alert", ignoreCase = true) || payload.enableAiCorrection) {
-                        viewModel.onComprehensionAlert()
-                        triggerInterventionIfAllowed(
-                            source = "comprehension",
-                            fallbackSilenceDurationSec = 0.0,
-                            viewModel = viewModel
-                        )
-                    }
-                },
                 onError = { err -> Log.e(TAG, "Local STT error: $err") }
             )
             sttClient.connect()
@@ -271,6 +280,9 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         localEchoGuardGain = 1f
         localEchoGuardActive = false
         localEchoGuardHoldUntilMs = 0L
+        localTxEchoSuppressed = false
+        localTxEchoSuppressHoldUntilMs = 0L
+        applyLocalAudioTrackEnabled()
         localSilenceDetectedAtMs = 0L
         localLastSilenceDurationSec = 0.0
         interventionSuppressedUntilMs = 0L
@@ -449,8 +461,14 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
     }
 
     fun setLocalAudioTransmissionEnabled(enabled: Boolean) {
-        localAudioTrack?.setEnabled(enabled)
-        log("Local audio transmission ${if (enabled) "enabled" else "muted"}")
+        localTxUserEnabled = enabled
+        applyLocalAudioTrackEnabled()
+        log("Local audio transmission user=${if (enabled) "enabled" else "muted"}")
+    }
+
+    private fun applyLocalAudioTrackEnabled() {
+        val shouldEnable = localTxUserEnabled && !localTxEchoSuppressed
+        localAudioTrack?.setEnabled(shouldEnable)
     }
 
     fun setSpeakerphoneHint(enabled: Boolean) {
@@ -584,12 +602,24 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
                 if (textCallModeActive && remoteSpeakingNow) {
                     hardBlockEchoFrame = true
                 }
+                localTxEchoSuppressHoldUntilMs = now + 280L
+                if (!localTxEchoSuppressed) {
+                    localTxEchoSuppressed = true
+                    applyLocalAudioTrackEnabled()
+                    log("Local uplink temporarily suppressed (echo-loop guard)")
+                }
             } else if (now > localEchoGuardHoldUntilMs) {
                 localEchoGuardActive = false
             }
         } else {
             localEchoGuardActive = false
             localEchoGuardHoldUntilMs = 0L
+        }
+
+        if (localTxEchoSuppressed && now > localTxEchoSuppressHoldUntilMs) {
+            localTxEchoSuppressed = false
+            applyLocalAudioTrackEnabled()
+            log("Local uplink restored (echo-loop guard)")
         }
 
         if (hardBlockEchoFrame) {
@@ -935,7 +965,7 @@ class WebRtcManager(private val context: Context, private val signalingManager: 
         }
         audioSource = factory.createAudioSource(constraints)
         localAudioTrack = factory.createAudioTrack("audio0", audioSource)
-        localAudioTrack?.setEnabled(true)
+        applyLocalAudioTrackEnabled()
         log("Local audio track created: enabled=${localAudioTrack?.enabled()}")
 
         peerConnection = factory.createPeerConnection(rtcConfig, object : PeerConnection.Observer {

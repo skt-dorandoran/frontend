@@ -9,13 +9,13 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.duckdns.dorandoran.callaiassistant.util.NetworkUrlUtil
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 
 object VoiceCloneTtsApi {
     private const val TAG = "VoiceCloneTtsApi"
-    private const val BASE_URL = "https://dorandoran.dev"
 
     /**
      * 음성 클론 TTS API 호출 및 WAV 파일 저장 후 경로 반환
@@ -37,7 +37,7 @@ object VoiceCloneTtsApi {
             }
             val body = json.toString().toRequestBody("application/json".toMediaTypeOrNull())
             val request = Request.Builder()
-                .url("$BASE_URL/api/v1/ai/synthesize-response")
+                .url("${NetworkUrlUtil.DORANDORAN_HTTPS_BASE_URL}/api/v1/ai/synthesize-response")
                 .post(body)
                 .build()
             val response = client.newCall(request).execute()

@@ -192,6 +192,7 @@ fun WebRtcInCallScreen(
     onEndCall: () -> Unit,
     onSpeakerphoneToggle: (Boolean) -> Unit = {},
     onLocalAudioTransmissionToggle: (Boolean) -> Unit = {},
+    onDirectModeProximityActiveChanged: (Boolean) -> Unit = {},
     webRtcManager: WebRtcManager,
     enableIntroPromptPlayback: Boolean = true,
     navController: NavController? = null,
@@ -241,6 +242,9 @@ fun WebRtcInCallScreen(
     val introPromptEnabled = SettingsStore.isCallIntroPromptEnabled(context)
     var isSilenceInterventionTtsEnabled by remember {
         mutableStateOf(SettingsStore.isSilenceInterventionTtsEnabled(context))
+    }
+    var isComprehensionAutoAiCorrectionEnabled by remember {
+        mutableStateOf(SettingsStore.isComprehensionAutoAiCorrectionEnabled(context))
     }
     val introPromptStyle = SettingsStore.getCallIntroPromptStyle(context)
     val introPromptCustom = SettingsStore.getCallIntroPromptCustom(context)
@@ -433,6 +437,7 @@ fun WebRtcInCallScreen(
                 syncSpeakerphoneUiState()
                 isTextModeNavigationInProgress = false
                 isSilenceInterventionTtsEnabled = SettingsStore.isSilenceInterventionTtsEnabled(context)
+                isComprehensionAutoAiCorrectionEnabled = SettingsStore.isComprehensionAutoAiCorrectionEnabled(context)
                 if (selectedMode == CallMode.TEXT) {
                     // 텍스트 통화 화면에서 돌아오면 직접 말하기 모드로 복원
                     selectedMode = CallMode.DIRECT
@@ -526,7 +531,18 @@ fun WebRtcInCallScreen(
 
     LaunchedEffect(aiCorrectionAlert) {
         if (aiCorrectionAlert) {
-            selectedMode = CallMode.AI_CORRECTION
+            if (!isComprehensionAutoAiCorrectionEnabled) {
+                viewModel.consumeComprehensionAlert()
+                return@LaunchedEffect
+            }
+            if (selectedMode != CallMode.DIRECT) {
+                viewModel.consumeComprehensionAlert()
+                return@LaunchedEffect
+            }
+            if (connectionState == WebRtcConnectionState.IN_CALL) {
+                callScreenState = CallScreenState.MODE_SELECT
+                enterAiCorrectionOverlayFresh()
+            }
             viewModel.consumeComprehensionAlert()
         }
     }
@@ -582,11 +598,18 @@ fun WebRtcInCallScreen(
         }
     }
 
+    LaunchedEffect(selectedMode, connectionState) {
+        val shouldEnableProximity = selectedMode == CallMode.DIRECT &&
+            connectionState == WebRtcConnectionState.IN_CALL
+        onDirectModeProximityActiveChanged(shouldEnableProximity)
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             viewModel.stopAiCorrectionRecording()
             clearAiCorrectionProbeWav()
             onLocalAudioTransmissionToggle(true)
+            onDirectModeProximityActiveChanged(false)
             viewModel.dismissSilenceIntervention()
         }
     }

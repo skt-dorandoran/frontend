@@ -8,6 +8,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.duckdns.dorandoran.callaiassistant.ui.viewmodel.ConversationHistoryItem
+import org.duckdns.dorandoran.callaiassistant.util.NetworkUrlUtil
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -23,7 +24,6 @@ data class AiSpeechCorrectionResponse(
 
 object AiSpeechCorrectionApi {
     private const val TAG = "AiSpeechCorrectionApi"
-    private const val BASE_URL = "https://dorandoran.dev"
 
     suspend fun correctSpeech(
         callId: String,
@@ -51,7 +51,7 @@ object AiSpeechCorrectionApi {
             }
             val body = payload.toString().toRequestBody("application/json".toMediaTypeOrNull())
             val request = Request.Builder()
-                .url("$BASE_URL/api/v1/ai/correct-speech")
+                .url("${NetworkUrlUtil.DORANDORAN_HTTPS_BASE_URL}/api/v1/ai/correct-speech")
                 .post(body)
                 .build()
 

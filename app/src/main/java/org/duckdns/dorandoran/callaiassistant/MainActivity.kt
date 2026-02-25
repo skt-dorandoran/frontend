@@ -6,6 +6,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
@@ -14,6 +18,10 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
+import android.util.Log
+import android.view.View
+import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -111,6 +119,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_AUTO_CALL = "extra_auto_call"
+        private const val TAG = "MainActivity"
     }
 
     private val corePermissions: Array<String>
@@ -163,6 +172,17 @@ class MainActivity : ComponentActivity() {
     private var onboardingCompleted by mutableStateOf(false)
     private var showMissingPermissionsWarning by mutableStateOf(false)
     private var onboardingPermissionPending by mutableStateOf(false)
+    private var callUiActive: Boolean = false
+    private var proximityScreenOffEnabled: Boolean = false
+    private var proximityWakeLock: PowerManager.WakeLock? = null
+    private var proximitySensorManager: SensorManager? = null
+    private var proximitySensor: Sensor? = null
+    private var proximitySensorListener: SensorEventListener? = null
+    private var proximityFallbackActive: Boolean = false
+    private var screenTemporarilyDimmedByProximity: Boolean = false
+    private var defaultScreenBrightness: Float? = null
+    private var proximityBlackoutView: View? = null
+    private var proximityLastNear: Boolean? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -356,6 +376,26 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        refreshProximityControl()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        stopProximitySensorFallback()
+        restoreScreenAfterProximityFallback()
+        releaseProximityWakeLock()
+    }
+
+    override fun onDestroy() {
+        stopProximitySensorFallback()
+        restoreScreenAfterProximityFallback()
+        releaseProximityWakeLock()
+        removeProximityBlackoutView()
+        super.onDestroy()
+    }
+
     private fun ensureUnrestrictedBatteryUsage() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
 
@@ -428,6 +468,205 @@ class MainActivity : ComponentActivity() {
             return
         }
         SettingsStore.ensureMyPhoneNumberDefault(this, getDevicePhoneNumber(this))
+    }
+
+    fun setCallUiActive(active: Boolean) {
+        if (callUiActive == active) return
+        callUiActive = active
+        if (!active) {
+            proximityScreenOffEnabled = false
+        }
+        refreshProximityControl()
+    }
+
+    fun setProximityScreenOffEnabled(enabled: Boolean) {
+        if (proximityScreenOffEnabled == enabled) return
+        proximityScreenOffEnabled = enabled
+        Log.d(TAG, "Proximity mode changed: enabled=$enabled")
+        refreshProximityControl()
+    }
+
+    private fun refreshProximityControl() {
+        if (!callUiActive) {
+            stopProximitySensorFallback()
+            restoreScreenAfterProximityFallback()
+            releaseProximityWakeLock()
+            setKeepScreenOnEnabled(false)
+            return
+        }
+
+        if (proximityScreenOffEnabled) {
+            setKeepScreenOnEnabled(false)
+            acquireProximityWakeLock()
+            startProximitySensorFallback()
+        } else {
+            stopProximitySensorFallback()
+            restoreScreenAfterProximityFallback()
+            releaseProximityWakeLock()
+            setKeepScreenOnEnabled(true)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun acquireProximityWakeLock(): Boolean {
+        try {
+            val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+            if (!powerManager.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+                Log.w(TAG, "PROXIMITY_SCREEN_OFF_WAKE_LOCK is not supported on this device")
+                return false
+            }
+            val wakeLock = proximityWakeLock ?: run {
+                powerManager.newWakeLock(
+                    PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK,
+                    "$packageName:MainProximity"
+                ).also { proximityWakeLock = it }
+            }
+            if (!wakeLock.isHeld) {
+                wakeLock.acquire()
+                Log.d(TAG, "Proximity screen-off enabled")
+            }
+            return true
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to enable proximity screen-off: ${t.message}")
+            return false
+        }
+    }
+
+    private fun releaseProximityWakeLock() {
+        try {
+            val wakeLock = proximityWakeLock ?: return
+            if (wakeLock.isHeld) {
+                wakeLock.release()
+                Log.d(TAG, "Proximity screen-off disabled")
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to disable proximity screen-off: ${t.message}")
+        }
+    }
+
+    private fun setKeepScreenOnEnabled(enabled: Boolean) {
+        if (enabled) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    private fun startProximitySensorFallback() {
+        if (proximityFallbackActive) return
+        val sensorManager = proximitySensorManager ?: run {
+            (getSystemService(SENSOR_SERVICE) as? SensorManager)?.also { proximitySensorManager = it }
+        } ?: run {
+            Log.w(TAG, "No SensorManager available for proximity fallback")
+            return
+        }
+
+        val sensor = proximitySensor ?: run {
+            sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)?.also { proximitySensor = it }
+        } ?: run {
+            Log.w(TAG, "No proximity sensor available for fallback")
+            return
+        }
+
+        val listener = proximitySensorListener ?: object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                val value = event.values.firstOrNull() ?: return
+                val nearThreshold = minOf(5f, sensor.maximumRange)
+                val isNear = value < nearThreshold
+                if (proximityLastNear != isNear) {
+                    proximityLastNear = isNear
+                    Log.d(TAG, "Proximity sensor changed: value=$value, near=$isNear, threshold=$nearThreshold")
+                }
+                applyProximityFallbackScreenState(isNear)
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+        }.also { proximitySensorListener = it }
+
+        val registered = sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+        proximityFallbackActive = registered
+        if (registered) {
+            Log.d(TAG, "Proximity fallback sensor listener started")
+        } else {
+            Log.w(TAG, "Failed to register proximity fallback sensor listener")
+        }
+    }
+
+    private fun stopProximitySensorFallback() {
+        if (!proximityFallbackActive) return
+        val sensorManager = proximitySensorManager ?: return
+        val listener = proximitySensorListener ?: return
+        sensorManager.unregisterListener(listener)
+        proximityFallbackActive = false
+        proximityLastNear = null
+        Log.d(TAG, "Proximity fallback sensor listener stopped")
+    }
+
+    private fun applyProximityFallbackScreenState(isNear: Boolean) {
+        if (isNear) {
+            if (screenTemporarilyDimmedByProximity) return
+            val lp = window.attributes
+            if (defaultScreenBrightness == null) {
+                defaultScreenBrightness = lp.screenBrightness
+            }
+            lp.screenBrightness = 0f
+            window.attributes = lp
+            window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
+            showProximityBlackoutView()
+            screenTemporarilyDimmedByProximity = true
+            Log.d(TAG, "Proximity fallback: screen dimmed")
+        } else {
+            restoreScreenAfterProximityFallback()
+        }
+    }
+
+    private fun restoreScreenAfterProximityFallback() {
+        if (!screenTemporarilyDimmedByProximity) return
+        val lp = window.attributes
+        lp.screenBrightness = defaultScreenBrightness ?: WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+        window.attributes = lp
+        window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
+        hideProximityBlackoutView()
+        defaultScreenBrightness = null
+        screenTemporarilyDimmedByProximity = false
+        Log.d(TAG, "Proximity fallback: screen restored")
+    }
+
+    private fun ensureProximityBlackoutView(): View {
+        proximityBlackoutView?.let { return it }
+        val view = View(this).apply {
+            setBackgroundColor(android.graphics.Color.BLACK)
+            visibility = View.GONE
+            isClickable = true
+            isFocusable = true
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        }
+        val decor = window.decorView as? FrameLayout
+        decor?.addView(
+            view,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+        proximityBlackoutView = view
+        return view
+    }
+
+    private fun showProximityBlackoutView() {
+        val view = ensureProximityBlackoutView()
+        view.visibility = View.VISIBLE
+        view.bringToFront()
+    }
+
+    private fun hideProximityBlackoutView() {
+        proximityBlackoutView?.visibility = View.GONE
+    }
+
+    private fun removeProximityBlackoutView() {
+        val view = proximityBlackoutView ?: return
+        (window.decorView as? FrameLayout)?.removeView(view)
+        proximityBlackoutView = null
     }
 }
 
@@ -567,14 +806,15 @@ private fun PhoneAppContent(
     // 통화 중(발신/수신)이면 수신 화면보다 통화 화면 우선
     if (showWebRtcCall) {
         DisposableEffect(Unit) {
-            activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            activity.setCallUiActive(true)
             WindowCompat.setDecorFitsSystemWindows(activity.window, false)
             WindowInsetsControllerCompat(activity.window, activity.window.decorView).apply {
                 hide(WindowInsetsCompat.Type.navigationBars())
                 systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
             onDispose {
-                activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                activity.setProximityScreenOffEnabled(false)
+                activity.setCallUiActive(false)
                 WindowInsetsControllerCompat(activity.window, activity.window.decorView).show(WindowInsetsCompat.Type.navigationBars())
                 WindowCompat.setDecorFitsSystemWindows(activity.window, true)
             }
@@ -626,6 +866,9 @@ private fun PhoneAppContent(
                     bannerMessage = "통화가 종료되었습니다"
                     bannerLocked = true
                 }
+            },
+            onDirectModeProximityActiveChanged = { enabled ->
+                activity.setProximityScreenOffEnabled(enabled)
             }
         )
         return
@@ -836,7 +1079,8 @@ private fun WebRtcCallContent(
     ringbackToneHelper: RingbackToneHelper,
     onCallRejected: () -> Unit,
     onEndCall: () -> Unit,
-    onRemoteDisconnected: () -> Unit
+    onRemoteDisconnected: () -> Unit,
+    onDirectModeProximityActiveChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val callViewModel: CallViewModel = viewModel()
@@ -1013,6 +1257,7 @@ private fun WebRtcCallContent(
         onLocalAudioTransmissionToggle = { enabled ->
             webRtcManager.setLocalAudioTransmissionEnabled(enabled)
         },
+        onDirectModeProximityActiveChanged = onDirectModeProximityActiveChanged,
         enableIntroPromptPlayback = false,
         callViewModel = callViewModel
     )

@@ -51,6 +51,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import org.duckdns.dorandoran.callaiassistant.ui.theme.CallaiassistantTheme
+import org.duckdns.dorandoran.callaiassistant.util.extractPhoneDigits
+import org.duckdns.dorandoran.callaiassistant.util.formatPhoneNumberByRule
 
 class MyPhoneNumberActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -165,7 +167,7 @@ private fun MyPhoneNumberContent(onBack: () -> Unit) {
                         editText.textSize = 16f
                         editText.addTextChangedListener(object : TextWatcher {
                             override fun afterTextChanged(s: Editable?) {
-                                val digitsOnly = s?.toString()?.filter { it.isDigit() }.orEmpty()
+                                val digitsOnly = extractPhoneDigits(s?.toString().orEmpty())
                                 if (digitsOnly != inputNumber) {
                                     inputNumber = digitsOnly
                                 }
@@ -273,13 +275,9 @@ private fun getDevicePhoneNumber(context: android.content.Context): String {
 }
 
 private fun formatPhoneNumberForInput(number: String): String {
-    val digits = number.filter { it.isDigit() }
+    val digits = extractPhoneDigits(number)
     if (digits.isEmpty()) {
         return ""
     }
-    return when {
-        digits.length <= 3 -> digits
-        digits.length <= 7 -> "${digits.take(3)}-${digits.drop(3)}"
-        else -> "${digits.take(3)}-${digits.drop(3).take(4)}-${digits.drop(7).take(4)}"
-    }
+    return formatPhoneNumberByRule(digits)
 }

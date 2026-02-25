@@ -1,7 +1,11 @@
 package org.duckdns.dorandoran.callaiassistant.util
 
+fun extractPhoneDigits(input: String): String {
+    return input.replace(Regex("[^0-9]"), "")
+}
+
 fun formatPhoneNumberByRule(input: String): String {
-    val digits = input.replace(Regex("[^0-9]"), "")
+    val digits = extractPhoneDigits(input)
     if (digits.isBlank()) return input
 
     if (digits.startsWith("82")) {
