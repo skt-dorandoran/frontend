@@ -209,6 +209,7 @@ fun WebRtcInCallScreen(
     var aiCorrectionOverlayState by remember { mutableStateOf(AiCorrectionOverlayState.RECORDING) }
     var aiCorrectionProbeWavFile by remember { mutableStateOf<File?>(null) }
     var isAiCorrectionTranscribing by remember { mutableStateOf(false) }
+    var showAutoAiCorrectionHint by remember { mutableStateOf(false) }
     val textModeLastMyBubble by viewModel.textModeLastMyBubble.collectAsState()
     val textModeLastRemoteBubble by viewModel.textModeLastRemoteBubble.collectAsState()
     val remoteAudioLevel by webRtcManager.remoteAudioLevel.collectAsState()
@@ -542,9 +543,16 @@ fun WebRtcInCallScreen(
             if (connectionState == WebRtcConnectionState.IN_CALL) {
                 callScreenState = CallScreenState.MODE_SELECT
                 enterAiCorrectionOverlayFresh()
+                showAutoAiCorrectionHint = true
             }
             viewModel.consumeComprehensionAlert()
         }
+    }
+
+    LaunchedEffect(showAutoAiCorrectionHint) {
+        if (!showAutoAiCorrectionHint) return@LaunchedEffect
+        delay(2200)
+        showAutoAiCorrectionHint = false
     }
 
     LaunchedEffect(silenceIntervention.eventId, connectionState, isSilenceInterventionTtsEnabled, isRemoteSpeaking) {
@@ -711,16 +719,53 @@ fun WebRtcInCallScreen(
                                     textScale = textScale
                                 )
                             } else {
-                                Text(
-                                    text = lastRemoteTypedMessageText,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontSize = (MaterialTheme.typography.bodyMedium.fontSize.value * textScale * 1.4f).sp
-                                    ),
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onBackground,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .wrapContentHeight(),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = lastRemoteTypedMessageText,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontSize = (MaterialTheme.typography.bodyMedium.fontSize.value * textScale * 1.4f).sp
+                                        ),
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onBackground,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    if (showAutoAiCorrectionHint) {
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(999.dp))
+                                                .background(Color(0xFFEFF2FF))
+                                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.ic_shining_ai),
+                                                    contentDescription = null,
+                                                    tint = Color.Unspecified,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                                Text(
+                                                    text = "원활한 소통을 위해 AI 보정 모드로 전환했습니다",
+                                                    style = MaterialTheme.typography.labelMedium.copy(
+                                                        fontSize = 12.sp * textScale,
+                                                        fontWeight = FontWeight.Medium
+                                                    ),
+                                                    color = Color(0xFF73777F),
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     } else {
